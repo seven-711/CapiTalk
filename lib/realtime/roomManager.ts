@@ -1,12 +1,14 @@
 'use client';
 
 import { ChatMessage, UserProfile } from '../types';
+import { supabase, isSupabaseConfigured } from '../supabase/client';
 
 export type MessageCallback = (message: ChatMessage) => void;
 export type TypingCallback = (isTyping: boolean) => void;
 export type SkipCallback = () => void;
 
-const MSG_STORAGE_PREFIX = 'capitalk_msgs_v3_';
+const MSG_STORAGE_PREFIX = 'capitalk_msgs_v4_';
+const SIGNAL_STORAGE_PREFIX = 'capitalk_signal_v4_';
 
 class RoomManager {
   private currentRoomId: string | null = null;
@@ -14,15 +16,20 @@ class RoomManager {
   private currentPartnerId: string | null = null;
   private knownMsgIds: Set<string> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
+  private supabaseChannel: any = null;
+  private storageListener: ((e: StorageEvent) => void) | null = null;
 
   private messageCallbacks: Set<MessageCallback> = new Set();
   private typingCallbacks: Set<TypingCallback> = new Set();
   private skipCallbacks: Set<SkipCallback> = new Set();
 
   private getSocket(): WebSocket | null {
-    // Dynamically import matchmakingEngine to get active WS
-    const { matchmakingEngine } = require('./matchmakingEngine');
-    return matchmakingEngine.getWebSocket();
+    try {
+      const { matchmakingEngine } = require('./matchmakingEngine');
+      return matchmakingEngine.getWebSocket();
+    } catch (e) {
+      return null;
+    }
   }
 
   public joinRoom(
@@ -42,12 +49,61 @@ class RoomManager {
     this.typingCallbacks.add(onTyping);
     this.skipCallbacks.add(onSkip);
 
-    // Load persisted messages from localStorage
+    // 1. Load initial persisted messages from localStorage
     this.loadPersistedMessages();
 
-    // Start 500ms sync interval so fresh localStorage writes are picked up
+    // 2. Poll storage every 500ms for fallback tab/browser sync
     this.syncInterval = setInterval(() => this.loadPersistedMessages(), 500);
 
+    // 3. Storage event listener for instant cross-tab/browser sync
+    if (typeof window !== 'undefined') {
+      this.storageListener = (e: StorageEvent) => {
+        if (e.key === MSG_STORAGE_PREFIX + roomId) {
+          this.loadPersistedMessages();
+        } else if (e.key === SIGNAL_STORAGE_PREFIX + roomId && e.newValue) {
+          try {
+            const signal = JSON.parse(e.newValue);
+            if (signal.senderId !== user.id) {
+              if (signal.type === 'TYPING') {
+                this.typingCallbacks.forEach((cb) => cb(signal.isTyping));
+              } else if (signal.type === 'SKIP') {
+                this.skipCallbacks.forEach((cb) => cb());
+              }
+            }
+          } catch (err) {}
+        }
+      };
+      window.addEventListener('storage', this.storageListener);
+    }
+
+    // 4. Connect to Supabase Realtime channel if configured (Netlify/Vercel production)
+    if (isSupabaseConfigured && supabase) {
+      try {
+        this.supabaseChannel = supabase.channel(`capitalk:room:${roomId}`);
+        this.supabaseChannel
+          .on('broadcast', { event: 'chat_message' }, ({ payload }: { payload: ChatMessage }) => {
+            if (payload && payload.sender_id !== user.id) {
+              this.persistMessage(payload);
+              this.dispatchMessage(payload);
+            }
+          })
+          .on('broadcast', { event: 'typing' }, ({ payload }: { payload: { senderId: string; isTyping: boolean } }) => {
+            if (payload && payload.senderId !== user.id) {
+              this.typingCallbacks.forEach((cb) => cb(payload.isTyping));
+            }
+          })
+          .on('broadcast', { event: 'skip' }, ({ payload }: { payload: { senderId: string } }) => {
+            if (payload && payload.senderId !== user.id) {
+              this.skipCallbacks.forEach((cb) => cb());
+            }
+          })
+          .subscribe();
+      } catch (e) {
+        console.warn('[RoomManager] Supabase Realtime channel error', e);
+      }
+    }
+
+    // 5. Connect to WebSocket server if available
     const ws = this.getSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -90,6 +146,7 @@ class RoomManager {
     this.persistMessage(msg);
     this.knownMsgIds.add(msg.id);
 
+    // Broadcast 1: WebSocket server
     const ws = this.getSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -98,10 +155,30 @@ class RoomManager {
         message: msg,
       }));
     }
+
+    // Broadcast 2: Supabase Realtime (for Netlify/Vercel production)
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'chat_message',
+          payload: msg,
+        });
+      } catch (e) {}
+    }
   }
 
   public sendTypingSignal(isTyping: boolean) {
     if (!this.currentRoomId) return;
+
+    const signal = { type: 'TYPING', isTyping, senderId: this.currentUserId, t: Date.now() };
+
+    // Broadcast 1: LocalStorage signal
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify(signal));
+    }
+
+    // Broadcast 2: WebSocket server
     const ws = this.getSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -110,16 +187,47 @@ class RoomManager {
         isTyping,
       }));
     }
+
+    // Broadcast 3: Supabase Realtime
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { senderId: this.currentUserId, isTyping },
+        });
+      } catch (e) {}
+    }
   }
 
   public sendSkipSignal() {
     if (!this.currentRoomId) return;
+
+    const signal = { type: 'SKIP', senderId: this.currentUserId, t: Date.now() };
+
+    // Broadcast 1: LocalStorage signal
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify(signal));
+    }
+
+    // Broadcast 2: WebSocket server
     const ws = this.getSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'SKIP',
         roomId: this.currentRoomId,
       }));
+    }
+
+    // Broadcast 3: Supabase Realtime
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'skip',
+          payload: { senderId: this.currentUserId },
+        });
+      } catch (e) {}
     }
   }
 
@@ -134,9 +242,7 @@ class RoomManager {
         const trimmed = msgs.slice(-200);
         localStorage.setItem(key, JSON.stringify(trimmed));
       }
-    } catch (e) {
-      console.error('[RoomManager] Error persisting message', e);
-    }
+    } catch (e) {}
   }
 
   private loadPersistedMessages() {
@@ -147,9 +253,7 @@ class RoomManager {
       if (!raw) return;
       const msgs: ChatMessage[] = JSON.parse(raw);
       msgs.forEach((msg) => this.dispatchMessage(msg));
-    } catch (e) {
-      console.error('[RoomManager] Error loading persisted messages', e);
-    }
+    } catch (e) {}
   }
 
   private dispatchMessage(msg: ChatMessage) {
@@ -163,9 +267,21 @@ class RoomManager {
   }
 
   public leaveRoom() {
+    if (typeof window !== 'undefined' && this.storageListener) {
+      window.removeEventListener('storage', this.storageListener);
+      this.storageListener = null;
+    }
+
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
+    }
+
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.unsubscribe();
+      } catch (e) {}
+      this.supabaseChannel = null;
     }
 
     this.messageCallbacks.clear();
