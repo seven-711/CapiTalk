@@ -1,37 +1,152 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CapiTalk 🪙
+
+**The anonymous, real-time campus chat built exclusively for Capitol University students.**
+
+Connect with fellow CU students across departments — instantly and anonymously. Whether you want to meet someone from Engineering, Nursing, Business Admin, or Computer Studies, CapiTalk pairs you with a random student for a live one-on-one conversation.
+
+---
+
+## What is CapiTalk?
+
+CapiTalk is a school-exclusive random chat platform inspired by the concept of Omegle, but purpose-built for the Capitol University student community. No real names, no student IDs — just your chosen username, your department, and a conversation waiting to happen.
+
+### Key Features
+
+- 🔀 **Random Matchmaking** — Get paired instantly with another CU student via a real-time WebSocket server
+- 🏫 **Department Filtering** — Match with students from the same department, a different one, or anyone at all
+- 💬 **Live Chat** — Real-time messaging with typing indicators, emoji reactions, image sharing, and reply threads
+- 🖼️ **Image Compression Pipeline** — Images are compressed client-side to lightweight WebP before sending
+- 🔒 **Privacy-First** — No real names or student IDs are ever shared. Chats are ephemeral by design
+- 🚩 **Safety & Moderation** — Built-in profanity filter, report system, user blocking, and an admin dashboard
+- 🟢 **Live Online Count** — See how many CU students are currently connected in real time
+- 📵 **Disconnect Indicator** — Instantly notified when your chat partner leaves or disconnects
+- 📱 **Mobile Friendly** — Fully responsive UI optimized for phones and tablets
+- 💾 **Session Persistence** — Chat state survives page refreshes thanks to localStorage persistence
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 + custom Gumroad design system |
+| Real-time | Node.js WebSocket server (`ws`) |
+| State | Zustand with localStorage persistence |
+| UI Components | Lucide React, Framer Motion |
+| Fonts | Inter (Google Fonts) |
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm
+
+### Installation
+
+```bash
+git clone https://github.com/your-username/capitalk.git
+cd capitalk
+npm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file in the project root. Supabase is **optional** — the app works fully offline with the local WebSocket server:
+
+```env
+# Optional: Supabase Realtime (for cloud deployments)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+### Running Locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This starts **both** servers concurrently:
+- **Next.js** on `http://localhost:3000`
+- **WebSocket matchmaking server** on `ws://localhost:4000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open `http://localhost:3000` in two different browser windows (e.g. Chrome + Brave) and start chatting between them.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+capitalk/
+├── app/
+│   ├── page.tsx          # Main view router (landing, queue, chat, admin)
+│   ├── layout.tsx        # Root layout with SEO metadata
+│   └── globals.css       # Gumroad design system tokens & utilities
+├── components/
+│   ├── Navbar.tsx         # Top navigation with live online count
+│   ├── RegistrationModal.tsx  # Profile setup (username, department, avatar)
+│   ├── MatchmakingScreen.tsx  # Queue UI with filter tabs
+│   ├── ChatRoom.tsx       # Full chat interface with disconnect indicator
+│   ├── AdminDashboard.tsx # Moderation panel (reports, bans)
+│   └── CoinMascot.tsx     # Animated CapiTalk coin mascot
+├── lib/
+│   ├── realtime/
+│   │   ├── matchmakingEngine.ts  # WebSocket queue & match client
+│   │   └── roomManager.ts        # WebSocket chat relay client
+│   ├── store/
+│   │   └── useChatStore.ts       # Zustand global state + localStorage
+│   ├── hooks/
+│   │   └── useOnlineCount.ts     # Live online count hook
+│   └── utils/
+│       ├── imagePipeline.ts      # Client-side WebP image compression
+│       └── safety.ts             # Profanity filter & username validation
+└── server/
+    └── ws-server.js       # Node.js WebSocket matchmaking & chat relay server
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How Matchmaking Works
 
-## Deploy on Vercel
+1. User registers with a **username** and **department**
+2. User clicks **Start Searching** → joins the WebSocket queue on port 4000
+3. Server scans the queue for a compatible partner based on the selected filter
+4. When a match is found, both clients receive the same **room ID** and transition to the chat view
+5. All messages are relayed through the WebSocket server in real time
+6. If either user disconnects, the other sees a **disconnection indicator** immediately
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# CapiTalk
+## Design System
+
+CapiTalk uses a custom Gumroad-inspired aesthetic:
+
+| Token | Value |
+|---|---|
+| Canvas Cream | `#f4f4f0` |
+| Paper White | `#ffffff` |
+| Ink Black | `#000000` |
+| Coin Pink | `#ff90e8` |
+| Highlight Yellow | `#ffc900` |
+| Vermillion | `#dc341e` |
+
+---
+
+## Credentials to Keep Secret
+
+When deploying, **never commit** these to version control:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Add `.env.local` to your `.gitignore` (already included by default in Next.js projects).
+
+---
+
+## License
+
+Built for Capitol University students. Not affiliated with or endorsed by Capitol University administration.
