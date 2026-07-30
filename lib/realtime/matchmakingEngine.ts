@@ -2,6 +2,7 @@
 
 import { UserProfile, QueueFilter } from '../types';
 import { BOT_PARTNERS } from '../constants';
+import { roomManager } from './roomManager';
 
 export interface MatchPayload {
   roomId: string;
@@ -10,56 +11,62 @@ export interface MatchPayload {
 }
 
 type MatchFoundCallback = (match: MatchPayload) => void;
-type BotMatchRequestCallback = (user: UserProfile, filter: QueueFilter) => void;
 
-const WS_URL = 'ws://localhost:4000';
+export function getWsUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    return process.env.NEXT_PUBLIC_WS_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return `${protocol}//${host}:4000`;
+    }
+    return `${protocol}//${window.location.host}`;
+  }
+  return 'ws://localhost:4000';
+}
 
 class MatchmakingEngine {
   private ws: WebSocket | null = null;
   private currentUser: UserProfile | null = null;
   private currentFilter: QueueFilter = 'anyone';
   private matchCallbacks: Set<MatchFoundCallback> = new Set();
-  private botMatchCallbacks: Set<BotMatchRequestCallback> = new Set();
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isSearching = false;
   private pingInterval: NodeJS.Timeout | null = null;
 
-  private connect(onReady: () => void) {
+  public connect(onReady?: () => void) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      // Ensure onmessage handler is ALWAYS attached
+      this.attachMessageHandler(this.ws);
       if (this.ws.readyState === WebSocket.OPEN) {
-        onReady();
+        if (onReady) onReady();
       } else {
         const prev = this.ws.onopen;
         this.ws.onopen = (e) => {
           if (prev) (prev as any)(e);
-          onReady();
+          if (onReady) onReady();
         };
       }
       return;
     }
 
-    const ws = new WebSocket(WS_URL);
+    const wsUrl = getWsUrl();
+    console.log('[WS] Connecting to:', wsUrl);
+    const ws = new WebSocket(wsUrl);
     this.ws = ws;
+    this.attachMessageHandler(ws);
 
     ws.onopen = () => {
       console.log('[WS] Connected to CapiTalk server');
-      // Start ping heartbeat
       if (this.pingInterval) clearInterval(this.pingInterval);
       this.pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'PING' }));
         }
       }, 20000);
-      onReady();
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleServerMessage(data);
-      } catch (e) {
-        console.error('[WS] Failed to parse message', e);
-      }
+      if (onReady) onReady();
     };
 
     ws.onclose = () => {
@@ -67,11 +74,10 @@ class MatchmakingEngine {
       if (this.pingInterval) clearInterval(this.pingInterval);
       this.ws = null;
 
-      // Auto-reconnect if still searching
       if (this.isSearching && this.currentUser) {
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
-          console.log('[WS] Reconnecting...');
+          console.log('[WS] Reconnecting search...');
           this.connect(() => {
             if (this.currentUser && this.isSearching) {
               this.sendJoin();
@@ -82,7 +88,18 @@ class MatchmakingEngine {
     };
 
     ws.onerror = (err) => {
-      console.error('[WS] Connection error. Is the server running on port 4000?', err);
+      console.error('[WS] Connection error:', err);
+    };
+  }
+
+  private attachMessageHandler(ws: WebSocket) {
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleServerMessage(data);
+      } catch (e) {
+        console.error('[WS] Failed to parse message', e);
+      }
     };
   }
 
@@ -105,12 +122,12 @@ class MatchmakingEngine {
           userOne: data.userOne,
           userTwo: data.userTwo,
         };
+        console.log('[Matchmaker] Match found:', match.roomId);
         this.matchCallbacks.forEach((cb) => cb(match));
         break;
       }
 
       case 'BOT_MATCH_FOUND': {
-        // Server confirmed bot match request — generate match client-side
         this.isSearching = false;
         const { user, filter } = data;
         this.triggerLocalBotMatch(user, filter);
@@ -125,8 +142,11 @@ class MatchmakingEngine {
       case 'PONG':
         break;
 
-      default:
+      default: {
+        // Pass room events (CHAT_MESSAGE, TYPING, SKIP, PARTNER_LEFT) to roomManager
+        roomManager.handleIncomingWsData(data);
         break;
+      }
     }
   }
 
@@ -174,7 +194,6 @@ class MatchmakingEngine {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'BOT_MATCH_REQUEST', user, filter }));
     } else {
-      // No server connection — do it locally
       this.triggerLocalBotMatch(user, filter);
     }
   }
@@ -185,11 +204,13 @@ class MatchmakingEngine {
   }
 
   public getWebSocket(): WebSocket | null {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.connect();
+    }
     return this.ws;
   }
 
   public getWaitingCount(): number {
-    // Server-side count — maintained via QUEUE_ACK updates
     return 0;
   }
 }

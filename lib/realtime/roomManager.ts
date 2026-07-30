@@ -6,33 +6,32 @@ export type MessageCallback = (message: ChatMessage) => void;
 export type TypingCallback = (isTyping: boolean) => void;
 export type SkipCallback = () => void;
 
-const WS_URL = 'ws://localhost:4000';
 const MSG_STORAGE_PREFIX = 'capitalk_msgs_v3_';
 
 class RoomManager {
-  private ws: WebSocket | null = null;
   private currentRoomId: string | null = null;
   private currentUserId: string | null = null;
   private currentPartnerId: string | null = null;
   private knownMsgIds: Set<string> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
-  private pingInterval: NodeJS.Timeout | null = null;
 
   private messageCallbacks: Set<MessageCallback> = new Set();
   private typingCallbacks: Set<TypingCallback> = new Set();
   private skipCallbacks: Set<SkipCallback> = new Set();
 
-  /**
-   * Join an existing chat room. Re-uses the WebSocket already established by
-   * matchmakingEngine when possible, otherwise creates a new connection.
-   */
+  private getSocket(): WebSocket | null {
+    // Dynamically import matchmakingEngine to get active WS
+    const { matchmakingEngine } = require('./matchmakingEngine');
+    return matchmakingEngine.getWebSocket();
+  }
+
   public joinRoom(
     roomId: string,
     user: UserProfile,
     onMessage: MessageCallback,
     onTyping: TypingCallback,
     onSkip: SkipCallback,
-    existingWs?: WebSocket | null
+    _existingWs?: WebSocket | null
   ) {
     this.leaveRoom();
 
@@ -46,72 +45,25 @@ class RoomManager {
     // Load persisted messages from localStorage
     this.loadPersistedMessages();
 
-    // Start 500ms sync interval so fresh localStorage writes are always picked up
+    // Start 500ms sync interval so fresh localStorage writes are picked up
     this.syncInterval = setInterval(() => this.loadPersistedMessages(), 500);
 
-    // Reuse the matchmaking WS if it's the same connection and still open
-    if (existingWs && existingWs.readyState === WebSocket.OPEN) {
-      this.ws = existingWs;
-      this.setupWsHandlers();
-
-      // Tell the server we are now in a room
-      this.ws.send(JSON.stringify({
-        type: 'ROOM_JOIN',
-        roomId,
-        userId: user.id,
-        partnerId: this.currentPartnerId,
-      }));
-    } else {
-      // Open a dedicated connection for the chat room
-      this.openChatWs(roomId, user);
-    }
-  }
-
-  private openChatWs(roomId: string, user: UserProfile) {
-    const ws = new WebSocket(WS_URL);
-    this.ws = ws;
-
-    ws.onopen = () => {
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'ROOM_JOIN',
         roomId,
         userId: user.id,
         partnerId: this.currentPartnerId,
       }));
-
-      // Heartbeat
-      if (this.pingInterval) clearInterval(this.pingInterval);
-      this.pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
-      }, 20000);
-    };
-
-    this.setupWsHandlers();
+    }
   }
 
-  private setupWsHandlers() {
-    if (!this.ws) return;
-
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleWsMessage(data);
-      } catch (e) {
-        console.error('[RoomWS] Failed to parse message', e);
-      }
-    };
-
-    this.ws.onclose = () => {
-      console.warn('[RoomWS] Connection closed');
-    };
-  }
-
-  private handleWsMessage(data: any) {
+  public handleIncomingWsData(data: any) {
     switch (data.type) {
       case 'CHAT_MESSAGE': {
         const msg: ChatMessage = data.message;
         if (msg && msg.sender_id !== this.currentUserId) {
-          // Persist incoming message
           this.persistMessage(msg);
           this.dispatchMessage(msg);
         }
@@ -129,20 +81,18 @@ class RoomManager {
         this.skipCallbacks.forEach((cb) => cb());
         break;
       }
-      case 'PONG':
-        break;
     }
   }
 
   public sendMessage(msg: ChatMessage) {
     if (!this.currentRoomId) return;
 
-    // Persist own message to localStorage
     this.persistMessage(msg);
     this.knownMsgIds.add(msg.id);
 
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
         type: 'CHAT_MESSAGE',
         roomId: this.currentRoomId,
         message: msg,
@@ -151,9 +101,10 @@ class RoomManager {
   }
 
   public sendTypingSignal(isTyping: boolean) {
-    if (!this.currentRoomId || !this.ws) return;
-    if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
+    if (!this.currentRoomId) return;
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
         type: 'TYPING',
         roomId: this.currentRoomId,
         isTyping,
@@ -162,9 +113,10 @@ class RoomManager {
   }
 
   public sendSkipSignal() {
-    if (!this.currentRoomId || !this.ws) return;
-    if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
+    if (!this.currentRoomId) return;
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
         type: 'SKIP',
         roomId: this.currentRoomId,
       }));
@@ -179,7 +131,6 @@ class RoomManager {
       const msgs: ChatMessage[] = raw ? JSON.parse(raw) : [];
       if (!msgs.some((m) => m.id === msg.id)) {
         msgs.push(msg);
-        // Keep only last 200 messages
         const trimmed = msgs.slice(-200);
         localStorage.setItem(key, JSON.stringify(trimmed));
       }
@@ -215,15 +166,6 @@ class RoomManager {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
-    }
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
-    }
-    if (this.ws) {
-      // Don't close — it may be reused by matchmakingEngine
-      this.ws.onmessage = null;
-      this.ws = null;
     }
 
     this.messageCallbacks.clear();

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-const WS_URL = 'ws://localhost:4000';
+import { getWsUrl } from '../realtime/matchmakingEngine';
 
 /**
  * Lightweight hook that opens a dedicated WS connection solely to receive
@@ -17,7 +16,8 @@ export function useOnlineCount(): number {
     let unmounted = false;
 
     function connect() {
-      ws = new WebSocket(WS_URL);
+      const url = getWsUrl();
+      ws = new WebSocket(url);
 
       ws.onmessage = (event) => {
         try {
