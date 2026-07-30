@@ -46,6 +46,7 @@ export const Navbar: React.FC = () => {
         <div className="flex items-center gap-1.5 sm:gap-3">
           {viewState !== 'landing' && (
             <button
+              type="button"
               onClick={() => setViewState('landing')}
               className="text-xs sm:text-sm font-medium text-[#242423] hover:text-black px-2 sm:px-3 py-1 sm:py-1.5 rounded hidden sm:block"
             >
@@ -56,6 +57,7 @@ export const Navbar: React.FC = () => {
           {currentUser ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
+                type="button"
                 onClick={() => setViewState('queue')}
                 className={`text-xs font-medium flex items-center gap-1 sm:gap-1.5 ${
                   viewState === 'queue' || viewState === 'chat'
@@ -75,6 +77,7 @@ export const Navbar: React.FC = () => {
             </div>
           ) : (
             <button
+              type="button"
               onClick={() => setViewState('register')}
               className="btn-gumroad-primary text-xs px-3 py-1.5"
             >
@@ -85,6 +88,7 @@ export const Navbar: React.FC = () => {
           )}
 
           <button
+            type="button"
             onClick={() => setViewState('admin')}
             className={`p-1.5 sm:p-2 rounded border transition-colors ${
               viewState === 'admin'

@@ -174,6 +174,7 @@ export const ChatRoom: React.FC = () => {
         {/* Action Buttons: Report, Block, Next */}
         <div className="flex items-center gap-1 sm:gap-2">
           <button
+            type="button"
             onClick={() => setShowReportModal(true)}
             className="p-1.5 sm:p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded border border-[#d1d5dc]"
             title="Report User"
@@ -182,6 +183,7 @@ export const ChatRoom: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={blockPartner}
             className="p-1.5 sm:p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded border border-[#d1d5dc]"
             title="Block User"
@@ -190,6 +192,7 @@ export const ChatRoom: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={nextMatch}
             className="btn-gumroad-primary text-xs py-1.5 px-2 sm:px-4"
           >
@@ -339,12 +342,14 @@ export const ChatRoom: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => useChatStore.getState().setViewState('queue')}
               className="btn-gumroad-ghost text-xs px-4 py-2"
             >
               <span>Stay Here</span>
             </button>
             <button
+              type="button"
               onClick={nextMatch}
               className="btn-gumroad-primary text-xs px-4 py-2"
             >
