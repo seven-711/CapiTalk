@@ -73,7 +73,7 @@ export const useChatStore = create<ChatStoreState>()(
       bannedUserIds: [],
 
       initSession: () => {
-        const { activeRoom, currentUser } = get();
+        const { activeRoom, currentUser, isSearching } = get();
         if (activeRoom && currentUser) {
           const partner = activeRoom.user_two;
           roomManager.setPartnerId(partner.id);
@@ -106,6 +106,9 @@ export const useChatStore = create<ChatStoreState>()(
             },
             null // no existing WS after reload
           );
+        } else if (isSearching && currentUser) {
+          // Auto-resume searching if page reloaded while searching
+          get().startSearch();
         }
       },
 

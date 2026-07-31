@@ -24,9 +24,6 @@ export const Navbar: React.FC = () => {
               <span className="font-extrabold text-base sm:text-xl tracking-tight text-[#000000] group-hover:underline">
                 CapiTalk
               </span>
-              <span className="bg-[#ffc900] text-[#000000] text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-black uppercase tracking-wider">
-                CU ONLY
-              </span>
             </div>
             <p className="text-[10px] text-[#242423] font-medium hidden md:block">
               Connect Beyond Your Department

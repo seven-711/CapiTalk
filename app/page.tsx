@@ -20,11 +20,27 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
-  const { currentUser, viewState, setViewState, initSession } = useChatStore();
+  const { currentUser, viewState, setViewState, initSession, isSearching, activeRoom, partnerLeft } = useChatStore();
 
   React.useEffect(() => {
     initSession();
   }, [initSession]);
+
+  // Prevent accidental page reloads while searching or active in a chat
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isSearching || (activeRoom && !partnerLeft)) {
+        e.preventDefault();
+        e.returnValue = 'You are currently searching for or chatting with a student. Are you sure you want to reload?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isSearching, activeRoom, partnerLeft]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f4f4f0] text-[#000000]">
@@ -32,7 +48,7 @@ export default function Home() {
       <Navbar />
 
       {/* Main Content View Switcher */}
-      <main className="flex-1">
+      <main className="flex-1 flex flex-col">
         {viewState === 'register' && <RegistrationModal />}
 
         {viewState === 'queue' && <MatchmakingScreen />}

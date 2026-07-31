@@ -20,6 +20,7 @@ import {
   Lock,
   WifiOff,
   RefreshCw,
+  LogOut,
 } from 'lucide-react';
 
 const EMOJI_PRESETS = ['😊', '😂', '👍', '🔥', '❤️', '😮', '☕', '📚', '🎉', '👋'];
@@ -130,9 +131,9 @@ export const ChatRoom: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-1 sm:py-4 px-0 sm:px-4">
+    <div className="w-full flex-1 flex flex-col h-[calc(100dvh-48px)] sm:h-[calc(100dvh-64px)]">
       {/* Top Header Bar */}
-      <div className="bg-white border border-[#d1d5dc] rounded-t-[12px] sm:rounded-t-[16px] px-3 py-2.5 sm:p-4 flex items-center justify-between shadow-sm">
+      <div className="bg-white border-b border-[#d1d5dc] px-4 sm:px-8 py-3 flex items-center justify-between shadow-sm shrink-0">
         {/* Partner Info */}
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -171,7 +172,7 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Buttons: Report, Block, Next */}
+        {/* Action Buttons: Report, Block, Exit, Next */}
         <div className="flex items-center gap-1 sm:gap-2">
           <button
             type="button"
@@ -193,6 +194,16 @@ export const ChatRoom: React.FC = () => {
 
           <button
             type="button"
+            onClick={leaveRoom}
+            className="p-1.5 sm:p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors"
+            title="Exit Chat"
+          >
+            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="text-xs font-semibold hidden md:inline">Exit</span>
+          </button>
+
+          <button
+            type="button"
             onClick={nextMatch}
             className="btn-gumroad-primary text-xs py-1.5 px-2 sm:px-4"
           >
@@ -202,8 +213,8 @@ export const ChatRoom: React.FC = () => {
         </div>
       </div>
 
-      {/* Message Feed Area — dynamic height: fills screen on mobile */}
-      <div className="bg-[#f4f4f0] border-x border-[#d1d5dc] p-2 sm:p-4 h-[calc(100dvh-200px)] sm:h-[440px] overflow-y-auto space-y-3 sm:space-y-4">
+      {/* Message Feed Area — flex-1 fills all remaining screen space */}
+      <div className="bg-[#f4f4f0] flex-1 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
         {messages.map((msg) => {
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
@@ -335,7 +346,7 @@ export const ChatRoom: React.FC = () => {
 
       {/* Disconnected sticky action bar — replaces input when partner leaves */}
       {partnerLeft ? (
-        <div className="bg-white border border-[#d1d5dc] rounded-b-[16px] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-1 duration-200">
+        <div className="bg-white border-t border-[#d1d5dc] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 animate-in slide-in-from-bottom-1 duration-200">
           <div className="flex items-center gap-2 text-sm">
             <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
             <span className="font-semibold text-black">This conversation has ended.</span>
@@ -359,7 +370,7 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-[#d1d5dc] rounded-b-[16px] p-3 relative">
+        <div className="bg-white border-t border-[#d1d5dc] p-3 sm:p-4 relative shrink-0">
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
             <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-lg flex items-center gap-2 flex-wrap shadow-lg z-30">
@@ -379,6 +390,17 @@ export const ChatRoom: React.FC = () => {
           )}
 
           <form onSubmit={handleSend} className="flex items-center gap-2">
+            {/* Exit / Leave Chat Button */}
+            <button
+              type="button"
+              onClick={leaveRoom}
+              className="p-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors shrink-0"
+              title="Exit Chat"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="text-xs font-bold hidden md:inline">Exit</span>
+            </button>
+
             {/* File Upload Button */}
             <input
               type="file"

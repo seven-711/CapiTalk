@@ -6,7 +6,7 @@
 
 const { WebSocketServer } = require('ws');
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 const wss = new WebSocketServer({ port: PORT });
 
 // Map: userId -> { ws, user, filter, joinedAt }
