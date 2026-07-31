@@ -6,6 +6,14 @@ import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport } from '../
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
+import { supabase, isSupabaseConfigured } from '../supabase/client';
+
+let broadcastChannel: BroadcastChannel | null = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    broadcastChannel = new BroadcastChannel('capitalk_global_realtime');
+  } catch (e) {}
+}
 
 interface ChatStoreState {
   currentUser: UserProfile | null;
@@ -30,6 +38,9 @@ interface ChatStoreState {
   reports: UserReport[];
   bannedUserIds: string[];
 
+  actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error'; message: string } | null;
+  systemAnnouncement: { id: string; message: string; timestamp: string } | null;
+
   initSession: () => void;
   registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => void;
   startSearch: () => void;
@@ -44,6 +55,10 @@ interface ChatStoreState {
 
   resolveReport: (reportId: string, action: 'dismiss' | 'ban') => void;
   toggleBanUser: (userId: string) => void;
+
+  clearToast: () => void;
+  broadcastAnnouncement: (message: string) => void;
+  dismissAnnouncement: () => void;
 }
 
 let searchTimer: NodeJS.Timeout | null = null;
@@ -74,8 +89,162 @@ export const useChatStore = create<ChatStoreState>()(
       reports: [],
       bannedUserIds: [],
 
+      actionToast: null,
+      systemAnnouncement: null,
+
       initSession: () => {
         const { activeRoom, currentUser, isSearching } = get();
+
+        // 1. Sync reports & bans across browser tabs & sessions via shared localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            const rawReports = localStorage.getItem('capitalk_shared_reports_v5');
+            const rawBans = localStorage.getItem('capitalk_shared_bans_v5');
+            const loadedReports: UserReport[] = rawReports ? JSON.parse(rawReports) : [];
+            const loadedBans: string[] = rawBans ? JSON.parse(rawBans) : [];
+
+            const currentReports = get().reports;
+            const currentBans = get().bannedUserIds;
+
+            const reportMap = new Map<string, UserReport>();
+            [...loadedReports, ...currentReports].forEach((r) => reportMap.set(r.id, r));
+            const mergedReports = Array.from(reportMap.values());
+            const mergedBans = [...new Set([...loadedBans, ...currentBans])];
+
+            const rawAnnouncement = localStorage.getItem('capitalk_shared_announcement_v5');
+            const loadedAnnouncement = rawAnnouncement ? JSON.parse(rawAnnouncement) : null;
+
+            set({ reports: mergedReports, bannedUserIds: mergedBans, systemAnnouncement: loadedAnnouncement });
+            localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(mergedReports));
+            localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(mergedBans));
+
+            window.addEventListener('storage', (e) => {
+              if (e.key === 'capitalk_shared_reports_v5' && e.newValue) {
+                try {
+                  const updated: UserReport[] = JSON.parse(e.newValue);
+                  set({ reports: updated });
+                } catch (err) {}
+              } else if (e.key === 'capitalk_shared_bans_v5' && e.newValue) {
+                try {
+                  const updated: string[] = JSON.parse(e.newValue);
+                  set({ bannedUserIds: updated });
+                } catch (err) {}
+              } else if (e.key === 'capitalk_shared_announcement_v5') {
+                try {
+                  const updated = e.newValue ? JSON.parse(e.newValue) : null;
+                  const currentStore = get();
+                  let updatedMessages = currentStore.messages;
+                  if (updated && currentStore.activeRoom) {
+                    const annMsg: ChatMessage = {
+                      id: 'msg_ann_' + Date.now(),
+                      room_id: currentStore.activeRoom.id,
+                      sender_id: 'system',
+                      sender_username: 'CapiTalk System',
+                      message: `📢 Campus Announcement: ${updated.message}`,
+                      created_at: new Date().toISOString(),
+                    };
+                    if (!updatedMessages.some((m) => m.message === annMsg.message)) {
+                      updatedMessages = [...updatedMessages, annMsg];
+                    }
+                  }
+                  set({ systemAnnouncement: updated, messages: updatedMessages });
+                } catch (err) {}
+              }
+            });
+
+            // HTML5 BroadcastChannel multi-tab real-time listener
+            if (broadcastChannel) {
+              broadcastChannel.onmessage = (event) => {
+                if (event.data?.type === 'ANNOUNCEMENT_BROADCAST') {
+                  const announcement = event.data.announcement;
+                  const currentStore = get();
+                  let updatedMessages = currentStore.messages;
+                  if (announcement && currentStore.activeRoom) {
+                    const annMsg: ChatMessage = {
+                      id: 'msg_ann_' + Date.now(),
+                      room_id: currentStore.activeRoom.id,
+                      sender_id: 'system',
+                      sender_username: 'CapiTalk System',
+                      message: `📢 Campus Announcement: ${announcement.message}`,
+                      created_at: new Date().toISOString(),
+                    };
+                    if (!updatedMessages.some((m) => m.message === annMsg.message)) {
+                      updatedMessages = [...updatedMessages, annMsg];
+                    }
+                  }
+                  set({ systemAnnouncement: announcement, messages: updatedMessages });
+                }
+              };
+            }
+
+            // Supabase Realtime Global Announcement Channel (for Vercel & cross-device real-time sync)
+            if (supabase && isSupabaseConfigured) {
+              try {
+                const annChannel = supabase.channel('capitalk_global_announcements_v1');
+                annChannel
+                  .on('broadcast', { event: 'announcement' }, (payload: any) => {
+                    const announcement = payload?.payload;
+                    if (announcement) {
+                      const currentStore = get();
+                      let updatedMessages = currentStore.messages;
+                      if (currentStore.activeRoom) {
+                        const annMsg: ChatMessage = {
+                          id: 'msg_ann_' + Date.now(),
+                          room_id: currentStore.activeRoom.id,
+                          sender_id: 'system',
+                          sender_username: 'CapiTalk System',
+                          message: `📢 Campus Announcement: ${announcement.message}`,
+                          created_at: new Date().toISOString(),
+                        };
+                        if (!updatedMessages.some((m) => m.message === annMsg.message)) {
+                          updatedMessages = [...updatedMessages, annMsg];
+                        }
+                      }
+                      set({ systemAnnouncement: announcement, messages: updatedMessages });
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
+                      }
+                    }
+                  })
+                  .subscribe();
+              } catch (e) {}
+            }
+
+            // Brave / Privacy Shields Fallback Polling (1.5s interval for browsers blocking sockets/events)
+            setInterval(() => {
+              try {
+                const rawAnn = localStorage.getItem('capitalk_shared_announcement_v5');
+                const latestAnn = rawAnn ? JSON.parse(rawAnn) : null;
+                const currentStore = get();
+
+                const annChanged = JSON.stringify(latestAnn) !== JSON.stringify(currentStore.systemAnnouncement);
+                if (annChanged) {
+                  let updatedMessages = currentStore.messages;
+                  if (latestAnn && currentStore.activeRoom) {
+                    const annMsg: ChatMessage = {
+                      id: 'msg_ann_' + Date.now(),
+                      room_id: currentStore.activeRoom.id,
+                      sender_id: 'system',
+                      sender_username: 'CapiTalk System',
+                      message: `📢 Campus Announcement: ${latestAnn.message}`,
+                      created_at: new Date().toISOString(),
+                    };
+                    if (!updatedMessages.some((m) => m.message === annMsg.message)) {
+                      updatedMessages = [...updatedMessages, annMsg];
+                    }
+                  }
+                  set({ systemAnnouncement: latestAnn, messages: updatedMessages });
+                }
+              } catch (e) {}
+            }, 1500);
+          } catch (e) {}
+        }
+
+        // Auto-connect WebSocket on session initialization
+        try {
+          matchmakingEngine.connect();
+        } catch (e) {}
+
         if (activeRoom && currentUser) {
           const partner = activeRoom.user_two;
           roomManager.setPartnerId(partner.id);
@@ -150,9 +319,20 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       startSearch: () => {
-        const { currentUser, queueFilter } = get();
+        const { currentUser, queueFilter, bannedUserIds } = get();
         if (!currentUser) {
           set({ viewState: 'register' });
+          return;
+        }
+
+        if (bannedUserIds.includes(currentUser.id)) {
+          set({
+            actionToast: {
+              type: 'error',
+              message: '⛔ Account Suspended: Your access has been restricted by platform moderators.',
+            },
+            viewState: 'queue',
+          });
           return;
         }
 
@@ -342,30 +522,64 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       reportPartner: (reason: string, description: string) => {
-        const { activeRoom, currentUser, reports } = get();
+        const { activeRoom, currentUser, reports, blockedUserIds } = get();
         if (!activeRoom || !currentUser) return;
+
+        const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
 
         const newReport: UserReport = {
           id: 'rep_' + Math.random().toString(36).substring(2, 9),
           reporter_id: currentUser.id,
           reporter_username: currentUser.username,
-          reported_user_id: activeRoom.user_two.id,
-          reported_username: activeRoom.user_two.username,
+          reported_user_id: partner.id,
+          reported_username: partner.username,
           reason,
           description,
           status: 'pending',
           created_at: new Date().toISOString(),
         };
 
-        set({ reports: [newReport, ...reports] });
+        const updatedReports = [newReport, ...reports];
+        const updatedBlocked = [...new Set([...blockedUserIds, partner.id])];
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updatedReports));
+          } catch (e) {}
+        }
+
+        // Send real-time WS report broadcast if connection available
+        try {
+          const ws = matchmakingEngine.getWebSocket();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'REPORT_SUBMITTED', report: newReport }));
+          }
+        } catch (e) {}
+
+        set({
+          reports: updatedReports,
+          blockedUserIds: updatedBlocked,
+          actionToast: {
+            type: 'report',
+            message: `⚠️ Report submitted for ${partner.username}. Thank you for keeping CapiTalk safe.`,
+          },
+        });
         get().nextMatch();
       },
 
       blockPartner: () => {
-        const { activeRoom, blockedUserIds } = get();
-        if (!activeRoom) return;
+        const { activeRoom, currentUser, blockedUserIds } = get();
+        if (!activeRoom || !currentUser) return;
 
-        set({ blockedUserIds: [...blockedUserIds, activeRoom.user_two.id] });
+        const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
+
+        set({
+          blockedUserIds: [...new Set([...blockedUserIds, partner.id])],
+          actionToast: {
+            type: 'block',
+            message: `🚫 ${partner.username} blocked. You will no longer be paired with them.`,
+          },
+        });
         get().nextMatch();
       },
 
@@ -388,16 +602,122 @@ export const useChatStore = create<ChatStoreState>()(
           updatedBans = [...new Set([...bannedUserIds, targetReport.reported_user_id])];
         }
 
-        set({ reports: updatedReports, bannedUserIds: updatedBans });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updatedReports));
+            localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updatedBans));
+          } catch (e) {}
+        }
+
+        set({
+          reports: updatedReports,
+          bannedUserIds: updatedBans,
+          actionToast: {
+            type: action === 'ban' ? 'ban' : 'announcement',
+            message: action === 'ban' ? '🚫 Student user banned from CapiTalk.' : 'Report dismissed.',
+          },
+        });
       },
 
       toggleBanUser: (userId: string) => {
         const { bannedUserIds } = get();
-        if (bannedUserIds.includes(userId)) {
-          set({ bannedUserIds: bannedUserIds.filter((id) => id !== userId) });
-        } else {
-          set({ bannedUserIds: [...bannedUserIds, userId] });
+        const updatedBans = bannedUserIds.includes(userId)
+          ? bannedUserIds.filter((id) => id !== userId)
+          : [...bannedUserIds, userId];
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updatedBans));
+          } catch (e) {}
         }
+
+        set({
+          bannedUserIds: updatedBans,
+          actionToast: {
+            type: bannedUserIds.includes(userId) ? 'announcement' : 'ban',
+            message: bannedUserIds.includes(userId) ? 'User unbanned successfully.' : 'User added to ban list.',
+          },
+        });
+      },
+
+      clearToast: () => set({ actionToast: null }),
+
+      broadcastAnnouncement: (message: string) => {
+        const announcementObj = {
+          id: 'ann_' + Date.now(),
+          message: message.trim(),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcementObj));
+          } catch (e) {}
+        }
+
+        // 1. Post to HTML5 BroadcastChannel for instant cross-tab sync
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'ANNOUNCEMENT_BROADCAST', announcement: announcementObj });
+          } catch (e) {}
+        }
+
+        // 2. Ensure WebSocket is connected and send real-time broadcast
+        try {
+          matchmakingEngine.connect(() => {
+            const ws = matchmakingEngine.getWebSocket();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'ANNOUNCEMENT', announcement: announcementObj }));
+            }
+          });
+        } catch (e) {}
+
+        // 3. Send over Supabase Realtime Channel for production deployments (Vercel / Netlify / Cross-Origin)
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const annChannel = supabase.channel('capitalk_global_announcements_v1');
+            annChannel.subscribe((status) => {
+              if (status === 'SUBSCRIBED') {
+                annChannel.send({
+                  type: 'broadcast',
+                  event: 'announcement',
+                  payload: announcementObj,
+                });
+              }
+            });
+          } catch (e) {}
+        }
+
+        const { activeRoom, messages } = get();
+        let updatedMessages = messages;
+        if (activeRoom) {
+          const annMsg: ChatMessage = {
+            id: 'msg_ann_' + Date.now(),
+            room_id: activeRoom.id,
+            sender_id: 'system',
+            sender_username: 'CapiTalk System',
+            message: `📢 Campus Announcement: ${message.trim()}`,
+            created_at: new Date().toISOString(),
+          };
+          if (!updatedMessages.some((m) => m.message === annMsg.message)) {
+            updatedMessages = [...updatedMessages, annMsg];
+          }
+        }
+
+        set({
+          systemAnnouncement: announcementObj,
+          messages: updatedMessages,
+          actionToast: { type: 'announcement', message: '📢 Campus announcement broadcast live to all students!' },
+        });
+      },
+
+      dismissAnnouncement: () => {
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('capitalk_shared_announcement_v5');
+          } catch (e) {}
+        }
+        set({ systemAnnouncement: null });
       },
     }),
     {

@@ -203,6 +203,26 @@ wss.on('connection', (ws) => {
       }
     }
 
+    else if (type === 'REPORT_SUBMITTED') {
+      const { report } = msg;
+      console.log(`[Report] New incident report logged: ${report.reporter_username} -> ${report.reported_username}`);
+      allClients.forEach((client) => {
+        if (client.readyState === client.OPEN) {
+          send(client, { type: 'REPORT_BROADCAST', report });
+        }
+      });
+    }
+
+    else if (type === 'ANNOUNCEMENT') {
+      const { announcement } = msg;
+      console.log(`[Announcement] Broadcast: ${announcement.message}`);
+      allClients.forEach((client) => {
+        if (client.readyState === client.OPEN) {
+          send(client, { type: 'ANNOUNCEMENT_BROADCAST', announcement });
+        }
+      });
+    }
+
     else if (type === 'ROOM_JOIN') {
       // Reconnect to existing room (page reload)
       const { roomId, userId, partnerId } = msg;

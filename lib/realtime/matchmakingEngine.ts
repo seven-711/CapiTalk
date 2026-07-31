@@ -156,6 +156,53 @@ class MatchmakingEngine {
         break;
       }
 
+      case 'ANNOUNCEMENT_BROADCAST': {
+        const { announcement } = data;
+        if (announcement) {
+          try {
+            const { useChatStore } = require('../store/useChatStore');
+            const store = useChatStore.getState();
+            let updatedMessages = store.messages;
+            if (store.activeRoom) {
+              const annMsg = {
+                id: 'msg_ann_' + Date.now(),
+                room_id: store.activeRoom.id,
+                sender_id: 'system',
+                sender_username: 'CapiTalk System',
+                message: `📢 Campus Announcement: ${announcement.message}`,
+                created_at: new Date().toISOString(),
+              };
+              if (!updatedMessages.some((m: any) => m.message === annMsg.message)) {
+                updatedMessages = [...updatedMessages, annMsg];
+              }
+            }
+            useChatStore.setState({ systemAnnouncement: announcement, messages: updatedMessages });
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
+            }
+          } catch (e) {}
+        }
+        break;
+      }
+
+      case 'REPORT_BROADCAST': {
+        const { report } = data;
+        if (report) {
+          try {
+            const { useChatStore } = require('../store/useChatStore');
+            const store = useChatStore.getState();
+            if (!store.reports.some((r: any) => r.id === report.id)) {
+              const updated = [report, ...store.reports];
+              useChatStore.setState({ reports: updated });
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updated));
+              }
+            }
+          } catch (e) {}
+        }
+        break;
+      }
+
       case 'PONG':
         break;
 
@@ -266,6 +313,13 @@ class MatchmakingEngine {
   }
 
   private filterMatches(myFilter: QueueFilter, partnerFilter: QueueFilter, myUser: UserProfile, partnerUser: UserProfile): boolean {
+    try {
+      const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
+      if (blockedUserIds?.includes(partnerUser.id) || bannedUserIds?.includes(partnerUser.id)) {
+        return false;
+      }
+    } catch (e) {}
+
     let myMatch = false;
     if (myFilter === 'anyone') myMatch = true;
     else if (myFilter === 'same' && partnerUser.department === myUser.department) myMatch = true;
@@ -339,11 +393,17 @@ class MatchmakingEngine {
 
   public triggerLocalBotMatch(user: UserProfile, filter: QueueFilter) {
     let candidates = BOT_PARTNERS;
+    try {
+      const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
+      const filtered = BOT_PARTNERS.filter((b) => !blockedUserIds?.includes(b.id) && !bannedUserIds?.includes(b.id));
+      if (filtered.length > 0) candidates = filtered;
+    } catch (e) {}
+
     if (filter === 'same') {
-      const same = BOT_PARTNERS.filter((b) => b.department === user.department);
+      const same = candidates.filter((b) => b.department === user.department);
       if (same.length > 0) candidates = same;
     } else if (filter === 'different') {
-      const diff = BOT_PARTNERS.filter((b) => b.department !== user.department);
+      const diff = candidates.filter((b) => b.department !== user.department);
       if (diff.length > 0) candidates = diff;
     }
     const partner = candidates[Math.floor(Math.random() * candidates.length)];

@@ -17,10 +17,33 @@ import {
   ArrowRight,
   MessageSquare,
   ChevronDown,
+  X,
+  Radio,
 } from 'lucide-react';
 
 export default function Home() {
-  const { currentUser, viewState, setViewState, initSession, isSearching, activeRoom, partnerLeft } = useChatStore();
+  const {
+    currentUser,
+    viewState,
+    setViewState,
+    initSession,
+    isSearching,
+    activeRoom,
+    partnerLeft,
+    actionToast,
+    clearToast,
+    systemAnnouncement,
+    dismissAnnouncement,
+  } = useChatStore();
+
+  React.useEffect(() => {
+    if (actionToast) {
+      const timer = setTimeout(() => {
+        clearToast();
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionToast, clearToast]);
 
   React.useEffect(() => {
     initSession();
@@ -46,6 +69,45 @@ export default function Home() {
     <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
       viewState === 'chat' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
     }`}>
+      {/* Live Campus Announcement Banner */}
+      {systemAnnouncement && (
+        <div className="bg-[#ffc900] border-b-2 border-black px-4 py-2 text-xs sm:text-sm font-extrabold text-black flex items-center justify-between shadow-sm z-50 shrink-0">
+          <div className="flex items-center gap-2 truncate">
+            <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded uppercase tracking-wider shrink-0">
+              Campus Announcement
+            </span>
+            <span className="truncate">{systemAnnouncement.message}</span>
+          </div>
+          <button
+            onClick={dismissAnnouncement}
+            className="p-1 hover:bg-black/10 rounded transition-colors shrink-0"
+            title="Dismiss Announcement"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Floating Action Toast Notification */}
+      {actionToast && (
+        <div className="fixed top-4 right-4 z-50 max-w-sm w-[calc(100%-2rem)] animate-in fade-in slide-in-from-top-3 duration-300">
+          <div className={`p-3 rounded-xl border-2 shadow-2xl flex items-center justify-between gap-3 text-xs font-bold ${
+            actionToast.type === 'error' || actionToast.type === 'ban'
+              ? 'bg-[#dc341e] text-white border-black'
+              : actionToast.type === 'block' || actionToast.type === 'report'
+              ? 'bg-black text-white border-black'
+              : 'bg-[#ffc900] text-black border-black'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span>{actionToast.message}</span>
+            </div>
+            <button onClick={clearToast} className="p-0.5 hover:opacity-75 shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar (Hidden in chatroom view) */}
       {viewState !== 'chat' && <Navbar />}
 

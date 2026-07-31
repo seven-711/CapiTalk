@@ -17,6 +17,7 @@ export const MatchmakingScreen: React.FC = () => {
     startSearch,
     cancelSearch,
     setViewState,
+    systemAnnouncement,
   } = useChatStore();
 
   const [tipIndex, setTipIndex] = useState(0);
@@ -36,6 +37,15 @@ export const MatchmakingScreen: React.FC = () => {
 
   return (
     <div className="w-full max-w-2xl mx-auto py-3 sm:py-8 px-3 sm:px-4">
+      {systemAnnouncement && (
+        <div className="mb-4 p-3 bg-[#ffc900] border-2 border-black rounded-2xl text-xs sm:text-sm font-extrabold text-black flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span>📢</span>
+            <span>{systemAnnouncement.message}</span>
+          </div>
+        </div>
+      )}
+
       <div className="gumroad-feature-card p-4 sm:p-8 text-center relative">
         {/* User Card Summary — Gumroad Stat Badge Style */}
         {currentUser && (
