@@ -1,24 +1,24 @@
 # CapiTalk 🪙
 
-**The anonymous, real-time campus chat built exclusively for Capitol University students.**
+**The anonymous, real-time campus chat built for college students.**
 
-Connect with fellow CU students across departments — instantly and anonymously. Whether you want to meet someone from Engineering, Nursing, Business Admin, or Computer Studies, CapiTalk pairs you with a random student for a live one-on-one conversation.
+Connect with fellow students across departments — instantly and anonymously. Whether you want to meet someone from Engineering, Nursing, Business Admin, or Computer Studies, CapiTalk pairs you with a random student for a live one-on-one conversation.
 
 ---
 
 ## What is CapiTalk?
 
-CapiTalk is a school-exclusive random chat platform inspired by the concept of Omegle, but purpose-built for the Capitol University student community. No real names, no student IDs — just your chosen username, your department, and a conversation waiting to happen.
+CapiTalk is a campus random chat platform inspired by the concept of Omegle, purpose-built for student communities. No real names, no student IDs — just your chosen username, your department, and a conversation waiting to happen.
 
 ### Key Features
 
-- 🔀 **Random Matchmaking** — Get paired instantly with another CU student via a real-time WebSocket server
+- 🔀 **Random Matchmaking** — Get paired instantly with another student via a real-time WebSocket server
 - 🏫 **Department Filtering** — Match with students from the same department, a different one, or anyone at all
 - 💬 **Live Chat** — Real-time messaging with typing indicators, emoji reactions, image sharing, and reply threads
 - 🖼️ **Image Compression Pipeline** — Images are compressed client-side to lightweight WebP before sending
 - 🔒 **Privacy-First** — No real names or student IDs are ever shared. Chats are ephemeral by design
 - 🚩 **Safety & Moderation** — Built-in profanity filter, report system, user blocking, and an admin dashboard
-- 🟢 **Live Online Count** — See how many CU students are currently connected in real time
+- 🟢 **Live Online Count** — See how many students are currently connected in real time
 - 📵 **Disconnect Indicator** — Instantly notified when your chat partner leaves or disconnects
 - 📱 **Mobile Friendly** — Fully responsive UI optimized for phones and tablets
 - 💾 **Session Persistence** — Chat state survives page refreshes thanks to localStorage persistence
@@ -149,4 +149,4 @@ Add `.env.local` to your `.gitignore` (already included by default in Next.js pr
 
 ## License
 
-Built for Capitol University students. Not affiliated with or endorsed by Capitol University administration.
+Built for student communities worldwide. Open source & community driven.

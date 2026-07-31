@@ -44,10 +44,6 @@ export const RegistrationModal: React.FC = () => {
         </div>
 
         <div className="mb-4 sm:mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#f1f333] border border-black rounded-full text-xs font-bold text-black mb-2 sm:mb-3">
-            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            Capitol University Exclusive
-          </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-black">
             Create Your CapiTalk Profile
           </h2>
@@ -68,13 +64,13 @@ export const RegistrationModal: React.FC = () => {
             <label className="block text-sm font-semibold text-black mb-2">
               Choose Avatar
             </label>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
+            <div className="flex items-center gap-3.5 overflow-x-auto py-3 px-1">
               {DEFAULT_AVATARS.map((avatar, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setSelectedAvatar(avatar)}
-                  className={`relative p-1 rounded-full border-2 transition-all ${
+                  className={`relative p-1 rounded-full border-2 transition-all transform hover:scale-105 shrink-0 ${
                     selectedAvatar === avatar
                       ? 'border-black bg-[#ff90e8] scale-110'
                       : 'border-transparent hover:border-[#d1d5dc]'
@@ -160,7 +156,7 @@ export const RegistrationModal: React.FC = () => {
                 className="mt-1 w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
               />
               <span className="text-xs text-[#242423] leading-relaxed">
-                I agree to the <strong className="text-black">CapiTalk Community Guidelines</strong>. I will not harass, spam, or share inappropriate content with fellow Capitol University students.
+                I agree to the <strong className="text-black">CapiTalk Community Guidelines</strong>. I will not harass, spam, or share inappropriate content with fellow students.
               </span>
             </label>
           </div>
@@ -171,7 +167,6 @@ export const RegistrationModal: React.FC = () => {
               type="submit"
               className="btn-gumroad-primary w-full py-3.5 text-base"
             >
-              <Sparkles className="w-5 h-5 text-[#ff90e8]" />
               <span>Start Chatting</span>
             </button>
           </div>

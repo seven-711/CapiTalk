@@ -14,7 +14,7 @@ export const CU_DEPARTMENTS = [
 export type DepartmentType = typeof CU_DEPARTMENTS[number];
 
 export const MATCHMAKING_TIPS = [
-  "Tip: Respect fellow Capitol University students at all times.",
+  "Tip: Respect fellow students at all times.",
   "Tip: You can filter matches by 'Same Department' or 'Different Department'.",
   "Tip: No real names or student IDs are shared in conversation.",
   "Tip: Press 'Next' anytime to find a new campus conversation.",

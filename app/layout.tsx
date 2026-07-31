@@ -10,14 +10,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CapiTalk — Connect Beyond Your Department | Capitol University",
+  title: "CapiTalk — Connect Beyond Your Department",
   description:
-    "School-exclusive random chat platform for Capitol University students. Meet students across departments in safe, real-time, private conversations.",
+    "Campus-wide random chat platform for students. Meet students across departments in safe, real-time, private conversations.",
   keywords: [
-    "Capitol University",
     "CapiTalk",
     "Campus Chat",
-    "CU Students",
+    "Student Chat",
+    "College Chat",
     "Random Chat",
     "Student Community",
   ],

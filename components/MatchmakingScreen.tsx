@@ -37,23 +37,30 @@ export const MatchmakingScreen: React.FC = () => {
   return (
     <div className="w-full max-w-2xl mx-auto py-3 sm:py-8 px-3 sm:px-4">
       <div className="gumroad-feature-card p-4 sm:p-8 text-center relative">
-        {/* User Card Summary */}
+        {/* User Card Summary — Gumroad Stat Badge Style */}
         {currentUser && (
-          <div className="inline-flex items-center gap-3 bg-[#f4f4f0] border border-[#d1d5dc] px-4 py-2 rounded-full mb-8">
-            <img
-              src={currentUser.avatar_url}
-              alt={currentUser.username}
-              className="w-7 h-7 rounded-full bg-white border border-black"
-            />
-            <div className="text-left text-xs">
-              <span className="font-bold text-black block">{currentUser.username}</span>
-              <span className="text-[#242423]">{currentUser.department}</span>
+          <div className="inline-flex max-w-full items-center justify-between sm:justify-start gap-2.5 sm:gap-3.5 bg-white border border-[#d1d5dc] px-3.5 sm:px-4 py-2 rounded-2xl sm:rounded-full mb-6 sm:mb-8 shadow-sm text-left">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src={currentUser.avatar_url}
+                alt={currentUser.username}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border border-black shrink-0 object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <span className="font-extrabold text-xs sm:text-sm text-black block truncate tracking-tight">
+                  {currentUser.username}
+                </span>
+                <span className="text-[11px] sm:text-xs font-medium text-[#242423] block truncate">
+                  {currentUser.department.replace('College of ', '')}
+                </span>
+              </div>
             </div>
             <button
+              type="button"
               onClick={() => setViewState('register')}
-              className="text-[11px] font-semibold text-black underline ml-2 hover:opacity-75"
+              className="text-[11px] font-semibold text-black bg-[#f4f4f0] hover:bg-black hover:text-white border border-[#d1d5dc] hover:border-black px-2.5 py-1 rounded-full transition-all shrink-0 ml-1"
             >
-              Edit
+              Edit Profile
             </button>
           </div>
         )}
@@ -113,14 +120,6 @@ export const MatchmakingScreen: React.FC = () => {
                 <XCircle className="w-4 h-4" />
                 <span>Cancel Search</span>
               </button>
-
-              <button
-                onClick={useChatStore.getState().triggerBotMatch}
-                className="btn-gumroad-ghost text-xs px-4 py-2 bg-white text-black hover:border-black"
-              >
-                <Sparkles className="w-4 h-4 text-[#ff90e8]" />
-                <span>Chat with AI Student Bot</span>
-              </button>
             </div>
           </div>
         ) : (
@@ -133,14 +132,13 @@ export const MatchmakingScreen: React.FC = () => {
               Ready to Connect?
             </h3>
             <p className="text-sm text-[#242423] mt-2 max-w-md mx-auto">
-              Click below to enter the live matchmaking queue and start a real-time, random conversation with a Capitol University student.
+              Click below to enter the live matchmaking queue and start a real-time, random conversation with a student.
             </p>
 
             <button
               onClick={startSearch}
               className="mt-6 btn-gumroad-primary text-base px-8 py-4 w-full sm:w-auto"
             >
-              <Sparkles className="w-5 h-5 text-[#ff90e8]" />
               <span>Start Searching Now</span>
             </button>
           </div>

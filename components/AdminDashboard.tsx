@@ -88,7 +88,7 @@ export const AdminDashboard: React.FC = () => {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ffc900] border border-black rounded-full text-xs font-bold text-black mb-2">
             <ShieldAlert className="w-3.5 h-3.5" />
-            Capitol University Admin Panel
+            CapiTalk Admin Panel
           </div>
           <h1 className="text-3xl font-extrabold text-black tracking-tight">
             Platform Moderation & Analytics

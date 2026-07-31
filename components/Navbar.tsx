@@ -21,7 +21,7 @@ export const Navbar: React.FC = () => {
           <CoinMascot size={30} tiltAngle={-8} />
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base sm:text-xl tracking-tight text-[#000000] group-hover:underline">
+              <span className="font-extrabold text-base sm:text-xl tracking-tight text-[#000000]">
                 CapiTalk
               </span>
             </div>

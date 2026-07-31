@@ -21,6 +21,8 @@ import {
   WifiOff,
   RefreshCw,
   LogOut,
+  AlertTriangle,
+  Hourglass,
 } from 'lucide-react';
 
 const EMOJI_PRESETS = ['😊', '😂', '👍', '🔥', '❤️', '😮', '☕', '📚', '🎉', '👋'];
@@ -68,8 +70,72 @@ export const ChatRoom: React.FC = () => {
   const [pendingImage, setPendingImage] = useState<{ previewUrl: string } | null>(null);
   const [captionText, setCaptionText] = useState('');
 
+  // 20s Inactivity Timeout Alert state
+  const [showInactivityAlert, setShowInactivityAlert] = useState(false);
+  const [inactivityCountdown, setInactivityCountdown] = useState(10);
+  const lastActivityRef = useRef<number>(Date.now());
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const resetInactivity = React.useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setShowInactivityAlert(false);
+  }, []);
+
+  // Monitor 20 seconds of user inactivity
+  useEffect(() => {
+    if (partnerLeft) return;
+
+    lastActivityRef.current = Date.now();
+
+    const interval = setInterval(() => {
+      const idleMs = Date.now() - lastActivityRef.current;
+      if (idleMs >= 20000 && !showInactivityAlert) {
+        setShowInactivityAlert(true);
+        setInactivityCountdown(10);
+      }
+    }, 1000);
+
+    const handleUserInteraction = () => {
+      if (!showInactivityAlert) {
+        lastActivityRef.current = Date.now();
+      }
+    };
+
+    window.addEventListener('mousemove', handleUserInteraction);
+    window.addEventListener('keydown', handleUserInteraction);
+    window.addEventListener('click', handleUserInteraction);
+    window.addEventListener('touchstart', handleUserInteraction);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('mousemove', handleUserInteraction);
+      window.removeEventListener('keydown', handleUserInteraction);
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, [partnerLeft, showInactivityAlert]);
+
+  // 10-second countdown for inactivity alert modal before leaving room
+  useEffect(() => {
+    if (!showInactivityAlert) return;
+
+    const timer = setInterval(() => {
+      setInactivityCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setTimeout(() => {
+            leaveRoom();
+          }, 0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [showInactivityAlert, leaveRoom]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -147,9 +213,9 @@ export const ChatRoom: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col h-[calc(100dvh-48px)] sm:h-[calc(100dvh-64px)]">
+    <div className="w-full flex-1 flex flex-col h-[calc(100dvh-48px)] sm:h-[calc(100dvh-64px)] max-h-[calc(100dvh-48px)] sm:max-h-[calc(100dvh-64px)] overflow-hidden">
       {/* Top Header Bar */}
-      <div className="bg-white border-b border-[#d1d5dc] px-4 sm:px-8 py-3 flex items-center justify-between shadow-sm shrink-0">
+      <div className="bg-white border-b border-[#d1d5dc] px-4 sm:px-8 py-3 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20">
         {/* Partner Info */}
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -229,8 +295,8 @@ export const ChatRoom: React.FC = () => {
         </div>
       </div>
 
-      {/* Message Feed Area — flex-1 fills all remaining screen space */}
-      <div className="bg-[#f4f4f0] flex-1 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
+      {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
+      <div className="bg-[#f4f4f0] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
         {messages.map((msg) => {
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
@@ -362,7 +428,7 @@ export const ChatRoom: React.FC = () => {
 
       {/* Disconnected sticky action bar — replaces input when partner leaves */}
       {partnerLeft ? (
-        <div className="bg-white border-t border-[#d1d5dc] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 animate-in slide-in-from-bottom-1 duration-200">
+        <div className="bg-white border-t border-[#d1d5dc] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 sticky bottom-0 z-20 animate-in slide-in-from-bottom-1 duration-200">
           <div className="flex items-center gap-2 text-sm">
             <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
             <span className="font-semibold text-black">This conversation has ended.</span>
@@ -370,7 +436,7 @@ export const ChatRoom: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => useChatStore.getState().setViewState('queue')}
+              onClick={leaveRoom}
               className="btn-gumroad-ghost text-xs px-4 py-2"
             >
               <span>Stay Here</span>
@@ -386,7 +452,7 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border-t border-[#d1d5dc] p-3 sm:p-4 relative shrink-0">
+        <div className="bg-white border-t border-[#d1d5dc] p-3 sm:p-4 relative shrink-0 sticky bottom-0 z-20">
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
             <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-lg flex items-center gap-2 flex-wrap shadow-lg z-30">
@@ -541,6 +607,42 @@ export const ChatRoom: React.FC = () => {
                 <span>Send Image</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 20s Inactivity Timeout Warning Modal */}
+      {showInactivityAlert && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border-2 border-black rounded-[16px] max-w-md w-full p-6 shadow-2xl text-center space-y-4">
+            <div className="w-14 h-14 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto animate-bounce">
+              <AlertTriangle className="w-7 h-7 text-black" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-extrabold text-black tracking-tight">
+                Are You Still There?
+              </h3>
+              <p className="text-xs sm:text-sm text-[#242423] mt-1.5 leading-relaxed">
+                You've been inactive for <span className="font-bold text-black">20 seconds</span>. Please confirm you are still active, or this chat will automatically end in:
+              </p>
+            </div>
+
+            <div className="py-2">
+              <div className="inline-flex items-center gap-2 bg-[#ff90e8] text-black font-extrabold text-2xl px-5 py-2 rounded-full border-2 border-black shadow-sm">
+                <Hourglass className="w-6 h-6 animate-spin" />
+                <span>00:{inactivityCountdown.toString().padStart(2, '0')}s</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={resetInactivity}
+              className="btn-gumroad-primary w-full py-3.5 text-base flex items-center justify-center gap-2"
+            >
+              <Check className="w-5 h-5 text-[#ff90e8]" />
+              <span>I'm Still Here!</span>
+            </button>
           </div>
         </div>
       )}

@@ -76,7 +76,7 @@ export default function Home() {
                 {/* School Tagline Pill */}
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border border-[#000000] rounded-full text-xs font-bold text-black mb-6 shadow-sm">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#ff90e8]" />
-                  <span>Capitol University Exclusive Random Chat</span>
+                  <span>Campus-Wide Student Chat</span>
                 </div>
 
                 {/* Oversized Display Headline */}
@@ -86,7 +86,7 @@ export default function Home() {
 
                 {/* Subtitle */}
                 <p className="mt-6 text-lg sm:text-xl text-[#242423] max-w-2xl mx-auto font-normal leading-relaxed">
-                  The anonymous, real-time campus chat built exclusively for Capitol University students. Meet new friends from Computer Studies, Nursing, Engineering, and more.
+                  The anonymous, real-time campus chat built for students. Meet new friends from Computer Studies, Nursing, Engineering, and more.
                 </p>
 
                 {/* Main CTA Controls */}
@@ -96,7 +96,6 @@ export default function Home() {
                       onClick={() => setViewState('queue')}
                       className="btn-gumroad-primary text-lg px-8 py-4 w-full sm:w-auto shadow-lg"
                     >
-                      <Sparkles className="w-5 h-5 text-[#ff90e8]" />
                       <span>Start Chatting Now</span>
                     </button>
                   ) : (
@@ -125,27 +124,6 @@ export default function Home() {
               </div>
             </section>
 
-            {/* LIVE CAMPUS METRICS BAR */}
-            <section className="bg-white border-y border-[#d1d5dc] py-5 sm:py-8">
-              <div className="max-w-[1200px] mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 text-center">
-                <div>
-                  <p className="text-2xl sm:text-3xl font-extrabold text-black tracking-tight">100%</p>
-                  <p className="text-xs text-[#242423] font-medium mt-1">Capitol University Verified</p>
-                </div>
-                <div>
-                  <p className="text-2xl sm:text-3xl font-extrabold text-black tracking-tight">10</p>
-                  <p className="text-xs text-[#242423] font-medium mt-1">Campus Colleges &amp; Departments</p>
-                </div>
-                <div>
-                  <p className="text-2xl sm:text-3xl font-extrabold text-black tracking-tight">&lt; 3s</p>
-                  <p className="text-xs text-[#242423] font-medium mt-1">Average Matchmaking Time</p>
-                </div>
-                <div>
-                  <p className="text-2xl sm:text-3xl font-extrabold text-black tracking-tight">WebP</p>
-                  <p className="text-xs text-[#242423] font-medium mt-1">Client Compressed Image Pipeline</p>
-                </div>
-              </div>
-            </section>
 
             {/* FEATURE CARDS GRID (Gumroad Hairline Aesthetic) */}
             <section id="features" className="py-8 sm:py-16 px-3 sm:px-8 max-w-[1200px] mx-auto">
@@ -210,7 +188,7 @@ export default function Home() {
                     Safety &amp; Moderation
                   </h3>
                   <p className="text-xs sm:text-sm text-[#242423] mt-2 leading-relaxed">
-                    Integrated profanity filters, instant reporting, user blocking, and administrative review to keep Capitol University safe.
+                    Integrated profanity filters, instant reporting, user blocking, and administrative review to keep the community safe.
                   </p>
                 </div>
 
@@ -235,7 +213,7 @@ export default function Home() {
                       Ready to Start?
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-300 mt-2">
-                      Join hundreds of CU students chatting right now. No lengthy setup required!
+                      Join hundreds of students chatting right now. No lengthy setup required!
                     </p>
                   </div>
                   <button
@@ -256,7 +234,7 @@ export default function Home() {
                     Community Guidelines
                   </h2>
                   <p className="text-sm text-[#242423] mt-1">
-                    Keep CapiTalk safe, welcoming, and fun for all Capitol University students.
+                    Keep CapiTalk safe, welcoming, and fun for all students.
                   </p>
                 </div>
 
@@ -310,7 +288,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <CoinMascot size={28} tiltAngle={-6} />
               <span className="font-bold text-sm text-black">CapiTalk</span>
-              <span className="text-xs text-[#242423]">© 2026 Capitol University Student Community</span>
+              <span className="text-xs text-[#242423]">© 2026 CapiTalk Student Community</span>
             </div>
 
             <div className="flex items-center gap-4 text-xs font-medium text-[#242423]">
