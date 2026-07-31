@@ -221,7 +221,7 @@ export const ChatRoom: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none touch-pan-y">
+    <div className="w-full flex-1 flex flex-col h-full min-h-0 overflow-hidden overscroll-none touch-pan-y">
       {/* Top Header Bar */}
       <div className="bg-white border-b border-[#d1d5dc] px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20">
         {/* Partner Info */}
@@ -503,9 +503,9 @@ export const ChatRoom: React.FC = () => {
         </div>
       )}
 
-      {/* Disconnected sticky action bar — replaces input when partner leaves */}
+      {/* Disconnected action bar — replaces input when partner leaves */}
       {partnerLeft ? (
-        <div className="bg-white border-t border-[#d1d5dc] p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 sticky bottom-0 z-20 animate-in slide-in-from-bottom-1 duration-200">
+        <div className="bg-white border-t border-[#d1d5dc] p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200">
           <div className="flex items-center gap-2 text-sm">
             {partnerLeftReason === 'inactivity' ? (
               <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
@@ -545,7 +545,7 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border-t border-[#d1d5dc] p-2 sm:p-2.5 relative shrink-0 sticky bottom-0 z-20">
+        <div className="bg-white border-t border-[#d1d5dc] p-2 sm:p-2.5 relative shrink-0 z-20">
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
             <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-lg flex items-center gap-2 flex-wrap shadow-lg z-30">

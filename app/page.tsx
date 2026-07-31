@@ -43,12 +43,14 @@ export default function Home() {
   }, [isSearching, activeRoom, partnerLeft]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f4f4f0] text-[#000000]">
+    <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
+      viewState === 'chat' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
+    }`}>
       {/* Top Navbar (Hidden in chatroom view) */}
       {viewState !== 'chat' && <Navbar />}
 
       {/* Main Content View Switcher */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {viewState === 'register' && <RegistrationModal />}
 
         {viewState === 'queue' && <MatchmakingScreen />}
