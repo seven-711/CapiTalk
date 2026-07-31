@@ -140,8 +140,13 @@ export const ChatRoom: React.FC = () => {
     return () => clearInterval(timer);
   }, [showInactivityAlert, leaveRoom]);
 
+  const prevTypingRef = useRef(partnerTyping);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll when new messages arrive or when partner STARTS typing (not when stopping typing)
+    if (messages.length > 0 || (partnerTyping && !prevTypingRef.current)) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevTypingRef.current = partnerTyping;
   }, [messages, partnerTyping]);
 
   if (!activeRoom || !currentUser) {
@@ -216,7 +221,7 @@ export const ChatRoom: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden">
+    <div className="w-full flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none touch-pan-y">
       {/* Top Header Bar */}
       <div className="bg-white border-b border-[#d1d5dc] px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20">
         {/* Partner Info */}
@@ -326,7 +331,7 @@ export const ChatRoom: React.FC = () => {
       </div>
 
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
-      <div className="bg-[#f4f4f0] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
+      <div className="bg-[#f4f4f0] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
         {messages.map((msg) => {
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
@@ -408,13 +413,15 @@ export const ChatRoom: React.FC = () => {
           );
         })}
 
-        {/* Partner Typing Indicator */}
-        {partnerTyping && !partnerLeft && (
-          <div className="flex items-center gap-2 text-xs text-[#242423] font-medium bg-white px-3 py-1.5 rounded-full border border-[#d1d5dc] w-fit animate-pulse">
-            <span className="w-2 h-2 rounded-full bg-black animate-bounce" />
-            <span>{partner.username} is typing...</span>
-          </div>
-        )}
+        {/* Partner Typing Indicator — height-stable container prevents layout shift */}
+        <div className="min-h-[28px] flex items-center transition-all duration-200">
+          {partnerTyping && !partnerLeft && (
+            <div className="flex items-center gap-2 text-xs text-[#242423] font-medium bg-white px-3 py-1.5 rounded-full border border-[#d1d5dc] w-fit animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-black animate-bounce" />
+              <span>{partner.username} is typing...</span>
+            </div>
+          )}
+        </div>
 
         {/* Partner Disconnected / Exited / Skipped — in-chat system card */}
         {partnerLeft && (
