@@ -245,6 +245,30 @@ export const useChatStore = create<ChatStoreState>()(
         set({ messages: [...messages, newMsg] });
 
         roomManager.sendMessage(newMsg);
+
+        // If matched with a Bot partner, simulate realistic bot typing & response
+        const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
+        if (partner.id.startsWith('bot_')) {
+          setTimeout(() => {
+            set({ partnerTyping: true });
+          }, 600);
+
+          setTimeout(() => {
+            const randomReply = BOT_RESPONSES[Math.floor(Math.random() * BOT_RESPONSES.length)];
+            const botMsg: ChatMessage = {
+              id: 'msg_bot_' + Date.now(),
+              room_id: activeRoom.id,
+              sender_id: partner.id,
+              sender_username: partner.username,
+              message: randomReply,
+              created_at: new Date().toISOString(),
+            };
+            set((state) => ({
+              messages: [...state.messages, botMsg],
+              partnerTyping: false,
+            }));
+          }, 2200);
+        }
       },
 
       sendTypingSignal: (isTyping: boolean) => {

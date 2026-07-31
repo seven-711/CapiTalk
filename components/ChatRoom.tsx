@@ -56,12 +56,17 @@ export const ChatRoom: React.FC = () => {
       sendTypingSignal(false);
     }
   };
+
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [replyTo, setReplyTo] = useState<any | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Image Preview & Caption state
+  const [pendingImage, setPendingImage] = useState<{ previewUrl: string } | null>(null);
+  const [captionText, setCaptionText] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -109,18 +114,29 @@ export const ChatRoom: React.FC = () => {
 
     try {
       const processed = await processUploadedImage(file);
-      sendMessage(
-        undefined,
-        processed.fullDataUrl,
-        replyTo ? { id: replyTo.id, sender_username: replyTo.sender_username, message: replyTo.message } : undefined
-      );
-      setReplyTo(null);
+      setPendingImage({ previewUrl: processed.fullDataUrl });
     } catch (err: any) {
       setUploadError(err.message || 'Failed to process image.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleSendPendingImage = () => {
+    if (!pendingImage) return;
+
+    const cleanCaption = captionText.trim() ? filterProfanity(captionText).cleanText : undefined;
+
+    sendMessage(
+      cleanCaption,
+      pendingImage.previewUrl,
+      replyTo ? { id: replyTo.id, sender_username: replyTo.sender_username, message: replyTo.message } : undefined
+    );
+
+    setPendingImage(null);
+    setCaptionText('');
+    setReplyTo(null);
   };
 
   const copyMessageText = (msgId: string, content?: string) => {
@@ -457,6 +473,76 @@ export const ChatRoom: React.FC = () => {
           reportedUsername={partner.username}
           onClose={() => setShowReportModal(false)}
         />
+      )}
+
+      {/* Image Preview & Confirmation Modal */}
+      {pendingImage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border-2 border-black rounded-[16px] max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#d1d5dc] pb-3">
+              <h3 className="font-extrabold text-base text-black flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-[#ffc900]" />
+                Image Preview
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingImage(null);
+                  setCaptionText('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded-full text-black transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-[#f4f4f0] rounded-xl p-2 flex items-center justify-center border border-[#d1d5dc]">
+              <img
+                src={pendingImage.previewUrl}
+                alt="Image Preview"
+                className="max-h-64 sm:max-h-80 w-auto max-w-full rounded-lg object-contain shadow-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#242423] uppercase tracking-wider mb-1">
+                Caption (Optional)
+              </label>
+              <input
+                type="text"
+                value={captionText}
+                onChange={(e) => setCaptionText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSendPendingImage();
+                }}
+                placeholder="Write a caption to go with your image..."
+                className="gumroad-input w-full py-2.5 px-3 text-sm"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#d1d5dc]">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingImage(null);
+                  setCaptionText('');
+                }}
+                className="btn-gumroad-ghost text-xs px-4 py-2.5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendPendingImage}
+                className="btn-gumroad-primary text-xs px-5 py-2.5 flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                <span>Send Image</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
