@@ -10,6 +10,10 @@ export const Navbar: React.FC = () => {
   const { currentUser, viewState, setViewState } = useChatStore();
   const onlineCount = useOnlineCount();
 
+  if (viewState === 'chat') {
+    return null;
+  }
+
   return (
     <header className="w-full bg-[#f4f4f0] border-b border-[#d1d5dc] sticky top-0 z-40">
       <div className="max-w-[1200px] mx-auto px-3 sm:px-8 h-12 sm:h-16 flex items-center justify-between gap-2">
@@ -57,7 +61,7 @@ export const Navbar: React.FC = () => {
                 type="button"
                 onClick={() => setViewState('queue')}
                 className={`text-xs font-medium flex items-center gap-1 sm:gap-1.5 ${
-                  viewState === 'queue' || viewState === 'chat'
+                  viewState === 'queue'
                     ? 'nav-pill-active'
                     : 'btn-gumroad-ghost px-2 sm:px-3 py-1 sm:py-1.5 text-xs'
                 }`}

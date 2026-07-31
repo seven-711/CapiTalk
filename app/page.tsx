@@ -44,8 +44,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f4f4f0] text-[#000000]">
-      {/* Top Navbar */}
-      <Navbar />
+      {/* Top Navbar (Hidden in chatroom view) */}
+      {viewState !== 'chat' && <Navbar />}
 
       {/* Main Content View Switcher */}
       <main className="flex-1 flex flex-col">
@@ -103,7 +103,6 @@ export default function Home() {
                       onClick={() => setViewState('register')}
                       className="btn-gumroad-primary text-lg px-8 py-4 w-full sm:w-auto shadow-lg"
                     >
-                      <Sparkles className="w-5 h-5 text-[#ff90e8]" />
                       <span>Join CapiTalk — It's Free</span>
                     </button>
                   )}

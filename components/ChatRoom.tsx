@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
+import { roomManager } from '../lib/realtime/roomManager';
 import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { filterProfanity } from '../lib/utils/safety';
 import { ReportModal } from './ReportModal';
@@ -34,6 +35,7 @@ export const ChatRoom: React.FC = () => {
     messages,
     partnerTyping,
     partnerLeft,
+    partnerLeftReason,
     sendMessage,
     sendTypingSignal,
     nextMatch,
@@ -126,6 +128,7 @@ export const ChatRoom: React.FC = () => {
         if (prev <= 1) {
           clearInterval(timer);
           setTimeout(() => {
+            roomManager.sendSkipSignal('inactivity');
             leaveRoom();
           }, 0);
           return 0;
@@ -213,9 +216,9 @@ export const ChatRoom: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col h-[calc(100dvh-48px)] sm:h-[calc(100dvh-64px)] max-h-[calc(100dvh-48px)] sm:max-h-[calc(100dvh-64px)] overflow-hidden">
+    <div className="w-full flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden">
       {/* Top Header Bar */}
-      <div className="bg-white border-b border-[#d1d5dc] px-4 sm:px-8 py-3 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20">
+      <div className="bg-white border-b border-[#d1d5dc] px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20">
         {/* Partner Info */}
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -240,9 +243,36 @@ export const ChatRoom: React.FC = () => {
                 {partner.username}
               </h3>
               {partnerLeft && (
-                <span className="inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full animate-pulse">
-                  <WifiOff className="w-2 h-2" />
-                  Disconnected
+                <span className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse border ${
+                  partnerLeftReason === 'inactivity'
+                    ? 'text-amber-600 bg-amber-50 border-amber-200'
+                    : partnerLeftReason === 'exited'
+                    ? 'text-rose-600 bg-rose-50 border-rose-200'
+                    : partnerLeftReason === 'skipped'
+                    ? 'text-purple-600 bg-purple-50 border-purple-200'
+                    : 'text-red-500 bg-red-50 border-red-200'
+                }`}>
+                  {partnerLeftReason === 'inactivity' ? (
+                    <>
+                      <Hourglass className="w-2 h-2" />
+                      Inactive
+                    </>
+                  ) : partnerLeftReason === 'exited' ? (
+                    <>
+                      <LogOut className="w-2 h-2" />
+                      Exited
+                    </>
+                  ) : partnerLeftReason === 'skipped' ? (
+                    <>
+                      <FastForward className="w-2 h-2" />
+                      Skipped
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="w-2 h-2" />
+                      Disconnected
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -386,16 +416,56 @@ export const ChatRoom: React.FC = () => {
           </div>
         )}
 
-        {/* Partner Disconnected — in-chat system card */}
+        {/* Partner Disconnected / Exited / Skipped — in-chat system card */}
         {partnerLeft && (
           <div className="flex flex-col items-center gap-3 py-4 my-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="w-12 h-12 rounded-full bg-red-100 border-2 border-red-300 flex items-center justify-center">
-              <WifiOff className="w-5 h-5 text-red-500" />
+            <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center ${
+              partnerLeftReason === 'inactivity'
+                ? 'bg-amber-100 border-amber-300 text-amber-600'
+                : partnerLeftReason === 'exited'
+                ? 'bg-rose-100 border-rose-300 text-rose-600'
+                : partnerLeftReason === 'skipped'
+                ? 'bg-purple-100 border-purple-300 text-purple-600'
+                : 'bg-red-100 border-red-300 text-red-500'
+            }`}>
+              {partnerLeftReason === 'inactivity' ? (
+                <Hourglass className="w-5 h-5 animate-pulse" />
+              ) : partnerLeftReason === 'exited' ? (
+                <LogOut className="w-5 h-5" />
+              ) : partnerLeftReason === 'skipped' ? (
+                <FastForward className="w-5 h-5" />
+              ) : (
+                <WifiOff className="w-5 h-5" />
+              )}
             </div>
-            <div className="text-center">
-              <p className="text-sm font-extrabold text-black">Connection Lost</p>
-              <p className="text-xs text-[#242423] mt-0.5">
-                <span className="font-semibold">{partner.username}</span> has left the conversation.
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-extrabold text-black">
+                {partnerLeftReason === 'inactivity'
+                  ? 'User Disconnected (Inactivity)'
+                  : partnerLeftReason === 'exited'
+                  ? 'Partner Exited Chat'
+                  : partnerLeftReason === 'skipped'
+                  ? 'Partner Skipped Chat'
+                  : 'Connection Ended'}
+              </p>
+              <p className="text-xs text-[#242423] mt-0.5 leading-relaxed">
+                {partnerLeftReason === 'inactivity' ? (
+                  <>
+                    <span className="font-semibold">{partner.username}</span> was automatically disconnected after 30 seconds of inactivity.
+                  </>
+                ) : partnerLeftReason === 'exited' ? (
+                  <>
+                    <span className="font-semibold">{partner.username}</span> clicked exit and left the conversation.
+                  </>
+                ) : partnerLeftReason === 'skipped' ? (
+                  <>
+                    <span className="font-semibold">{partner.username}</span> skipped to the next chat room.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">{partner.username}</span> has left the conversation.
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -428,10 +498,26 @@ export const ChatRoom: React.FC = () => {
 
       {/* Disconnected sticky action bar — replaces input when partner leaves */}
       {partnerLeft ? (
-        <div className="bg-white border-t border-[#d1d5dc] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 sticky bottom-0 z-20 animate-in slide-in-from-bottom-1 duration-200">
+        <div className="bg-white border-t border-[#d1d5dc] p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 sticky bottom-0 z-20 animate-in slide-in-from-bottom-1 duration-200">
           <div className="flex items-center gap-2 text-sm">
-            <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
-            <span className="font-semibold text-black">This conversation has ended.</span>
+            {partnerLeftReason === 'inactivity' ? (
+              <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
+            ) : partnerLeftReason === 'exited' ? (
+              <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+            ) : partnerLeftReason === 'skipped' ? (
+              <FastForward className="w-4 h-4 text-purple-500 shrink-0" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
+            )}
+            <span className="font-semibold text-black">
+              {partnerLeftReason === 'inactivity'
+                ? 'Conversation ended due to partner inactivity.'
+                : partnerLeftReason === 'exited'
+                ? `${partner.username} has exited the conversation.`
+                : partnerLeftReason === 'skipped'
+                ? `${partner.username} skipped to another chat.`
+                : 'This conversation has ended.'}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -452,7 +538,7 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border-t border-[#d1d5dc] p-3 sm:p-4 relative shrink-0 sticky bottom-0 z-20">
+        <div className="bg-white border-t border-[#d1d5dc] p-2 sm:p-2.5 relative shrink-0 sticky bottom-0 z-20">
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
             <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-lg flex items-center gap-2 flex-wrap shadow-lg z-30">
@@ -476,10 +562,10 @@ export const ChatRoom: React.FC = () => {
             <button
               type="button"
               onClick={leaveRoom}
-              className="p-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors shrink-0"
+              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors shrink-0"
               title="Exit Chat"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="text-xs font-bold hidden md:inline">Exit</span>
             </button>
 
@@ -495,20 +581,20 @@ export const ChatRoom: React.FC = () => {
               type="button"
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 text-[#242423] hover:text-black hover:bg-gray-100 rounded border border-[#d1d5dc]"
+              className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded"
               title="Upload Image (Max 10MB)"
             >
-              {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+              {isUploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
 
             {/* Emoji Picker Toggle */}
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-2.5 text-[#242423] hover:text-black hover:bg-gray-100 rounded border border-[#d1d5dc]"
+              className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded"
               title="Add Emoji"
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
             {/* Text Input */}
@@ -517,14 +603,14 @@ export const ChatRoom: React.FC = () => {
               value={text}
               onChange={handleTextChange}
               placeholder="Type a message to fellow CU student..."
-              className="gumroad-input flex-1 py-2.5 text-sm"
+              className="gumroad-input flex-1 py-2 text-sm"
             />
 
             {/* Send Button */}
             <button
               type="submit"
               disabled={!text.trim() && !replyTo}
-              className="btn-gumroad-primary py-2.5 px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-gumroad-primary py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />
               <span className="hidden sm:inline">Send</span>

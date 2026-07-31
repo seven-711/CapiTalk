@@ -108,7 +108,7 @@ function removeUserFromAll(userId) {
     // Notify partner
     const partnerInfo = rooms.get(partnerId);
     if (partnerInfo) {
-      send(partnerInfo.ws, { type: 'PARTNER_LEFT' });
+      send(partnerInfo.ws, { type: 'PARTNER_LEFT', reason: 'disconnected' });
     }
 
     // Clean up room
@@ -195,10 +195,10 @@ wss.on('connection', (ws) => {
     }
 
     else if (type === 'SKIP') {
-      const { roomId } = msg;
+      const { roomId, reason } = msg;
       const roomInfo = rooms.get(clientUserId);
       if (roomInfo && roomInfo.roomId === roomId) {
-        broadcastToRoom(roomId, clientUserId, { type: 'SKIP' });
+        broadcastToRoom(roomId, clientUserId, { type: 'SKIP', reason });
         removeUserFromAll(clientUserId);
       }
     }

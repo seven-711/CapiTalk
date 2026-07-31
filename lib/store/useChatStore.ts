@@ -24,6 +24,7 @@ interface ChatStoreState {
   messages: ChatMessage[];
   partnerTyping: boolean;
   partnerLeft: boolean;
+  partnerLeftReason: 'inactivity' | 'left' | 'disconnected' | 'exited' | 'skipped' | null;
   
   blockedUserIds: string[];
   reports: UserReport[];
@@ -67,6 +68,7 @@ export const useChatStore = create<ChatStoreState>()(
       messages: [],
       partnerTyping: false,
       partnerLeft: false,
+      partnerLeftReason: null,
 
       blockedUserIds: [],
       reports: [],
@@ -90,18 +92,40 @@ export const useChatStore = create<ChatStoreState>()(
             (isTyping) => {
               set({ partnerTyping: isTyping });
             },
-            () => {
+            (reason?: string) => {
               set((state) => {
                 if (state.partnerLeft) return state;
+                const isInactive = reason === 'inactivity';
+                const isDisconnected = reason === 'disconnected';
+                const isExited = reason === 'exited';
+                const isSkipped = reason === 'skipped';
+
+                let msgText = 'Your partner has left the conversation.';
+                let leftReason: 'inactivity' | 'left' | 'disconnected' | 'exited' | 'skipped' = 'left';
+
+                if (isInactive) {
+                  msgText = '⏱️ Your partner has been disconnected due to inactivity.';
+                  leftReason = 'inactivity';
+                } else if (isDisconnected) {
+                  msgText = '🔌 Connection lost: Your partner has disconnected.';
+                  leftReason = 'disconnected';
+                } else if (isExited) {
+                  msgText = '🚪 Your partner has exited the chat.';
+                  leftReason = 'exited';
+                } else if (isSkipped) {
+                  msgText = '⏭️ Your partner skipped to another chat.';
+                  leftReason = 'skipped';
+                }
+
                 const leaveMsg: ChatMessage = {
                   id: 'msg_leave_' + Date.now(),
                   room_id: activeRoom.id,
                   sender_id: 'system',
                   sender_username: 'CapiTalk System',
-                  message: 'Your partner has left the conversation.',
+                  message: msgText,
                   created_at: new Date().toISOString(),
                 };
-                return { messages: [...state.messages, leaveMsg], partnerLeft: true };
+                return { messages: [...state.messages, leaveMsg], partnerLeft: true, partnerLeftReason: leftReason };
               });
             },
             null // no existing WS after reload
@@ -199,18 +223,40 @@ export const useChatStore = create<ChatStoreState>()(
             (isTyping) => {
               set({ partnerTyping: isTyping });
             },
-            () => {
+            (reason?: string) => {
               set((state) => {
                 if (state.partnerLeft) return state;
+                const isInactive = reason === 'inactivity';
+                const isDisconnected = reason === 'disconnected';
+                const isExited = reason === 'exited';
+                const isSkipped = reason === 'skipped';
+
+                let msgText = 'Your partner has left the conversation.';
+                let leftReason: 'inactivity' | 'left' | 'disconnected' | 'exited' | 'skipped' = 'left';
+
+                if (isInactive) {
+                  msgText = '⏱️ Your partner has been disconnected due to inactivity.';
+                  leftReason = 'inactivity';
+                } else if (isDisconnected) {
+                  msgText = '🔌 Connection lost: Your partner has disconnected.';
+                  leftReason = 'disconnected';
+                } else if (isExited) {
+                  msgText = '🚪 Your partner has exited the chat.';
+                  leftReason = 'exited';
+                } else if (isSkipped) {
+                  msgText = '⏭️ Your partner skipped to another chat.';
+                  leftReason = 'skipped';
+                }
+
                 const leaveMsg: ChatMessage = {
                   id: 'msg_leave_' + Date.now(),
                   room_id: match.roomId,
                   sender_id: 'system',
                   sender_username: 'CapiTalk System',
-                  message: 'Your partner has left the conversation.',
+                  message: msgText,
                   created_at: new Date().toISOString(),
                 };
-                return { messages: [...state.messages, leaveMsg], partnerLeft: true };
+                return { messages: [...state.messages, leaveMsg], partnerLeft: true, partnerLeftReason: leftReason };
               });
             },
             matchmakingEngine.getWebSocket() // reuse the matchmaking WS connection
@@ -278,18 +324,21 @@ export const useChatStore = create<ChatStoreState>()(
       nextMatch: () => {
         const { activeRoom } = get();
         if (activeRoom) {
-          roomManager.sendSkipSignal();
+          roomManager.sendSkipSignal('skipped');
           roomManager.leaveRoom();
         }
-        set({ partnerLeft: false });
+        set({ partnerLeft: false, partnerLeftReason: null });
         get().startSearch();
       },
 
       leaveRoom: () => {
-        const { currentUser } = get();
+        const { currentUser, activeRoom } = get();
+        if (activeRoom) {
+          roomManager.sendSkipSignal('exited');
+          roomManager.leaveRoom();
+        }
         if (currentUser) matchmakingEngine.leaveQueue(currentUser.id);
-        roomManager.leaveRoom();
-        set({ activeRoom: null, messages: [], viewState: 'queue', partnerLeft: false });
+        set({ activeRoom: null, messages: [], viewState: 'queue', partnerLeft: false, partnerLeftReason: null });
       },
 
       reportPartner: (reason: string, description: string) => {

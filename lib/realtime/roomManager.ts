@@ -5,7 +5,7 @@ import { supabase, isSupabaseConfigured } from '../supabase/client';
 
 export type MessageCallback = (message: ChatMessage) => void;
 export type TypingCallback = (isTyping: boolean) => void;
-export type SkipCallback = () => void;
+export type SkipCallback = (reason?: string) => void;
 
 const MSG_STORAGE_PREFIX = 'capitalk_msgs_v4_';
 const SIGNAL_STORAGE_PREFIX = 'capitalk_signal_v4_';
@@ -67,7 +67,7 @@ class RoomManager {
               if (signal.type === 'TYPING') {
                 this.typingCallbacks.forEach((cb) => cb(signal.isTyping));
               } else if (signal.type === 'SKIP') {
-                this.skipCallbacks.forEach((cb) => cb());
+                this.skipCallbacks.forEach((cb) => cb(signal.reason));
               }
             }
           } catch (err) {}
@@ -92,9 +92,9 @@ class RoomManager {
               this.typingCallbacks.forEach((cb) => cb(payload.isTyping));
             }
           })
-          .on('broadcast', { event: 'skip' }, ({ payload }: { payload: { senderId: string } }) => {
+          .on('broadcast', { event: 'skip' }, ({ payload }: { payload: { senderId: string; reason?: string } }) => {
             if (payload && payload.senderId !== user.id) {
-              this.skipCallbacks.forEach((cb) => cb());
+              this.skipCallbacks.forEach((cb) => cb(payload.reason));
             }
           })
           .subscribe();
@@ -130,11 +130,11 @@ class RoomManager {
         break;
       }
       case 'SKIP': {
-        this.skipCallbacks.forEach((cb) => cb());
+        this.skipCallbacks.forEach((cb) => cb(data.reason));
         break;
       }
       case 'PARTNER_LEFT': {
-        this.skipCallbacks.forEach((cb) => cb());
+        this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
         break;
       }
     }
@@ -200,10 +200,10 @@ class RoomManager {
     }
   }
 
-  public sendSkipSignal() {
+  public sendSkipSignal(reason?: string) {
     if (!this.currentRoomId) return;
 
-    const signal = { type: 'SKIP', senderId: this.currentUserId, t: Date.now() };
+    const signal = { type: 'SKIP', reason, senderId: this.currentUserId, t: Date.now() };
 
     // Broadcast 1: LocalStorage signal
     if (typeof window !== 'undefined') {
@@ -216,6 +216,7 @@ class RoomManager {
       ws.send(JSON.stringify({
         type: 'SKIP',
         roomId: this.currentRoomId,
+        reason,
       }));
     }
 
@@ -225,7 +226,7 @@ class RoomManager {
         this.supabaseChannel.send({
           type: 'broadcast',
           event: 'skip',
-          payload: { senderId: this.currentUserId },
+          payload: { senderId: this.currentUserId, reason },
         });
       } catch (e) {}
     }
