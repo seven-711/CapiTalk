@@ -419,6 +419,23 @@ export const useChatStore = create<ChatStoreState>()(
             currentUser,
             (incomingMsg) => {
               set((state) => {
+                if (incomingMsg.reaction_update) {
+                  if (currentUser && incomingMsg.sender_id === currentUser.id) return state;
+                  const { message_id, emoji_key } = incomingMsg.reaction_update;
+                  const updatedMessages = state.messages.map((m) => {
+                    if (m.id !== message_id) return m;
+                    const rxns = { ...(m.reactions || {}) };
+                    const userList = rxns[emoji_key] || [];
+                    const has = userList.includes(incomingMsg.sender_id);
+                    const newList = has
+                      ? userList.filter((id) => id !== incomingMsg.sender_id)
+                      : [...userList, incomingMsg.sender_id];
+                    if (newList.length > 0) rxns[emoji_key] = newList;
+                    else delete rxns[emoji_key];
+                    return { ...m, reactions: rxns };
+                  });
+                  return { messages: updatedMessages };
+                }
                 if (state.messages.some((m) => m.id === incomingMsg.id)) return state;
                 return { messages: [...state.messages, incomingMsg] };
               });
@@ -569,6 +586,7 @@ export const useChatStore = create<ChatStoreState>()(
             (incomingMsg) => {
               set((state) => {
                 if (incomingMsg.reaction_update) {
+                  if (currentUser && incomingMsg.sender_id === currentUser.id) return state;
                   const { message_id, emoji_key } = incomingMsg.reaction_update;
                   const updatedMessages = state.messages.map((m) => {
                     if (m.id !== message_id) return m;
@@ -733,6 +751,14 @@ export const useChatStore = create<ChatStoreState>()(
         }
 
         roomManager.sendMessage(newMsg);
+
+        if (typeof window !== 'undefined') {
+          try {
+            const audio = new Audio('/audio/sent_msg.webm');
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+          } catch (e) {}
+        }
 
         // If matched with a Bot partner, simulate realistic bot typing & response
         const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
