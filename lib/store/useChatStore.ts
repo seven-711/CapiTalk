@@ -1108,9 +1108,32 @@ export const useChatStore = create<ChatStoreState>()(
           });
         } catch (e) {}
 
-        // 3. Send over Supabase Realtime Channel for production deployments (Vercel / Netlify / Cross-Origin)
+        // 3. Send over Supabase Realtime Channel & save to Supabase Database for production deployments
+        try {
+          const { useBroadcastStore } = require('./useBroadcastStore');
+          useBroadcastStore.getState().createBroadcast({
+            owner_id: 'admin',
+            owner_name: 'Campus Administrator',
+            title: '📢 Campus Announcement',
+            description: message.trim(),
+            duration_minutes: 60,
+          });
+        } catch (e) {}
+
         if (supabase && isSupabaseConfigured) {
           try {
+            supabase
+              .from('messages')
+              .insert({
+                id: 'msg_ann_' + announcementObj.id,
+                room_id: 'global_broadcast',
+                sender_id: 'system_announcement',
+                sender_username: '📢 Campus Announcement',
+                message: message.trim(),
+                created_at: new Date().toISOString(),
+              })
+              .then(() => {}, () => {});
+
             const annChannel = supabase.channel('capitalk_global_announcements_v1');
             annChannel.subscribe((status) => {
               if (status === 'SUBSCRIBED') {

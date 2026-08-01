@@ -42,7 +42,12 @@ export const AdminDashboard: React.FC = () => {
 
   const onlineCount = useOnlineCount();
   const [passcode, setPasscode] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('capitalk_admin_auth_v1') === 'true';
+    }
+    return false;
+  });
   const [authError, setAuthError] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'announcements' | 'feedback'>('reports');
@@ -56,11 +61,22 @@ export const AdminDashboard: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passcode.trim() === 'capitalk2026' || passcode.trim() === 'admin') {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('capitalk_admin_auth_v1', 'true');
+      }
       setIsAuthenticated(true);
       setAuthError(false);
     } else {
       setAuthError(true);
     }
+  };
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('capitalk_admin_auth_v1');
+    }
+    setIsAuthenticated(false);
+    setViewState('landing');
   };
 
   const handleBroadcast = (e: React.FormEvent) => {
@@ -137,7 +153,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setViewState('landing')}
+          onClick={handleLogout}
           className="btn-gumroad-ghost text-xs px-4 py-2"
         >
           Exit Admin Mode
