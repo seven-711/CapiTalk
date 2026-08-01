@@ -16,17 +16,17 @@ export const Navbar: React.FC = () => {
   }
 
   return (
-    <header className="w-full bg-[#f4f4f0] border-b border-[#d1d5dc] sticky top-0 z-40">
-      <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-12 sm:h-14 flex items-center justify-between gap-2">
+    <header className="w-full bg-[#f4f4f0] border-b border-[#d1d5dc] sticky p-2 top-0 z-40">
+      <div className="max-w-[1200px] mx-auto px-2 sm:px-6 h-10 sm:h-14 flex items-center justify-between gap-1 sm:gap-2">
         {/* Brand & Wordmark */}
         <div 
           onClick={() => setViewState('landing')}
-          className="flex items-center gap-2 cursor-pointer group shrink-0"
+          className="flex items-center gap-1.5 sm:gap-2 cursor-pointer group shrink-0"
         >
-          <CoinMascot size={30} tiltAngle={-8} />
+          <CoinMascot size={22} tiltAngle={-8} />
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base sm:text-xl tracking-tight text-[#000000]">
+            <div className="flex items-center gap-1">
+              <span className="font-extrabold text-sm sm:text-xl tracking-tight text-[#000000]">
                 CapiTalk
               </span>
             </div>
@@ -45,32 +45,19 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Navigation Links & Action Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2">
           {viewState !== 'landing' && (
             <button
               type="button"
               onClick={() => setViewState('landing')}
-              className="text-xs sm:text-sm font-medium text-[#242423] hover:text-black px-2 sm:px-3 py-1 sm:py-1.5 rounded hidden sm:block"
+              className="text-xs font-medium text-[#242423] hover:text-black px-2 py-1 rounded hidden sm:block"
             >
               Home
             </button>
           )}
 
           {currentUser ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => setViewState('queue')}
-                className={`text-xs font-medium flex items-center gap-1 sm:gap-1.5 ${
-                  viewState === 'queue'
-                    ? 'nav-pill-active'
-                    : 'btn-gumroad-ghost px-2 sm:px-3 py-1 sm:py-1.5 text-xs'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Chat</span>
-              </button>
-
+            <div className="flex items-center gap-1 sm:gap-2">
               <div className="hidden sm:flex items-center gap-2 border border-[#d1d5dc] bg-white rounded-full px-3 py-1 text-xs font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span className="truncate max-w-[80px]">{currentUser.username}</span>
@@ -78,26 +65,27 @@ export const Navbar: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setViewState('freedom_wall')}
-                className={`text-xs font-extrabold flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 transition-all ${
+                className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full border-2 transition-all ${
                   viewState === 'freedom_wall'
                     ? 'bg-[#701a31] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                     : 'bg-white text-black border-black hover:bg-[#fff1f3]'
                 }`}
                 title="Campus Freedom Wall"
               >
-                <span>📜 Freedom Wall</span>
+                <span className="sm:hidden">📜 Wall</span>
+                <span className="hidden sm:inline">📜 Freedom Wall</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setViewState('register')}
-                className="btn-gumroad-primary text-xs px-3 py-1.5"
+                className="btn-gumroad-primary text-[11px] sm:text-xs px-2.5 py-1"
               >
-                <UserCheck className="w-3.5 h-3.5" />
+                <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span className="hidden sm:inline">Join CapiTalk</span>
                 <span className="sm:hidden">Join</span>
               </button>
@@ -107,23 +95,23 @@ export const Navbar: React.FC = () => {
           <button
             type="button"
             onClick={() => useChatStore.getState().setShowFeedbackModal(true)}
-            className="p-1.5 sm:p-2 rounded border bg-white text-[#242423] border-[#d1d5dc] hover:border-black transition-colors"
+            className="rounded pl-1 pr-1 text-[#242423] border-[#d1d5dc] border hover:border-black bg-white transition-colors"
             title="Feedback & Bug Report"
           >
-            <span className="text-xs sm:text-sm font-bold">💬</span>
+            <span className="text-xs font-bold">💬</span>
           </button>
 
           <button
             type="button"
             onClick={() => setViewState('admin')}
-            className={`p-1.5 sm:p-2 rounded border transition-colors ${
+            className={`p-1 sm:p-1.5 rounded border transition-colors ${
               viewState === 'admin'
                 ? 'bg-black text-white border-black'
                 : 'bg-white text-[#242423] border-[#d1d5dc] hover:border-black'
             }`}
             title="Admin Dashboard"
           >
-            <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ShieldAlert className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
