@@ -417,9 +417,9 @@ export const ChatRoom: React.FC = () => {
                 </div>
               )}
 
-              {/* Floating Animated Reaction Picker */}
+              {/* Smooth Floating Animated Reaction Picker (positioned directly above message) */}
               {activePickerMsgId === msg.id && (
-                <div className="mb-2 relative z-30 animate-in zoom-in-95 duration-150">
+                <div className="mb-2.5 relative z-40 animate-in fade-in slide-in-from-bottom-2 zoom-in-95 duration-200 drop-shadow-xl">
                   <AnimatedReactionPicker
                     onSelectReaction={(key) => {
                       toggleReaction(msg.id, key);
@@ -430,75 +430,88 @@ export const ChatRoom: React.FC = () => {
                 </div>
               )}
 
-              {/* Main Message Content */}
-              <div
-                onTouchStart={() => handleTouchStart(msg.id)}
-                onTouchEnd={handleTouchEnd}
-                onTouchMove={handleTouchEnd}
-                onMouseDown={() => handleTouchStart(msg.id)}
-                onMouseUp={handleTouchEnd}
-                className={`max-w-[85%] sm:max-w-[70%] p-3.5 rounded-[12px] border text-sm relative select-none cursor-pointer ${
-                  isMe
-                    ? msg.is_profane
-                      ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
-                      : 'bg-black text-white border-black rounded-tr-none'
-                    : msg.is_profane
-                    ? 'bg-red-50 text-black border-red-400 rounded-tl-none'
-                    : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
-                }`}
-              >
-                {msg.message && <p className="leading-relaxed whitespace-pre-wrap">{msg.message}</p>}
+              {/* Message Bubble + Inline Quick Reply Action Row */}
+              <div className={`flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                {/* Main Message Content */}
+                <div
+                  onTouchStart={() => handleTouchStart(msg.id)}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchMove={handleTouchEnd}
+                  onMouseDown={() => handleTouchStart(msg.id)}
+                  onMouseUp={handleTouchEnd}
+                  className={`p-3.5 rounded-[12px] border text-sm relative select-none cursor-pointer flex-1 min-w-0 ${
+                    isMe
+                      ? msg.is_profane
+                        ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
+                        : 'bg-black text-white border-black rounded-tr-none'
+                      : msg.is_profane
+                      ? 'bg-red-50 text-black border-red-400 rounded-tl-none'
+                      : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
+                  }`}
+                >
+                  {msg.message && <p className="leading-relaxed whitespace-pre-wrap">{msg.message}</p>}
 
-                {msg.image_url && (
-                  <div className="mt-2 rounded overflow-hidden border border-[#d1d5dc]">
-                    <img
-                      src={msg.image_url}
-                      alt="Uploaded media"
-                      className="max-h-60 w-auto object-cover rounded"
-                    />
+                  {msg.image_url && (
+                    <div className="mt-2 rounded overflow-hidden border border-[#d1d5dc]">
+                      <img
+                        src={msg.image_url}
+                        alt="Uploaded media"
+                        className="max-h-60 w-auto object-cover rounded"
+                      />
+                    </div>
+                  )}
+
+                  {/* Quick Action Toolbar on Hover */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 bg-white border border-black rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm text-black z-10">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePickerMsgId(activePickerMsgId === msg.id ? null : msg.id);
+                      }}
+                      className="p-1 hover:text-amber-500"
+                      title="React"
+                    >
+                      <Smile className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReplyTo(msg);
+                      }}
+                      className="p-1 hover:text-blue-600"
+                      title="Reply"
+                    >
+                      <CornerUpLeft className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyMessageText(msg.id, msg.message);
+                      }}
+                      className="p-1 hover:text-green-600"
+                      title="Copy"
+                    >
+                      {copiedId === msg.id ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
                   </div>
-                )}
-
-                {/* Quick Action Toolbar on Hover */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 bg-white border border-black rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm text-black z-10">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActivePickerMsgId(activePickerMsgId === msg.id ? null : msg.id);
-                    }}
-                    className="p-1 hover:text-amber-500"
-                    title="React"
-                  >
-                    <Smile className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setReplyTo(msg);
-                    }}
-                    className="p-1 hover:text-blue-600"
-                    title="Reply"
-                  >
-                    <CornerUpLeft className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyMessageText(msg.id, msg.message);
-                    }}
-                    className="p-1 hover:text-green-600"
-                    title="Copy"
-                  >
-                    {copiedId === msg.id ? (
-                      <Check className="w-3 h-3 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
-                    )}
-                  </button>
                 </div>
+
+                {/* Inline Quick Reply Button next to message */}
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(msg)}
+                  className="p-1.5 text-gray-400 hover:text-black hover:bg-black/5 active:scale-95 rounded-full transition-all shrink-0"
+                  title="Reply to message"
+                >
+                  <CornerUpLeft className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Animated Reaction Badges Row */}
