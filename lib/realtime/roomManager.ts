@@ -260,6 +260,25 @@ class RoomManager {
     }
   }
 
+  public injectSystemMessage(msg: ChatMessage) {
+    if (typeof window === 'undefined') return;
+    const roomId = msg.room_id || this.currentRoomId;
+    if (!roomId) return;
+
+    try {
+      const key = MSG_STORAGE_PREFIX + roomId;
+      const raw = localStorage.getItem(key);
+      const msgs: ChatMessage[] = raw ? JSON.parse(raw) : [];
+      if (!msgs.some((m) => m.id === msg.id)) {
+        msgs.push(msg);
+        const trimmed = msgs.slice(-200);
+        localStorage.setItem(key, JSON.stringify(trimmed));
+      }
+    } catch (e) {}
+
+    this.dispatchMessage(msg);
+  }
+
   public persistMessage(msg: ChatMessage) {
     if (typeof window === 'undefined') return;
     const roomId = msg.room_id || this.currentRoomId;

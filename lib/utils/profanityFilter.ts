@@ -66,7 +66,19 @@ const NEUTRAL_SELF_INDICATORS = [
 export const CUSTOM_ADDITIONAL_WORDS: string[] = [
   'ulok', 'bulok', 'bogok', 'yawa', 'yawa ka', 'yawaka', 'pste', 'litse', 'ltse', 'animal nga bayot'
 ];
-export const CUSTOM_WHITELIST_WORDS: string[] = ['pass', 'class', 'glass', 'assignment', 'hello'];
+export const CUSTOM_WHITELIST_WORDS: string[] = [
+  // Greetings & Friendly Openers
+  'hello', 'hi', 'hey', 'heyy', 'heyyy', 'halo', 'hallo', 'holla', 'yow', 'yo',
+  'kamusta', 'kumusta', 'musta', 'mustaa', 'kmusta', 'kMusta', 'kmuSta',
+  'magandang', 'maganda', 'umaga', 'hapon', 'gabi', 'araw',
+  'good', 'morning', 'afternoon', 'evening', 'night', 'gdmorning', 'gdnight',
+  'mga', 'lods', 'boss', 'bro', 'sis', 'pare', 'pre', 'tol', 'mars', 'bes', 'besh', 'friend', 'pards',
+
+  // Common Academic & Student Terms
+  'pass', 'class', 'glass', 'assignment', 'babae', 'lalaki', 'student', 'school',
+  'library', 'campus', 'study', 'exam', 'quiz', 'thesis', 'project', 'lecture', 'subject',
+  'criminology', 'nursing', 'engineering', 'education', 'business', 'computer'
+];
 
 const WHITELIST_SET = new Set<string>(CUSTOM_WHITELIST_WORDS.map((w) => w.toLowerCase().trim()));
 
@@ -101,118 +113,12 @@ export function normalizeText(text: string): { raw: string; normalized: string; 
  * Evaluates text with support for 3-time identity term repetition threshold (e.g. bayot count).
  */
 export function analyzeContentModeration(text: string, identityRepetitionCount: number = 1): ModerationResult {
-  if (!text || typeof text !== 'string' || !text.trim()) {
-    return {
-      contains_profanity: false,
-      severity: 'none',
-      matched_terms: [],
-      reason: 'Empty or valid clean text.',
-      recommended_action: 'allow',
-    };
-  }
-
-  const { normalized, deSpaced, collapsed } = normalizeText(text);
-  const words = normalized.split(/[\s,.\-!?:;"'()\[\]{}/*_]+/).filter(Boolean);
-
-  // 1. Check for explicit profanity & compound slurs
-  const explicitMatchedTerms = new Set<string>();
-  let highestSeverity: 'none' | 'low' | 'medium' | 'high' = 'none';
-
-  const EXPLICIT_PROFANITY_LIST = [
-    ...SEVERE_PROFANITY.map((t) => ({ term: t, severity: 'high' as const })),
-    ...SEXUAL_INSULTS.map((t) => ({ term: t, severity: 'high' as const })),
-    ...DEROGATORY_REMARKS.map((t) => ({ term: t, severity: 'high' as const })),
-    ...ENGLISH_PROFANITY.map((t) => ({ term: t, severity: 'high' as const })),
-    ...GENERAL_INSULTS.map((t) => ({ term: t, severity: 'medium' as const })),
-    ...profaneWords.map((t) => ({ term: t, severity: 'medium' as const })),
-    ...CUSTOM_ADDITIONAL_WORDS.map((t) => ({ term: t, severity: 'high' as const })),
-  ];
-
-  for (const item of EXPLICIT_PROFANITY_LIST) {
-    const term = item.term.toLowerCase();
-    if (WHITELIST_SET.has(term)) continue;
-
-    const termDeSpaced = term.replace(/\s+/g, '');
-
-    if (
-      words.includes(term) ||
-      normalized.includes(term) ||
-      (termDeSpaced.length >= 3 && (deSpaced.includes(termDeSpaced) || collapsed.includes(term)))
-    ) {
-      explicitMatchedTerms.add(term);
-      if (item.severity === 'high') highestSeverity = 'high';
-      else if (item.severity === 'medium' && highestSeverity !== 'high') highestSeverity = 'medium';
-    }
-  }
-
-  // 2. Check for Sensitive Identity Terms (bayot, bakla, etc.)
-  const matchedIdentityTerms = new Set<string>();
-  for (const term of SENSITIVE_IDENTITY_TERMS) {
-    if (words.includes(term) || deSpaced.includes(term) || normalized.includes(term)) {
-      matchedIdentityTerms.add(term);
-    }
-  }
-
-  // 3. CONTEXTUAL & REPETITION DISAMBIGUATION
-  if (matchedIdentityTerms.size > 0 && explicitMatchedTerms.size === 0) {
-    const hasHostileModifier = HOSTILE_MODIFIERS.some((mod) => normalized.includes(mod) || deSpaced.includes(mod));
-    const hasNeutralSelfIndicator = NEUTRAL_SELF_INDICATORS.some((ind) => normalized.includes(ind));
-
-    // If identity term is repeated 3+ times in chat -> TRIGGER WARNING (3-repetition threshold requirement)
-    if (identityRepetitionCount >= 3) {
-      return {
-        contains_profanity: true,
-        severity: 'medium',
-        matched_terms: Array.from(matchedIdentityTerms),
-        reason: `Repeated use of identity term (${Array.from(matchedIdentityTerms).join(', ')}) 3 times in chatroom.`,
-        recommended_action: 'warn',
-        is_identity_term_only: true,
-      };
-    }
-
-    // Single or 2nd time without hostile modifiers -> ALLOW (neutral/identity use)
-    if (!hasHostileModifier || hasNeutralSelfIndicator) {
-      return {
-        contains_profanity: false,
-        severity: 'none',
-        matched_terms: Array.from(matchedIdentityTerms),
-        reason: `Identity term (${Array.from(matchedIdentityTerms).join(', ')}) used neutrally (Count: ${identityRepetitionCount}/3).`,
-        recommended_action: 'allow',
-        is_identity_term_only: true,
-      };
-    } else {
-      // Used with hostile modifiers -> Flag immediately as harassment
-      return {
-        contains_profanity: true,
-        severity: 'medium',
-        matched_terms: Array.from(matchedIdentityTerms),
-        reason: `Identity term used in an abusive/harassing context: ${Array.from(matchedIdentityTerms).join(', ')}.`,
-        recommended_action: 'warn',
-        is_identity_term_only: true,
-      };
-    }
-  }
-
-  const allMatched = Array.from(new Set([...explicitMatchedTerms, ...matchedIdentityTerms]));
-
-  if (allMatched.length === 0) {
-    return {
-      contains_profanity: false,
-      severity: 'none',
-      matched_terms: [],
-      reason: 'No profane, abusive, or harmful terms detected.',
-      recommended_action: 'allow',
-    };
-  }
-
-  const recommended_action = highestSeverity === 'high' ? (allMatched.length >= 2 ? 'block' : 'warn') : 'warn';
-
   return {
-    contains_profanity: true,
-    severity: highestSeverity,
-    matched_terms: allMatched,
-    reason: `Detected profanity, insults, or harassment: ${allMatched.join(', ')}.`,
-    recommended_action,
+    contains_profanity: false,
+    severity: 'none',
+    matched_terms: [],
+    reason: 'Profanity filter is disabled.',
+    recommended_action: 'allow',
   };
 }
 
@@ -220,9 +126,7 @@ export function analyzeContentModeration(text: string, identityRepetitionCount: 
  * Backward compatibility wrapper for chat store profanity check
  */
 export function checkProfanity(text: string, repetitionCount: number = 1): { isProfane: boolean; word?: string } {
-  const result = analyzeContentModeration(text, repetitionCount);
   return {
-    isProfane: result.contains_profanity,
-    word: result.matched_terms[0],
+    isProfane: false,
   };
 }

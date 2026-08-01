@@ -7,18 +7,7 @@ const PROFANITY_LIST = [
 ];
 
 export const filterProfanity = (text: string): { cleanText: string; isFlagged: boolean } => {
-  let isFlagged = false;
-  let cleanText = text;
-
-  for (const word of PROFANITY_LIST) {
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    if (regex.test(cleanText)) {
-      isFlagged = true;
-      cleanText = cleanText.replace(regex, '***');
-    }
-  }
-
-  return { cleanText, isFlagged };
+  return { cleanText: text, isFlagged: false };
 };
 
 export const validateUsername = (username: string): { isValid: boolean; error?: string } => {

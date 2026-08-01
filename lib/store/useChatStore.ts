@@ -288,7 +288,7 @@ export const useChatStore = create<ChatStoreState>()(
                         };
                         updatedMessages = [...updatedMessages, annMsg];
                         try {
-                          roomManager.persistMessage(annMsg);
+                          roomManager.injectSystemMessage(annMsg);
                         } catch (e) {}
                       }
                     }
@@ -327,7 +327,7 @@ export const useChatStore = create<ChatStoreState>()(
                             };
                             updatedMessages = [...updatedMessages, annMsg];
                             try {
-                              roomManager.persistMessage(annMsg);
+                              roomManager.injectSystemMessage(annMsg);
                             } catch (e) {}
                           }
                         }
@@ -1139,7 +1139,7 @@ export const useChatStore = create<ChatStoreState>()(
             };
             updatedMessages = [...updatedMessages, annMsg];
             try {
-              roomManager.sendMessage(annMsg);
+              roomManager.injectSystemMessage(annMsg);
             } catch (e) {}
           }
         }
