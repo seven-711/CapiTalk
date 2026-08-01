@@ -216,6 +216,7 @@ export const useChatStore = create<ChatStoreState>()(
                         color: row.color || '#ffc900',
                         likes_count: row.likes_count || 0,
                         liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
+                        is_admin: !!row.is_admin,
                         created_at: row.created_at,
                       }));
                       set({ freedomPosts: loadedFromDb });
@@ -365,6 +366,7 @@ export const useChatStore = create<ChatStoreState>()(
                           color: row.color || '#ffc900',
                           likes_count: row.likes_count || 0,
                           liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
+                          is_admin: !!row.is_admin,
                           created_at: row.created_at,
                         }));
                         const store = get();
@@ -1082,6 +1084,7 @@ export const useChatStore = create<ChatStoreState>()(
           color: postData.color || '#ffc900',
           likes_count: 0,
           liked_by_users: [],
+          is_admin: !!postData.is_admin,
           created_at: new Date().toISOString(),
         };
 

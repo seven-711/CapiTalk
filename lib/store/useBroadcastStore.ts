@@ -4,25 +4,6 @@ import { GlobalBroadcast, CreateBroadcastInput } from '../types/broadcast';
 
 const STORAGE_KEY = 'capitalk_broadcasts_v1';
 
-// Demo initial broadcast fallback
-const DEMO_INITIAL_BROADCAST: GlobalBroadcast = {
-  id: 'bcast_demo_1',
-  owner_id: 'owner_demo',
-  owner_name: 'John\'s Coffee Shop',
-  title: '🎉 Buy 1 Take 1 Campus Promo Today!',
-  description: 'Show your CU Student ID at the Main Gate branch to get free iced macchiato with any pastry.',
-  image_url: null,
-  action_url: 'https://facebook.com',
-  status: 'active',
-  starts_at: new Date().toISOString(),
-  ends_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 mins
-  duration_minutes: 30,
-  impressions_count: 42,
-  clicks_count: 12,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
 interface BroadcastStore {
   activeBroadcast: GlobalBroadcast | null;
   pendingBroadcasts: GlobalBroadcast[];
@@ -57,14 +38,12 @@ export const useBroadcastStore = create<BroadcastStore>((set, get) => ({
     if (get().isInitialized) return;
     set({ isLoading: true });
 
-    let localBroadcasts: GlobalBroadcast[] = [DEMO_INITIAL_BROADCAST];
+    let localBroadcasts: GlobalBroadcast[] = [];
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
           localBroadcasts = JSON.parse(raw);
-        } else {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify([DEMO_INITIAL_BROADCAST]));
         }
       } catch (e) {}
     }

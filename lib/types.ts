@@ -55,6 +55,15 @@ export interface UserReport {
   created_at: string;
 }
 
+export interface FreedomComment {
+  id: string;
+  post_id: string;
+  author_alias: string;
+  department?: string;
+  message: string;
+  created_at: string;
+}
+
 export interface FreedomPost {
   id: string;
   author_alias: string;
@@ -63,6 +72,8 @@ export interface FreedomPost {
   color: string;
   likes_count: number;
   liked_by_users: string[];
+  comments_count?: number;
+  is_admin?: boolean;
   created_at: string;
 }
 
