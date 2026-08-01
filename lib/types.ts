@@ -52,6 +52,10 @@ export interface UserReport {
   reason: string;
   description: string;
   status: "pending" | "reviewed" | "dismissed";
+  target_type?: "user" | "freedom_post";
+  post_id?: string;
+  post_author_alias?: string;
+  post_message?: string;
   created_at: string;
 }
 

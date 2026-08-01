@@ -16,14 +16,21 @@ import {
   UserCheck,
   Slash,
   X,
+  Flag,
+  Trash2,
+  FileText,
 } from 'lucide-react';
 
 import { useGlobalBroadcast } from '../lib/hooks/useGlobalBroadcast';
+import { DeleteNoteModal } from './DeleteNoteModal';
+import { FreedomPost } from '../lib/types';
 
 export const AdminDashboard: React.FC = () => {
   const {
     reports,
     bannedUserIds,
+    freedomPosts,
+    deleteFreedomPost,
     resolveReport,
     toggleBanUser,
     broadcastAnnouncement,
@@ -50,7 +57,9 @@ export const AdminDashboard: React.FC = () => {
   });
   const [authError, setAuthError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'announcements' | 'feedback'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'wall_notes' | 'users' | 'announcements' | 'feedback'>('reports');
+  const [wallSearchQuery, setWallSearchQuery] = useState('');
+  const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reportFilter, setReportFilter] = useState<'all' | 'pending' | 'reviewed' | 'dismissed'>('all');
   
   const [announcementText, setAnnouncementText] = useState('');
@@ -208,6 +217,16 @@ export const AdminDashboard: React.FC = () => {
           Incident Reports ({reports.filter((r) => r.status === 'pending').length} Pending)
         </button>
         <button
+          onClick={() => setActiveTab('wall_notes')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
+            activeTab === 'wall_notes'
+              ? 'bg-black text-white border-black shadow-sm'
+              : 'bg-white text-[#242423] border-[#d1d5dc] hover:border-black'
+          }`}
+        >
+          📜 Campus Wall Notes ({freedomPosts.length})
+        </button>
+        <button
           onClick={() => setActiveTab('users')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
             activeTab === 'users'
@@ -248,19 +267,30 @@ export const AdminDashboard: React.FC = () => {
               <button
                 onClick={() => {
                   const demoReports = [
-                    { reason: 'Harassment or Bullying', desc: 'Used offensive remarks in chat.' },
-                    { reason: 'Inappropriate or Explicit Images', desc: 'Sent unverified media file.' },
-                    { reason: 'Offensive Language / Hate Speech', desc: 'Inappropriate department comments.' },
+                    { reason: 'Harassment or Bullying', desc: 'Used offensive remarks in chat.', target_type: 'user' as const },
+                    {
+                      reason: 'Profanity or Offensive Terminology',
+                      desc: 'Inappropriate language on campus wall note.',
+                      target_type: 'freedom_post' as const,
+                      post_id: freedomPosts[0]?.id || 'post_1',
+                      post_author_alias: freedomPosts[0]?.author_alias || 'Anon Student',
+                      post_message: freedomPosts[0]?.message || 'To the guy wearing a black hoodie in library...',
+                    },
+                    { reason: 'Offensive Language / Hate Speech', desc: 'Inappropriate department comments.', target_type: 'user' as const },
                   ];
                   const chosen = demoReports[Math.floor(Math.random() * demoReports.length)];
                   const mockReport = {
                     id: 'rep_' + Math.random().toString(36).substring(2, 9),
                     reporter_id: 'usr_studentA',
                     reporter_username: 'Student_Engineering',
-                    reported_user_id: 'usr_reported_' + Math.random().toString(36).substring(2, 6),
-                    reported_username: 'OffendingUser_' + Math.floor(Math.random() * 900 + 100),
+                    reported_user_id: chosen.target_type === 'freedom_post' ? 'wall_author_' + chosen.post_id : 'usr_reported_' + Math.random().toString(36).substring(2, 6),
+                    reported_username: chosen.target_type === 'freedom_post' ? (chosen.post_author_alias || 'Anon Student') : ('OffendingUser_' + Math.floor(Math.random() * 900 + 100)),
                     reason: chosen.reason,
                     description: chosen.desc,
+                    target_type: chosen.target_type,
+                    post_id: chosen.post_id,
+                    post_author_alias: chosen.post_author_alias,
+                    post_message: chosen.post_message,
                     status: 'pending' as const,
                     created_at: new Date().toISOString(),
                   };
@@ -305,60 +335,186 @@ export const AdminDashboard: React.FC = () => {
                 <thead className="bg-[#f4f4f0] border-b border-[#d1d5dc] text-black font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-3.5">Reporter</th>
-                    <th className="p-3.5">Reported User</th>
+                    <th className="p-3.5">Target</th>
                     <th className="p-3.5">Reason</th>
-                    <th className="p-3.5">Details</th>
+                    <th className="p-3.5">Details & Content</th>
                     <th className="p-3.5">Status</th>
                     <th className="p-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#d1d5dc] bg-white">
-                  {filteredReports.map((rep) => (
-                    <tr key={rep.id} className="hover:bg-[#f4f4f0]/50 transition-colors">
-                      <td className="p-3.5 font-semibold text-black">{rep.reporter_username}</td>
-                      <td className="p-3.5 font-extrabold text-red-600">{rep.reported_username}</td>
-                      <td className="p-3.5 font-semibold">{rep.reason}</td>
-                      <td className="p-3.5 text-gray-600 max-w-xs truncate">{rep.description || 'No additional notes'}</td>
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
-                            rep.status === 'pending'
-                              ? 'bg-amber-100 text-amber-800 border-amber-300'
-                              : rep.status === 'reviewed'
-                              ? 'bg-red-100 text-red-800 border-red-300'
-                              : 'bg-gray-100 text-gray-700 border-gray-300'
-                          }`}
-                        >
-                          {rep.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-right flex items-center justify-end gap-2">
-                        {rep.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => resolveReport(rep.id, 'dismiss')}
-                              className="px-3 py-1 bg-white border border-[#d1d5dc] hover:border-black rounded text-xs font-bold text-black transition-colors"
-                            >
-                              Dismiss
-                            </button>
-                            <button
-                              onClick={() => resolveReport(rep.id, 'ban')}
-                              className="px-3 py-1 bg-[#dc341e] text-white hover:bg-red-700 rounded text-xs font-bold transition-colors"
-                            >
-                              Ban User
-                            </button>
-                          </>
-                        )}
-                        {rep.status !== 'pending' && (
-                          <span className="text-gray-400 font-medium text-[11px] italic">Resolved</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredReports.map((rep) => {
+                    const isNoteReport = rep.target_type === 'freedom_post' || !!rep.post_id;
+                    return (
+                      <tr key={rep.id} className="hover:bg-[#f4f4f0]/50 transition-colors">
+                        <td className="p-3.5 font-semibold text-black">{rep.reporter_username}</td>
+                        <td className="p-3.5">
+                          {isNoteReport ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#701a31] text-white text-[10px] font-black rounded-full uppercase">
+                                📜 Campus Wall Note
+                              </span>
+                              <div className="font-extrabold text-black">
+                                ~ {rep.post_author_alias || rep.reported_username}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="font-extrabold text-red-600">{rep.reported_username}</span>
+                          )}
+                        </td>
+                        <td className="p-3.5 font-semibold">{rep.reason}</td>
+                        <td className="p-3.5 max-w-xs space-y-1">
+                          {isNoteReport && rep.post_message && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] font-medium text-black italic">
+                              "{rep.post_message}"
+                            </div>
+                          )}
+                          <div className="text-gray-600 text-[11px]">
+                            {rep.description || 'No additional details provided.'}
+                          </div>
+                        </td>
+                        <td className="p-3.5">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                              rep.status === 'pending'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : rep.status === 'reviewed'
+                                ? 'bg-red-100 text-red-800 border-red-300'
+                                : 'bg-gray-100 text-gray-700 border-gray-300'
+                            }`}
+                          >
+                            {rep.status}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right flex items-center justify-end gap-2">
+                          {rep.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => resolveReport(rep.id, 'dismiss')}
+                                className="px-3 py-1 bg-white border border-[#d1d5dc] hover:border-black rounded text-xs font-bold text-black transition-colors"
+                              >
+                                Dismiss
+                              </button>
+                              {isNoteReport ? (
+                                <button
+                                  onClick={() => resolveReport(rep.id, 'delete_post')}
+                                  className="px-3 py-1 bg-[#dc341e] text-white hover:bg-red-700 rounded text-xs font-bold transition-colors flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Delete Note
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => resolveReport(rep.id, 'ban')}
+                                  className="px-3 py-1 bg-[#dc341e] text-white hover:bg-red-700 rounded text-xs font-bold transition-colors"
+                                >
+                                  Ban User
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {rep.status !== 'pending' && (
+                            <span className="text-gray-400 font-medium text-[11px] italic">Resolved</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tab 2: Campus Wall Notes Moderation */}
+      {activeTab === 'wall_notes' && (
+        <div className="space-y-6">
+          <div className="gumroad-card p-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-black flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-[#701a31]" />
+                  Campus Wall Notes Moderation
+                </h3>
+                <p className="text-xs text-[#242423] mt-0.5">
+                  Audit, inspect, or remove any student note posted on the anonymous Freedom Wall.
+                </p>
+              </div>
+
+              <div className="relative w-full md:w-72">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={wallSearchQuery}
+                  onChange={(e) => setWallSearchQuery(e.target.value)}
+                  placeholder="Search wall notes..."
+                  className="gumroad-input w-full pl-9 py-2 text-xs"
+                />
+              </div>
+            </div>
+
+            {freedomPosts.length === 0 ? (
+              <div className="p-8 text-center text-xs text-gray-500">
+                No active notes found on the Campus Wall.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {freedomPosts
+                  .filter(
+                    (p) =>
+                      !wallSearchQuery.trim() ||
+                      p.message.toLowerCase().includes(wallSearchQuery.toLowerCase()) ||
+                      p.author_alias.toLowerCase().includes(wallSearchQuery.toLowerCase()) ||
+                      p.department.toLowerCase().includes(wallSearchQuery.toLowerCase())
+                  )
+                  .map((post) => (
+                    <div
+                      key={post.id}
+                      style={{ backgroundColor: post.color || '#ffc900' }}
+                      className="p-4 rounded-2xl border-2 border-black flex flex-col justify-between shadow-sm relative text-black"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="px-2.5 py-0.5 bg-black text-white text-[10px] font-extrabold rounded-full uppercase">
+                            {post.department}
+                          </span>
+                          <span className="text-[10px] font-bold opacity-75">
+                            {new Date(post.created_at).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold leading-relaxed mb-3 whitespace-pre-wrap break-words">
+                          "{post.message}"
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-black/20 flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-extrabold italic">
+                          ~ {post.author_alias || 'Anon Student'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold bg-white/80 border border-black/30 px-2 py-0.5 rounded-full">
+                            ❤️ {post.likes_count}
+                          </span>
+                          <button
+                            onClick={() => setSelectedPostForDelete(post)}
+                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -615,6 +771,15 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Delete Note Confirmation Modal */}
+      {selectedPostForDelete && (
+        <DeleteNoteModal
+          post={selectedPostForDelete}
+          onConfirm={() => deleteFreedomPost(selectedPostForDelete.id)}
+          onClose={() => setSelectedPostForDelete(null)}
+        />
       )}
     </div>
   );

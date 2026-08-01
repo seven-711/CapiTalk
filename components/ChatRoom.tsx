@@ -10,6 +10,7 @@ import { filterProfanity } from '../lib/utils/safety';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { ReportModal } from './ReportModal';
 import { FeedbackModal } from './FeedbackModal';
+import { BlockUserModal } from './BlockUserModal';
 import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
 import {
   Send,
@@ -77,6 +78,7 @@ export const ChatRoom: React.FC = () => {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
   const [replyTo, setReplyTo] = useState<any | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -411,7 +413,7 @@ export const ChatRoom: React.FC = () => {
 
           <button
             type="button"
-            onClick={blockPartner}
+            onClick={() => setShowBlockModal(true)}
             className="p-1.5 sm:p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded border border-[#d1d5dc]"
             title="Block User"
           >
@@ -1153,6 +1155,15 @@ export const ChatRoom: React.FC = () => {
       )} */}
       {/* Feedback & Bug Report Modal */}
       <FeedbackModal />
+
+      {/* Block User Confirmation Modal */}
+      {showBlockModal && (
+        <BlockUserModal
+          username={partner.username}
+          onConfirm={blockPartner}
+          onClose={() => setShowBlockModal(false)}
+        />
+      )}
     </div>
   );
 };

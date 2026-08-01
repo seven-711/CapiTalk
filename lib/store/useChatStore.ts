@@ -60,13 +60,15 @@ interface ChatStoreState {
   nextMatch: () => void;
   leaveRoom: () => void;
   reportPartner: (reason: string, description: string) => void;
+  reportFreedomPost: (postId: string, postAuthorAlias: string, postMessage: string, reason: string, description: string) => void;
   blockPartner: () => void;
   triggerBotMatch: () => void;
 
-  resolveReport: (reportId: string, action: 'dismiss' | 'ban') => void;
+  resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post') => void;
   toggleBanUser: (userId: string) => void;
 
   addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>) => boolean;
+  deleteFreedomPost: (postId: string) => void;
   likeFreedomPost: (postId: string) => void;
   submitFeedback: (input: { category: UserFeedback['category']; rating: number; message: string }) => void;
 
@@ -996,12 +998,84 @@ export const useChatStore = create<ChatStoreState>()(
         matchmakingEngine.triggerManualBotMatch(currentUser, queueFilter);
       },
 
-      resolveReport: (reportId: string, action: 'dismiss' | 'ban') => {
-        const { reports, bannedUserIds } = get();
+      reportFreedomPost: (postId: string, postAuthorAlias: string, postMessage: string, reason: string, description: string) => {
+        const { currentUser, reports } = get();
+        const reporterId = currentUser ? currentUser.id : 'guest_' + Date.now();
+        const reporterUsername = currentUser ? currentUser.username : 'Anonymous Student';
+
+        const newReport: UserReport = {
+          id: 'rep_post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          reporter_id: reporterId,
+          reporter_username: reporterUsername,
+          reported_user_id: 'wall_author_' + postId,
+          reported_username: postAuthorAlias || 'Anon Student',
+          reason,
+          description,
+          status: 'pending',
+          target_type: 'freedom_post',
+          post_id: postId,
+          post_author_alias: postAuthorAlias,
+          post_message: postMessage,
+          created_at: new Date().toISOString(),
+        };
+
+        const updatedReports = [newReport, ...reports];
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updatedReports));
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('reports')
+              .insert({
+                id: newReport.id,
+                reporter_id: newReport.reporter_id,
+                reporter_username: newReport.reporter_username,
+                reported_user_id: newReport.reported_user_id,
+                reported_username: newReport.reported_username,
+                reason: newReport.reason,
+                description: newReport.description,
+                status: 'pending',
+                target_type: 'freedom_post',
+                post_id: postId,
+                created_at: newReport.created_at,
+              })
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        try {
+          const ws = matchmakingEngine.getWebSocket();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'REPORT_SUBMITTED', report: newReport }));
+          }
+        } catch (e) {}
+
+        set({
+          reports: updatedReports,
+          actionToast: {
+            type: 'report',
+            message: `⚠️ Campus wall note reported. CapiTalk moderators will review it shortly.`,
+          },
+        });
+      },
+
+      resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post') => {
+        const { reports, bannedUserIds, deleteFreedomPost } = get();
         const targetReport = reports.find((r) => r.id === reportId);
 
+        if (action === 'delete_post' && targetReport?.post_id) {
+          deleteFreedomPost(targetReport.post_id);
+        }
+
         const updatedReports = reports.map((r) =>
-          r.id === reportId ? { ...r, status: action === 'ban' ? ('reviewed' as const) : ('dismissed' as const) } : r
+          r.id === reportId
+            ? { ...r, status: (action === 'ban' || action === 'delete_post') ? ('reviewed' as const) : ('dismissed' as const) }
+            : r
         );
 
         let updatedBans = bannedUserIds;
@@ -1012,7 +1086,9 @@ export const useChatStore = create<ChatStoreState>()(
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updatedReports));
-            localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updatedBans));
+            if (action === 'ban') {
+              localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updatedBans));
+            }
           } catch (e) {}
         }
 
@@ -1020,7 +1096,7 @@ export const useChatStore = create<ChatStoreState>()(
           try {
             supabase
               .from('reports')
-              .update({ status: action === 'ban' ? 'reviewed' : 'dismissed' })
+              .update({ status: (action === 'ban' || action === 'delete_post') ? 'reviewed' : 'dismissed' })
               .eq('id', reportId)
               .then(() => {}, () => {});
 
@@ -1038,7 +1114,12 @@ export const useChatStore = create<ChatStoreState>()(
           bannedUserIds: updatedBans,
           actionToast: {
             type: action === 'ban' ? 'ban' : 'announcement',
-            message: action === 'ban' ? '🚫 Student user banned from CapiTalk.' : 'Report dismissed.',
+            message:
+              action === 'delete_post'
+                ? '🗑️ Reported note deleted and report resolved.'
+                : action === 'ban'
+                ? '🚫 Student user banned from CapiTalk.'
+                : 'Report dismissed.',
           },
         });
       },
@@ -1124,6 +1205,37 @@ export const useChatStore = create<ChatStoreState>()(
           actionToast: { type: 'announcement', message: '✨ Anonymous post published to Freedom Wall!' },
         });
         return true;
+      },
+
+      deleteFreedomPost: (postId: string) => {
+        const { freedomPosts } = get();
+        const updated = freedomPosts.filter((p) => p.id !== postId);
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase.from('freedom_posts').delete().eq('id', postId).then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        set({
+          freedomPosts: updated,
+          actionToast: {
+            type: 'announcement',
+            message: '🗑️ Freedom Wall note deleted successfully.',
+          },
+        });
       },
 
       likeFreedomPost: (postId: string) => {
