@@ -10,7 +10,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@dotlottie/react-player": "^1.6.19",
     "@lottiefiles/dotlottie-react": "^0.19.12",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
