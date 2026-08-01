@@ -332,50 +332,8 @@ export const ChatRoom: React.FC = () => {
         </div>
       </div>
 
-      {/* Active Campus Announcement Banner inside Chat Room Header */}
-      {systemAnnouncement && (
-        <div className="bg-[#ffc900] border-b-2 border-black px-3 sm:px-6 py-2 text-xs sm:text-sm font-extrabold text-black flex items-center justify-between shadow-sm shrink-0 z-30 animate-in fade-in duration-200">
-          <div className="flex items-center gap-2 truncate">
-            <span className="px-2 py-0.5 bg-black text-white text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider shrink-0">
-              📢 Campus Advisory
-            </span>
-            <span className="truncate">{systemAnnouncement.message}</span>
-          </div>
-          <button
-            type="button"
-            onClick={dismissAnnouncement}
-            className="p-1 hover:bg-black/10 rounded-full transition-colors shrink-0"
-            title="Dismiss Announcement"
-          >
-            <X className="w-4 h-4 text-black" />
-          </button>
-        </div>
-      )}
-
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
       <div className="bg-[#f4f4f0] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
-        {/* Active Campus Announcement Card inside Message Stream */}
-        {systemAnnouncement && (
-          <div className="my-2 p-3 sm:p-4 bg-[#ffc900] border-2 border-black rounded-2xl shadow-sm text-black animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded-full uppercase tracking-wider">
-                  📢 Campus Announcement
-                </span>
-                <span className="text-[10px] font-bold text-black/70">{systemAnnouncement.timestamp}</span>
-              </div>
-              <button
-                type="button"
-                onClick={dismissAnnouncement}
-                className="text-black/60 hover:text-black p-0.5"
-                title="Dismiss"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <p className="text-xs sm:text-sm font-bold leading-relaxed">{systemAnnouncement.message}</p>
-          </div>
-        )}
         {messages.map((msg) => {
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
@@ -560,15 +518,6 @@ export const ChatRoom: React.FC = () => {
             ) : (
               <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
             )}
-            <span className="font-semibold text-black">
-              {partnerLeftReason === 'inactivity'
-                ? 'Conversation ended due to partner inactivity.'
-                : partnerLeftReason === 'exited'
-                ? `${partner.username} has exited the conversation.`
-                : partnerLeftReason === 'skipped'
-                ? `${partner.username} skipped to another chat.`
-                : 'This conversation has ended.'}
-            </span>
           </div>
           <div className="flex items-center gap-2">
             <button

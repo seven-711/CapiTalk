@@ -132,22 +132,7 @@ export const useChatStore = create<ChatStoreState>()(
               } else if (e.key === 'capitalk_shared_announcement_v5') {
                 try {
                   const updated = e.newValue ? JSON.parse(e.newValue) : null;
-                  const currentStore = get();
-                  let updatedMessages = currentStore.messages;
-                  if (updated && currentStore.activeRoom) {
-                    const annMsg: ChatMessage = {
-                      id: 'msg_ann_' + Date.now(),
-                      room_id: currentStore.activeRoom.id,
-                      sender_id: 'system',
-                      sender_username: 'CapiTalk System',
-                      message: `📢 Campus Announcement: ${updated.message}`,
-                      created_at: new Date().toISOString(),
-                    };
-                    if (!updatedMessages.some((m) => m.message === annMsg.message)) {
-                      updatedMessages = [...updatedMessages, annMsg];
-                    }
-                  }
-                  set({ systemAnnouncement: updated, messages: updatedMessages });
+                  set({ systemAnnouncement: updated });
                 } catch (err) {}
               }
             });
@@ -157,22 +142,7 @@ export const useChatStore = create<ChatStoreState>()(
               broadcastChannel.onmessage = (event) => {
                 if (event.data?.type === 'ANNOUNCEMENT_BROADCAST') {
                   const announcement = event.data.announcement;
-                  const currentStore = get();
-                  let updatedMessages = currentStore.messages;
-                  if (announcement && currentStore.activeRoom) {
-                    const annMsg: ChatMessage = {
-                      id: 'msg_ann_' + Date.now(),
-                      room_id: currentStore.activeRoom.id,
-                      sender_id: 'system',
-                      sender_username: 'CapiTalk System',
-                      message: `📢 Campus Announcement: ${announcement.message}`,
-                      created_at: new Date().toISOString(),
-                    };
-                    if (!updatedMessages.some((m) => m.message === annMsg.message)) {
-                      updatedMessages = [...updatedMessages, annMsg];
-                    }
-                  }
-                  set({ systemAnnouncement: announcement, messages: updatedMessages });
+                  set({ systemAnnouncement: announcement });
                 }
               };
             }
@@ -185,22 +155,7 @@ export const useChatStore = create<ChatStoreState>()(
                   .on('broadcast', { event: 'announcement' }, (payload: any) => {
                     const announcement = payload?.payload;
                     if (announcement) {
-                      const currentStore = get();
-                      let updatedMessages = currentStore.messages;
-                      if (currentStore.activeRoom) {
-                        const annMsg: ChatMessage = {
-                          id: 'msg_ann_' + Date.now(),
-                          room_id: currentStore.activeRoom.id,
-                          sender_id: 'system',
-                          sender_username: 'CapiTalk System',
-                          message: `📢 Campus Announcement: ${announcement.message}`,
-                          created_at: new Date().toISOString(),
-                        };
-                        if (!updatedMessages.some((m) => m.message === annMsg.message)) {
-                          updatedMessages = [...updatedMessages, annMsg];
-                        }
-                      }
-                      set({ systemAnnouncement: announcement, messages: updatedMessages });
+                      set({ systemAnnouncement: announcement });
                       if (typeof window !== 'undefined') {
                         localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
                       }
@@ -219,21 +174,7 @@ export const useChatStore = create<ChatStoreState>()(
 
                 const annChanged = JSON.stringify(latestAnn) !== JSON.stringify(currentStore.systemAnnouncement);
                 if (annChanged) {
-                  let updatedMessages = currentStore.messages;
-                  if (latestAnn && currentStore.activeRoom) {
-                    const annMsg: ChatMessage = {
-                      id: 'msg_ann_' + Date.now(),
-                      room_id: currentStore.activeRoom.id,
-                      sender_id: 'system',
-                      sender_username: 'CapiTalk System',
-                      message: `📢 Campus Announcement: ${latestAnn.message}`,
-                      created_at: new Date().toISOString(),
-                    };
-                    if (!updatedMessages.some((m) => m.message === annMsg.message)) {
-                      updatedMessages = [...updatedMessages, annMsg];
-                    }
-                  }
-                  set({ systemAnnouncement: latestAnn, messages: updatedMessages });
+                  set({ systemAnnouncement: latestAnn });
                 }
               } catch (e) {}
             }, 1500);
@@ -688,25 +629,8 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
-        const { activeRoom, messages } = get();
-        let updatedMessages = messages;
-        if (activeRoom) {
-          const annMsg: ChatMessage = {
-            id: 'msg_ann_' + Date.now(),
-            room_id: activeRoom.id,
-            sender_id: 'system',
-            sender_username: 'CapiTalk System',
-            message: `📢 Campus Announcement: ${message.trim()}`,
-            created_at: new Date().toISOString(),
-          };
-          if (!updatedMessages.some((m) => m.message === annMsg.message)) {
-            updatedMessages = [...updatedMessages, annMsg];
-          }
-        }
-
         set({
           systemAnnouncement: announcementObj,
-          messages: updatedMessages,
           actionToast: { type: 'announcement', message: '📢 Campus announcement broadcast live to all students!' },
         });
       },
