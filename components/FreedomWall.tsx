@@ -168,7 +168,7 @@ export const FreedomWall: React.FC = () => {
     }
 
     const success = addFreedomPost({
-      author_alias: postAsAdmin ? (alias.includes('Admin') ? alias.trim() : '👑 Campus Admin') : (alias.trim() || 'Anon Student'),
+      author_alias: postAsAdmin ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin') : (alias.trim() || 'Anon Student'),
       department: department || 'General',
       message: message.trim(),
       color: postAsAdmin ? '#701a31' : selectedColor,
