@@ -2,15 +2,22 @@
 
 @layer base {
   :root {
-    --color-canvas-cream: #f4f4f0;
+    --color-canvas-cream: #fbf9f5;
     --color-paper-white: #ffffff;
     --color-ink-black: #000000;
     --color-graphite: #242423;
     --color-hairline: #d1d5dc;
+
+    /* School Representative Palette: Dark Maroon & Crimson Red */
+    --color-maroon: #701a31;
+    --color-maroon-dark: #4d0d1f;
+    --color-crimson: #c41e3a;
+    --color-maroon-light: #fff1f3;
+
     --color-coin-pink: #ff90e8;
     --color-highlight-yellow: #ffc900;
     --color-highlight-lime: #f1f333;
-    --color-highlight-vermillion: #dc341e;
+    --color-highlight-vermillion: #c41e3a;
 
     --background: var(--color-canvas-cream);
     --foreground: var(--color-ink-black);
@@ -30,45 +37,53 @@
   }
 }
 
-/* Custom Gumroad Aesthetic Utilities */
-.bg-canvas-cream { background-color: #f4f4f0; }
+/* Custom School Neo-Brutalist Palette Utilities */
+.bg-canvas-cream { background-color: #fbf9f5; }
 .bg-paper-white  { background-color: #ffffff; }
 .bg-ink-black    { background-color: #000000; }
+.bg-maroon       { background-color: #701a31; }
+.bg-maroon-dark  { background-color: #4d0d1f; }
+.bg-crimson      { background-color: #c41e3a; }
+.bg-maroon-light { background-color: #fff1f3; }
 .bg-coin-pink    { background-color: #ff90e8; }
 .bg-highlight-yellow    { background-color: #ffc900; }
 .bg-highlight-lime      { background-color: #f1f333; }
-.bg-highlight-vermillion{ background-color: #dc341e; }
+.bg-highlight-vermillion{ background-color: #c41e3a; }
 .border-hairline  { border-color: #d1d5dc; }
 .border-ink-black { border-color: #000000; }
+.border-maroon    { border-color: #701a31; }
 .text-graphite  { color: #242423; }
 .text-ink-black { color: #000000; }
+.text-maroon    { color: #701a31; }
+.text-crimson   { color: #c41e3a; }
 .text-coin-pink { color: #ff90e8; }
 
-/* Gumroad Hairline Card */
+/* Gumroad Hairline & Neo-Brutalist Cards */
 .gumroad-card {
   background-color: #ffffff;
-  border: 1px solid #d1d5dc;
-  border-radius: 12px;
-  box-shadow: none;
+  border: 2px solid #000000;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
 }
 
 .gumroad-feature-card {
   background-color: #ffffff;
-  border: 1px solid #d1d5dc;
-  border-radius: 16px;
-  box-shadow: none;
+  border: 2px solid #000000;
+  border-radius: 20px;
+  box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
 }
 
-/* ─── Gumroad Buttons ────────────────────────────────────────────────────── */
+/* ─── Neo-Brutalist Dark Maroon Buttons ──────────────────────────────────────── */
 .btn-gumroad-primary {
-  background-color: #000000;
+  background-color: #701a31;
   color: #ffffff;
-  border-radius: 4px;
-  /* mobile-first smaller padding/font */
+  border: 2px solid #000000;
+  border-radius: 12px;
+  box-shadow: 3px 3px 0px 0px rgba(0,0,0,1);
   padding: 9px 16px;
-  font-weight: 500;
+  font-weight: 800;
   font-size: 14px;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -84,19 +99,26 @@
   }
 }
 
-.btn-gumroad-primary:hover  { opacity: 0.88; transform: translateY(-1px); }
-.btn-gumroad-primary:active { transform: translateY(0); }
+.btn-gumroad-primary:hover  {
+  background-color: #4d0d1f;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+}
+.btn-gumroad-primary:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px 0px rgba(0,0,0,1);
+}
 
 .btn-gumroad-ghost {
-  background-color: transparent;
+  background-color: #ffffff;
   color: #000000;
-  border: 1px solid #d1d5dc;
-  border-radius: 4px;
-  /* mobile-first smaller padding/font */
+  border: 2px solid #000000;
+  border-radius: 12px;
+  box-shadow: 2px 2px 0px 0px rgba(0,0,0,1);
   padding: 9px 16px;
-  font-weight: 500;
+  font-weight: 700;
   font-size: 14px;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -114,17 +136,21 @@
 
 .btn-gumroad-ghost:hover {
   border-color: #000000;
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: #fff1f3;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px 0px rgba(0,0,0,1);
 }
 
 /* Nav Pill Active */
 .nav-pill-active {
-  background-color: #000000;
+  background-color: #701a31;
   color: #ffffff;
+  border: 2px solid #000000;
   border-radius: 9999px;
   padding: 5px 12px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 800;
+  box-shadow: 2px 2px 0px 0px rgba(0,0,0,1);
 }
 
 @media (min-width: 640px) {

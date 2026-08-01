@@ -72,7 +72,7 @@ export const RegistrationModal: React.FC = () => {
                   onClick={() => setSelectedAvatar(avatar)}
                   className={`relative p-1 rounded-full border-2 transition-all transform hover:scale-105 shrink-0 ${
                     selectedAvatar === avatar
-                      ? 'border-black bg-[#ff90e8] scale-110'
+                      ? 'border-black bg-[#701a31] scale-110 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                       : 'border-transparent hover:border-[#d1d5dc]'
                   }`}
                 >

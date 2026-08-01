@@ -18,6 +18,8 @@ import {
   X,
 } from 'lucide-react';
 
+import { useGlobalBroadcast } from '../lib/hooks/useGlobalBroadcast';
+
 export const AdminDashboard: React.FC = () => {
   const {
     reports,
@@ -27,6 +29,16 @@ export const AdminDashboard: React.FC = () => {
     broadcastAnnouncement,
     setViewState,
   } = useChatStore();
+
+  const {
+    activeBroadcast,
+    pendingBroadcasts,
+    expiredBroadcasts,
+    remainingTimeText,
+    cancelBroadcast,
+    skipActiveBroadcast,
+    activatePendingBroadcast,
+  } = useGlobalBroadcast();
 
   const onlineCount = useOnlineCount();
   const [passcode, setPasscode] = useState('');
@@ -392,40 +404,138 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: System Broadcast */}
+      {/* Tab 3: System & Global Live Broadcasts */}
       {activeTab === 'announcements' && (
-        <div className="gumroad-feature-card p-6">
-          <h3 className="text-xl font-extrabold text-black mb-2 flex items-center gap-2">
-            <Radio className="w-5 h-5 text-[#ff90e8]" />
-            Broadcast Campus Announcement
-          </h3>
-          <p className="text-xs text-[#242423] mb-4">
-            Send a live advisory banner to all active student chat sessions across campus.
-          </p>
+        <div className="space-y-6">
+          {/* Active Broadcast Control */}
+          <div className="gumroad-feature-card p-6 border-2 border-black bg-white">
+            <h3 className="text-xl font-extrabold text-black mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Radio className="w-5 h-5 text-[#ff90e8]" />
+                Global Live Broadcast Banner Control
+              </span>
+              {activeBroadcast && (
+                <span className="px-3 py-1 bg-[#00e599] border border-black text-black text-xs font-extrabold rounded-full uppercase">
+                  ● Currently Active
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-[#242423] mb-4">
+              Manage live sponsored banners, view real-time impression &amp; click analytics, or push instant admin announcements.
+            </p>
 
-          {announcementSent && (
-            <div className="mb-4 p-3 bg-emerald-100 border border-emerald-500 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
-              <CheckCircle className="w-4 h-4" />
-              <span>Announcement broadcast successfully to all active chat sessions!</span>
-            </div>
-          )}
+            {activeBroadcast ? (
+              <div className="p-4 bg-[#ffc900]/20 border-2 border-black rounded-2xl space-y-3 mb-6">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded-full uppercase">
+                      Active Banner
+                    </span>
+                    <h4 className="font-extrabold text-base text-black mt-1">
+                      {activeBroadcast.title}
+                    </h4>
+                    <p className="text-xs text-[#242423]">
+                      {activeBroadcast.description}
+                    </p>
+                    <p className="text-[11px] text-gray-600 font-bold mt-1">
+                      Purchased by: @{activeBroadcast.owner_name}
+                    </p>
+                  </div>
 
-          <form onSubmit={handleBroadcast} className="space-y-4">
-            <textarea
-              rows={3}
-              value={announcementText}
-              onChange={(e) => setAnnouncementText(e.target.value)}
-              placeholder="e.g. 📢 Campus Advisory: Intramural sports registration is now open! Please adhere to community guidelines in chat."
-              className="gumroad-input w-full text-sm resize-none"
-              required
-            />
-            <div className="flex items-center justify-end gap-3">
-              <button type="submit" className="btn-gumroad-primary text-xs px-6 py-2.5 flex items-center gap-2">
-                <Radio className="w-4 h-4 text-[#ff90e8]" />
-                <span>Broadcast Live Announcement</span>
-              </button>
-            </div>
-          </form>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={skipActiveBroadcast}
+                      className="btn-gumroad-ghost text-xs px-3.5 py-2 bg-red-100 text-red-700 border-red-400 font-extrabold hover:bg-red-200"
+                    >
+                      Skip / End Active Banner
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-black/20">
+                  <div className="p-2 bg-white rounded-xl border border-black text-center">
+                    <span className="block text-[10px] text-gray-500 font-bold uppercase">Time Remaining</span>
+                    <span className="text-xs font-extrabold text-black">{remainingTimeText || '00m 00s'}</span>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-black text-center">
+                    <span className="block text-[10px] text-gray-500 font-bold uppercase">Total Impressions</span>
+                    <span className="text-xs font-extrabold text-black">{activeBroadcast.impressions_count} Views</span>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-black text-center">
+                    <span className="block text-[10px] text-gray-500 font-bold uppercase">Total Clicks</span>
+                    <span className="text-xs font-extrabold text-emerald-700">{activeBroadcast.clicks_count} Clicks</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-[#f4f4f0] border-2 border-black rounded-2xl text-center text-xs font-bold text-gray-600 mb-6">
+                No active broadcast banner currently running. Next pending broadcast will auto-activate upon purchase!
+              </div>
+            )}
+
+            {/* Pending Queue */}
+            {pendingBroadcasts.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-extrabold text-sm text-black mb-2 flex items-center justify-between">
+                  <span>Broadcast Queue ({pendingBroadcasts.length} Waiting)</span>
+                  <span className="text-[11px] font-normal text-gray-500">Auto-activates when current ends</span>
+                </h4>
+                <div className="space-y-2">
+                  {pendingBroadcasts.map((item, idx) => (
+                    <div key={item.id} className="p-3 bg-gray-50 border border-black rounded-xl flex items-center justify-between gap-3">
+                      <div>
+                        <span className="px-2 py-0.5 bg-gray-200 text-black text-[10px] font-extrabold rounded-md mr-2">
+                          #{idx + 1} Queue
+                        </span>
+                        <span className="font-extrabold text-xs text-black">{item.title}</span>
+                        <p className="text-[11px] text-gray-600 truncate max-w-md">{item.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => activatePendingBroadcast(item.id)}
+                          className="btn-gumroad-primary text-[11px] px-3 py-1 bg-[#00e599] text-black font-extrabold"
+                        >
+                          Activate Now
+                        </button>
+                        <button
+                          onClick={() => cancelBroadcast(item.id)}
+                          className="btn-gumroad-ghost text-[11px] px-2.5 py-1 text-red-600 hover:bg-red-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Instant Admin Broadcast Form */}
+            <h4 className="font-extrabold text-sm text-black mb-2">Create New Live Broadcast</h4>
+            {announcementSent && (
+              <div className="mb-4 p-3 bg-emerald-100 border border-emerald-500 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
+                <CheckCircle className="w-4 h-4" />
+                <span>Announcement broadcast successfully to all connected users!</span>
+              </div>
+            )}
+
+            <form onSubmit={handleBroadcast} className="space-y-4">
+              <textarea
+                rows={3}
+                value={announcementText}
+                onChange={(e) => setAnnouncementText(e.target.value)}
+                placeholder="e.g. 📢 Campus Advisory: Intramural sports registration is now open! Please adhere to community guidelines in chat."
+                className="gumroad-input w-full text-sm resize-none"
+                required
+              />
+              <div className="flex items-center justify-end gap-3">
+                <button type="submit" className="btn-gumroad-primary text-xs px-6 py-2.5 flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-[#ff90e8]" />
+                  <span>Broadcast Live Announcement</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

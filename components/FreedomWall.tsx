@@ -18,12 +18,12 @@ import {
 } from 'lucide-react';
 
 const POST_COLORS = [
-  { name: 'Yellow', hex: '#ffc900' },
+  { name: 'Maroon', hex: '#701a31' },
+  { name: 'Crimson', hex: '#c41e3a' },
+  { name: 'Gold', hex: '#ffc900' },
   { name: 'Pink', hex: '#ff90e8' },
   { name: 'Mint', hex: '#00e599' },
-  { name: 'Lavender', hex: '#c4b5fd' },
   { name: 'Sky', hex: '#7dd3fc' },
-  { name: 'Peach', hex: '#fca5a5' },
 ];
 
 export const FreedomWall: React.FC = () => {
@@ -108,7 +108,7 @@ export const FreedomWall: React.FC = () => {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 bg-[#ff90e8] border border-black text-black text-2xl sm:text-xs font-extrabold rounded-full uppercase tracking-wider">
+              <span className="px-3 py-1 bg-[#701a31] border-2 border-black text-white text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 Campus Wall
               </span>
             </div>

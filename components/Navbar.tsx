@@ -81,10 +81,10 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setViewState('freedom_wall')}
-                className={`text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border transition-all ${
+                className={`text-xs font-extrabold flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 transition-all ${
                   viewState === 'freedom_wall'
-                    ? 'bg-[#ff90e8] text-black border-black shadow-sm'
-                    : 'bg-white text-black border-[#d1d5dc] hover:border-black'
+                    ? 'bg-[#701a31] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    : 'bg-white text-black border-black hover:bg-[#fff1f3]'
                 }`}
                 title="Campus Freedom Wall"
               >

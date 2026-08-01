@@ -260,10 +260,13 @@ class RoomManager {
     }
   }
 
-  private persistMessage(msg: ChatMessage) {
-    if (typeof window === 'undefined' || !this.currentRoomId) return;
+  public persistMessage(msg: ChatMessage) {
+    if (typeof window === 'undefined') return;
+    const roomId = msg.room_id || this.currentRoomId;
+    if (!roomId) return;
+
     try {
-      const key = MSG_STORAGE_PREFIX + this.currentRoomId;
+      const key = MSG_STORAGE_PREFIX + roomId;
       const raw = localStorage.getItem(key);
       const msgs: ChatMessage[] = raw ? JSON.parse(raw) : [];
       if (!msgs.some((m) => m.id === msg.id)) {
@@ -273,6 +276,8 @@ class RoomManager {
       }
     } catch (e) {}
 
+    this.dispatchMessage(msg);
+
     // Persist asynchronously to Supabase PostgreSQL database
     if (isSupabaseConfigured && supabase) {
       try {
@@ -280,7 +285,7 @@ class RoomManager {
           .from('messages')
           .insert({
             id: msg.id,
-            room_id: msg.room_id || this.currentRoomId,
+            room_id: roomId,
             sender_id: msg.sender_id,
             sender_username: msg.sender_username,
             message: msg.message || '',

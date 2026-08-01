@@ -105,7 +105,30 @@ CREATE POLICY "Public Messages Access" ON public.messages FOR ALL USING (true);
 CREATE POLICY "Public Reports Access" ON public.reports FOR ALL USING (true);
 CREATE POLICY "Public Blocks Access" ON public.blocks FOR ALL USING (true);
 
--- Enable Supabase Realtime for Messages, Rooms, and Queue
+-- Enable Supabase Realtime for Messages, Rooms, Queue, and Broadcasts
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.queue;
+
+-- 9. Global Broadcasts Table
+CREATE TABLE IF NOT EXISTS public.broadcasts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id TEXT NOT NULL DEFAULT 'anon',
+  owner_name TEXT NOT NULL DEFAULT 'Anonymous Student',
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  image_url TEXT,
+  action_url TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'expired', 'cancelled')) DEFAULT 'pending',
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ends_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '30 minutes',
+  duration_minutes INT NOT NULL DEFAULT 30,
+  impressions_count INT NOT NULL DEFAULT 0,
+  clicks_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Broadcasts Access" ON public.broadcasts FOR ALL USING (true);
+ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcasts;

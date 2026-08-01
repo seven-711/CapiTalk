@@ -123,8 +123,8 @@ export default function Home() {
 
               <div className="text-center max-w-3xl mx-auto relative z-10">
                 {/* School Tagline Pill */}
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border border-[#000000] rounded-full text-xs font-bold text-black mb-6 shadow-sm">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ff90e8]" />
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border-2 border-black rounded-full text-xs font-extrabold text-black mb-6 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c41e3a] animate-pulse" />
                   <span>Campus-Wide Student Chat</span>
                 </div>
 
@@ -176,7 +176,7 @@ export default function Home() {
             {/* FEATURE CARDS GRID (Gumroad Hairline Aesthetic) */}
             <section id="features" className="py-8 sm:py-16 px-3 sm:px-8 max-w-[1200px] mx-auto">
               <div className="text-center max-w-xl mx-auto mb-8 sm:mb-12">
-                <span className="bg-[#ffc900] text-black text-xs font-bold px-3 py-1 rounded-full border border-black uppercase tracking-wider">
+                <span className="bg-[#701a31] text-white text-xs font-extrabold px-3.5 py-1 rounded-full border-2 border-black uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                   Campus Built
                 </span>
                 <h2 className="text-2xl sm:text-4xl font-extrabold text-black tracking-tight mt-3">
@@ -190,8 +190,8 @@ export default function Home() {
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Feature 1 */}
                 <div className="gumroad-feature-card p-5 sm:p-8 hover:border-black transition-colors">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#ff90e8] border border-black flex items-center justify-center mb-4 sm:mb-6">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-black" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#701a31] border-2 border-black flex items-center justify-center mb-4 sm:mb-6 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
                     Smart Department Filtering
@@ -241,16 +241,16 @@ export default function Home() {
                 </div>
 
                 {/* Feature 5 - Campus Freedom Wall */}
-                <div className="gumroad-feature-card p-5 sm:p-8 hover:border-black transition-colors bg-[#ffc900]/10 border-2 border-black flex flex-col justify-between">
+                <div className="gumroad-feature-card p-5 sm:p-8 hover:border-black transition-colors bg-[#fff1f3] border-2 border-black flex flex-col justify-between">
                   <div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#ffc900] border border-black flex items-center justify-center mb-4 sm:mb-6 text-xl">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#ffc900] border-2 border-black flex items-center justify-center mb-4 sm:mb-6 text-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                       📜
                     </div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
                         Campus Freedom Wall
                       </h3>
-                      <span className="px-2 py-0.5 bg-[#ff90e8] text-black text-[10px] font-extrabold rounded-full border border-black uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 bg-[#701a31] text-white text-[10px] font-extrabold rounded-full border border-black uppercase tracking-wider">
                         Live
                       </span>
                     </div>
@@ -261,7 +261,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setViewState('freedom_wall')}
-                    className="mt-4 text-xs font-extrabold text-black underline hover:text-[#ff90e8] transition-colors flex items-center gap-1 self-start"
+                    className="mt-4 text-xs font-extrabold text-[#701a31] underline hover:text-black transition-colors flex items-center gap-1 self-start"
                   >
                     <span>View Freedom Wall</span>
                     <span>→</span>
@@ -269,28 +269,28 @@ export default function Home() {
                 </div>
 
                 {/* Feature 6 - Action CTA Card */}
-                <div className="gumroad-feature-card p-5 sm:p-8 bg-black text-white hover:opacity-95 transition-opacity flex flex-col justify-between border-2 border-black">
+                <div className="gumroad-feature-card p-5 sm:p-8 bg-[#701a31] text-black hover:opacity-95 transition-opacity flex flex-col justify-between border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                   <div>
                     <CoinMascot size={40} tiltAngle={12} className="mb-3 sm:mb-4" />
-                    <h3 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                    <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
                       Ready to Connect &amp; Share?
                     </h3>
-                    <p className="text-xs sm:text-sm text-gray-300 mt-2">
+                    <p className="text-xs sm:text-sm text-black-200 mt-2">
                       Join hundreds of students chatting live or posting on the Freedom Wall right now!
                     </p>
                   </div>
                   <div className="mt-5 sm:mt-6 flex flex-col gap-2">
                     <button
                       onClick={() => setViewState(currentUser ? 'queue' : 'register')}
-                      className="bg-[#ff90e8] text-black font-extrabold py-2.5 px-4 rounded-xl border border-white hover:bg-white transition-all text-xs sm:text-sm shadow-sm"
+                      className="bg-[#c41e3a] text-white font-extrabold py-2.5 px-4 rounded-xl border-2 border-black hover:bg-white hover:text-black transition-all text-xs sm:text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                     >
                       Launch Chat Room →
                     </button>
                     <button
                       onClick={() => setViewState('freedom_wall')}
-                      className="bg-white/10 text-white font-extrabold py-2 px-4 rounded-xl border border-white/30 hover:bg-white hover:text-black transition-all text-xs"
+                      className="bg-white text-black font-extrabold py-2 px-4 rounded-xl border-2 border-black hover:bg-black hover:text-white transition-all text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                     >
-                      📜 Open Freedom Wall
+                      Open Freedom Wall
                     </button>
                   </div>
                 </div>

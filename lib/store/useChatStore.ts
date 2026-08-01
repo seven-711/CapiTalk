@@ -246,9 +246,16 @@ export const useChatStore = create<ChatStoreState>()(
                           created_at: new Date().toISOString(),
                         };
                         updatedMessages = [...updatedMessages, annMsg];
+                        try {
+                          roomManager.persistMessage(annMsg);
+                        } catch (e) {}
                       }
                     }
-                    return { systemAnnouncement: updated, messages: updatedMessages };
+                    return {
+                      systemAnnouncement: updated,
+                      messages: updatedMessages,
+                      actionToast: updated ? { type: 'announcement', message: updated.message } : null,
+                    };
                   });
                 } catch (err) {}
               }
@@ -273,9 +280,16 @@ export const useChatStore = create<ChatStoreState>()(
                           created_at: new Date().toISOString(),
                         };
                         updatedMessages = [...updatedMessages, annMsg];
+                        try {
+                          roomManager.persistMessage(annMsg);
+                        } catch (e) {}
                       }
                     }
-                    return { systemAnnouncement: announcement, messages: updatedMessages };
+                    return {
+                      systemAnnouncement: announcement,
+                      messages: updatedMessages,
+                      actionToast: announcement ? { type: 'announcement', message: announcement.message } : null,
+                    };
                   });
                 } else if (event.data?.type === 'FREEDOM_WALL_UPDATE') {
                   set({ freedomPosts: event.data.posts });
@@ -305,9 +319,16 @@ export const useChatStore = create<ChatStoreState>()(
                               created_at: new Date().toISOString(),
                             };
                             updatedMessages = [...updatedMessages, annMsg];
+                            try {
+                              roomManager.persistMessage(annMsg);
+                            } catch (e) {}
                           }
                         }
-                        return { systemAnnouncement: announcement, messages: updatedMessages };
+                        return {
+                          systemAnnouncement: announcement,
+                          messages: updatedMessages,
+                          actionToast: announcement ? { type: 'announcement', message: announcement.message } : null,
+                        };
                       });
                       if (typeof window !== 'undefined') {
                         localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));

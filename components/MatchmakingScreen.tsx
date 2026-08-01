@@ -45,14 +45,8 @@ export const MatchmakingScreen: React.FC = () => {
         {currentUser && (
 <div className="flex w-full items-center gap-2.5 sm:gap-3.5 bg-white border border-[#d1d5dc] px-3.5 sm:px-4 py-2 rounded-2xl sm:rounded-full mb-6 sm:mb-8 shadow-sm">
   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-    <img
-      src={currentUser.avatar_url}
-      alt={currentUser.username}
-      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border border-black shrink-0 object-cover"
-    />
-
-    <div className="min-w-0">
-      <span className="font-extrabold text-xs sm:text-sm text-black block truncate tracking-tight">
+    <div className="min-w-0 text-left">
+      <span className="font-extrabold text-xs sm:text-sm text-black block truncate">
         {currentUser.username}
       </span>
 
@@ -60,6 +54,12 @@ export const MatchmakingScreen: React.FC = () => {
         {currentUser.department.replace("College of ", "")}
       </span>
     </div>
+
+    <img
+      src={currentUser.avatar_url}
+      alt={currentUser.username}
+      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border-2 border-black shrink-0 object-cover"
+    />
   </div>
 
   <button
@@ -103,8 +103,8 @@ export const MatchmakingScreen: React.FC = () => {
           <div className="py-6 flex flex-col items-center justify-center">
             <div className="relative mb-6">
               {/* Outer Pulse Rings */}
-              <div className="absolute inset-0 rounded-full bg-[#ff90e8]/30 animate-ping" />
-              <div className="absolute -inset-4 rounded-full bg-[#ffc900]/20 animate-pulse" />
+              <div className="absolute inset-0 rounded-full bg-[#701a31]/30 animate-ping" />
+              <div className="absolute -inset-4 rounded-full bg-[#c41e3a]/20 animate-pulse" />
               
               <div className="relative p-4 bg-white border-2 border-black rounded-full">
                 <CoinMascot size={72} tiltAngle={12} />
@@ -146,16 +146,16 @@ export const MatchmakingScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={startSearch}
-                className="btn-gumroad-secondary text-base px-6 py-4 w-full sm:w-auto bg-[#ff90e8] hover:bg-[#ff70e0] text-black border-2 border-black font-extrabold flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all rounded-full"
+                className="btn-gumroad-secondary text-base px-6 py-4 w-full sm:w-auto bg-[#701a31] hover:bg-[#4d0d1f] text-white border-2 border-black font-extrabold flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all rounded-full"
               >
                 <span>Start Searching Now</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewState('freedom_wall')}
-                className="btn-gumroad-secondary text-base px-6 py-4 w-full sm:w-auto bg-[#ff90e8] hover:bg-[#ff70e0] text-black border-2 border-black font-extrabold flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all rounded-full"
+                className="btn-gumroad-secondary text-base px-6 py-4 w-full sm:w-auto bg-[#c41e3a] hover:bg-[#a1162d] text-white border-2 border-black font-extrabold flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all rounded-full"
               >
-                <span>Freedom Wall </span>
+                <span>Freedom Wall</span>
               </button>
             </div>
           </div>

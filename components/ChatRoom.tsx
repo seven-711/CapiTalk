@@ -2,9 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
+import { useBroadcastStore } from '../lib/store/useBroadcastStore';
 import { roomManager } from '../lib/realtime/roomManager';
 import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { filterProfanity } from '../lib/utils/safety';
+import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { ReportModal } from './ReportModal';
 import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
 import {
@@ -25,7 +27,11 @@ import {
   LogOut,
   AlertTriangle,
   Hourglass,
+  Megaphone,
+  CreditCard,
+  Sparkles,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 const EMOJI_PRESETS = ['😊', '😂', '👍', '🔥', '❤️', '😮', '☕', '📚', '🎉', '👋'];
 
@@ -45,6 +51,7 @@ export const ChatRoom: React.FC = () => {
     blockPartner,
     systemAnnouncement,
     dismissAnnouncement,
+    broadcastAnnouncement,
   } = useChatStore();
 
   const [text, setText] = useState('');
@@ -97,6 +104,61 @@ export const ChatRoom: React.FC = () => {
   const [showInactivityAlert, setShowInactivityAlert] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(10);
   const lastActivityRef = useRef<number>(Date.now());
+
+  // Loudspeaker Broadcast Booking Modal state
+  const [showLoudspeakerModal, setShowLoudspeakerModal] = useState(false);
+  const [loudspeakerText, setLoudspeakerText] = useState('');
+  const [loudspeakerError, setLoudspeakerError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'gcash' | 'maya' | 'credits'>('gcash');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const handleLoudspeakerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoudspeakerError(null);
+
+    if (!loudspeakerText.trim()) {
+      setLoudspeakerError('Please enter your announcement message.');
+      return;
+    }
+
+    const modResult = analyzeContentModeration(loudspeakerText);
+    const { cleanText, isFlagged } = filterProfanity(loudspeakerText);
+
+    if (modResult.contains_profanity || modResult.recommended_action === 'block' || isFlagged) {
+      setLoudspeakerError(
+        modResult.reason || '⚠️ Message blocked: Contains inappropriate profanity. Please keep loudspeaker announcements friendly!'
+      );
+      return;
+    }
+
+    setIsProcessingPayment(true);
+
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      setShowLoudspeakerModal(false);
+      setLoudspeakerText('');
+
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch (err) {}
+
+      const senderName = currentUser ? currentUser.username : 'Anonymous Student';
+      
+      // Post to Global Broadcast System queue/active banner
+      useBroadcastStore.getState().createBroadcast({
+        title: `📢 A message from @${senderName}`,
+        description: cleanText,
+        owner_name: senderName,
+        duration_minutes: 30,
+      });
+
+      broadcastAnnouncement(`📢 A message from @${senderName}: ${cleanText}`);
+    }, 1200);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -345,14 +407,44 @@ export const ChatRoom: React.FC = () => {
             onClick={nextMatch}
             className="btn-gumroad-primary text-xs py-1.5 px-2 sm:px-4"
           >
-            <FastForward className="w-3.5 h-3.5 text-[#ff90e8]" />
+            <FastForward className="w-3.5 h-3.5 text-amber-300" />
             <span className="hidden sm:inline">Next Chat</span>
           </button>
         </div>
       </div>
 
+      {/* Loudspeaker Campus Announcement Booking Bar */}
+      <div className="bg-white border-b-2 border-black px-3 sm:px-6 py-2 flex items-center justify-between shadow-2xs shrink-0 z-10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#fff1f3] border-2 border-black flex items-center justify-center text-[#701a31] shrink-0 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <Megaphone className="w-4 h-4 text-[#701a31]" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="font-extrabold text-xs sm:text-sm text-black leading-tight">
+                Loudspeaker
+              </h4>
+              <span className="px-2 py-0.5 bg-[#701a31] text-white border border-black text-[10px] font-extrabold rounded-md leading-none">
+                Visible to everyone in chat
+              </span>
+            </div>
+            <p className="text-[11px] text-[#242423] truncate mt-0.5">
+              Book a short announcement for the chat room.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowLoudspeakerModal(true)}
+          className="btn-gumroad-primary text-xs px-3.5 py-1.5 bg-[#701a31] hover:bg-[#4d0d1f] text-white border-2 border-black font-extrabold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0"
+        >
+          Book
+        </button>
+      </div>
+
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
-      <div className="bg-[#f4f4f0] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
+      <div className="bg-[#fbf9f5] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
         {messages.map((msg) => {
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
@@ -360,11 +452,8 @@ export const ChatRoom: React.FC = () => {
           if (isSystem || msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
             if (msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
               return (
-                <div key={msg.id} className="my-3.5 p-3.5 sm:p-4 bg-[#ffc900] border-2 border-black rounded-2xl shadow-md text-black animate-in fade-in zoom-in-95 duration-200">
+                <div key={msg.id} className="my-3.5 p-3.5 sm:p-4 bg-[#fff1f3] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black animate-in fade-in zoom-in-95 duration-200">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="px-2.5 py-0.5 bg-black text-white text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider">
-                      📢 Campus Announcement
-                    </span>
                     <span className="text-[10px] sm:text-xs font-bold text-black/70">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -871,6 +960,140 @@ export const ChatRoom: React.FC = () => {
               <Check className="w-5 h-5 text-[#ff90e8]" />
               <span>I'm Still Here!</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loudspeaker Booking & Demo Checkout Modal */}
+      {showLoudspeakerModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border-4 border-black p-6 sm:p-8 rounded-3xl max-w-lg w-full text-left shadow-2xl animate-in zoom-in-95 duration-200 relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowLoudspeakerModal(false);
+                setLoudspeakerError(null);
+              }}
+              className="absolute top-4 right-4 p-1.5 hover:bg-black/10 rounded-full transition-colors text-black"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2.5 py-0.5 bg-[#00e599] border border-black text-black text-[10px] font-extrabold rounded-full uppercase tracking-wider">
+                📣 Loudspeaker Announcement
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-black tracking-tight">
+              Book Campus Loudspeaker 📢
+            </h3>
+            <p className="text-xs text-[#242423] mt-1 mb-4 leading-relaxed">
+              Broadcast a custom live announcement card to <strong>all active students</strong> across every chatroom!
+            </p>
+
+            {loudspeakerError && (
+              <div className="mb-4 p-3 bg-red-100 border-2 border-red-500 text-red-700 text-xs font-bold rounded-2xl flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                <span>{loudspeakerError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLoudspeakerSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#242423] uppercase mb-1">
+                  Your Broadcast Announcement Text
+                </label>
+                <textarea
+                  rows={3}
+                  value={loudspeakerText}
+                  onChange={(e) => setLoudspeakerText(e.target.value)}
+                  maxLength={150}
+                  placeholder="e.g. Shoutout to Nursing Batch 2026 studying in the library! 🥳"
+                  className="w-full p-3 text-xs sm:text-sm border-2 border-black rounded-2xl font-semibold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0] text-black"
+                />
+                <span className="text-[10px] font-bold text-gray-500 float-right mt-1">
+                  {loudspeakerText.length}/150
+                </span>
+              </div>
+
+              {/* Demo Payment Gateway Section */}
+              <div className="p-4 bg-[#f4f4f0] border-2 border-black rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-extrabold text-black uppercase flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-emerald-700" />
+                    Payment Gateway (Demo)
+                  </span>
+                  <span className="text-xs font-extrabold px-2.5 py-0.5 bg-black text-white rounded-full">
+                    ₱20.00 / Broadcast
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('gcash')}
+                    className={`p-2.5 rounded-xl border-2 text-xs font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
+                      paymentMethod === 'gcash'
+                        ? 'bg-blue-600 text-white border-black shadow-sm'
+                        : 'bg-white text-black border-black/30 hover:border-black'
+                    }`}
+                  >
+                    <span>💙 GCash</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('maya')}
+                    className={`p-2.5 rounded-xl border-2 text-xs font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
+                      paymentMethod === 'maya'
+                        ? 'bg-emerald-600 text-white border-black shadow-sm'
+                        : 'bg-white text-black border-black/30 hover:border-black'
+                    }`}
+                  >
+                    <span>💚 Maya</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('credits')}
+                    className={`p-2.5 rounded-xl border-2 text-xs font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
+                      paymentMethod === 'credits'
+                        ? 'bg-amber-400 text-black border-black shadow-sm'
+                        : 'bg-white text-black border-black/30 hover:border-black'
+                    }`}
+                  >
+                    <span>🟡 Credits</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2 text-center font-medium">
+                  🔒 Demo Checkout Mode Enabled — No actual money will be charged.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLoudspeakerModal(false)}
+                  className="btn-gumroad-ghost text-xs px-4 py-2.5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessingPayment}
+                  className="btn-gumroad-primary text-xs px-6 py-2.5 bg-[#00e599] hover:bg-[#00c985] text-black border-black font-extrabold flex items-center gap-1.5 shadow-sm"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Processing Demo Payment...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Pay</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

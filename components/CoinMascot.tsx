@@ -25,13 +25,13 @@ export const CoinMascot: React.FC<CoinMascotProps> = ({
       }}
     >
       <div
-        className="w-full h-full rounded-full bg-[#ff90e8] border-2 border-black flex items-center justify-center shadow-[0_2px_0px_#000000] transition-transform hover:scale-105"
+        className="w-full h-full rounded-full bg-[#701a31] border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-transform hover:scale-105"
         style={{
           borderRadius: '50% / 45%',
         }}
       >
         <span
-          className="font-bold text-black tracking-tighter"
+          className="font-extrabold text-white tracking-tighter"
           style={{ fontSize: `${size * 0.45}px` }}
         >
           {symbol}
