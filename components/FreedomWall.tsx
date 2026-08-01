@@ -548,7 +548,7 @@ export const FreedomWall: React.FC = () => {
                     onChange={(e) => {
                       setPostAsAdmin(e.target.checked);
                       if (e.target.checked) {
-                        setAlias('👑 Campus Admin');
+                        setAlias('👑 CapiTalk Admin');
                         setSelectedColor('#701a31');
                       }
                     }}
