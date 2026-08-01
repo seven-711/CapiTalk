@@ -385,23 +385,78 @@ export const useChatStore = create<ChatStoreState>()(
                   }
                 }
 
-                // 2. Sync Reports & Bans
-                const rawReports = localStorage.getItem('capitalk_shared_reports_v5');
-                const rawBans = localStorage.getItem('capitalk_shared_bans_v5');
-                if (rawReports) {
-                  const parsedReports = JSON.parse(rawReports);
-                  if (JSON.stringify(parsedReports) !== JSON.stringify(get().reports)) {
-                    set({ reports: parsedReports });
+                // 2. Sync Reports, Bans & Feedback from Supabase Database
+                if (supabase && isSupabaseConfigured) {
+                  supabase
+                    .from('reports')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .then(({ data }) => {
+                      if (data && data.length > 0) {
+                        const dbReports: UserReport[] = data.map((r: any) => ({
+                          id: r.id,
+                          reporter_id: r.reporter_id || 'anon',
+                          reporter_username: r.reporter_username || 'Student',
+                          reported_user_id: r.reported_user_id,
+                          reported_username: r.reported_username || 'User',
+                          reason: r.reason,
+                          description: r.description,
+                          status: r.status || 'pending',
+                          created_at: r.created_at,
+                        }));
+                        set({ reports: dbReports });
+                        localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(dbReports));
+                      }
+                    }, () => {});
+
+                  supabase
+                    .from('banned_users')
+                    .select('user_id')
+                    .then(({ data }) => {
+                      if (data) {
+                        const dbBans = data.map((b: any) => b.user_id);
+                        set({ bannedUserIds: dbBans });
+                        localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(dbBans));
+                      }
+                    }, () => {});
+
+                  supabase
+                    .from('feedback')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .then(({ data }) => {
+                      if (data && data.length > 0) {
+                        const dbFeedback: UserFeedback[] = data.map((f: any) => ({
+                          id: f.id,
+                          user_id: f.user_id,
+                          username: f.username,
+                          category: f.category,
+                          rating: f.rating,
+                          message: f.message,
+                          created_at: f.created_at,
+                        }));
+                        set({ feedbackList: dbFeedback });
+                        localStorage.setItem('capitalk_feedback_v1', JSON.stringify(dbFeedback));
+                      }
+                    }, () => {});
+                } else {
+                  const rawReports = localStorage.getItem('capitalk_shared_reports_v5');
+                  const rawBans = localStorage.getItem('capitalk_shared_bans_v5');
+                  if (rawReports) {
+                    const parsedReports = JSON.parse(rawReports);
+                    if (JSON.stringify(parsedReports) !== JSON.stringify(get().reports)) {
+                      set({ reports: parsedReports });
+                    }
                   }
-                }
-                if (rawBans) {
-                  const parsedBans = JSON.parse(rawBans);
-                  if (JSON.stringify(parsedBans) !== JSON.stringify(get().bannedUserIds)) {
-                    set({ bannedUserIds: parsedBans });
+                  if (rawBans) {
+                    const parsedBans = JSON.parse(rawBans);
+                    if (JSON.stringify(parsedBans) !== JSON.stringify(get().bannedUserIds)) {
+                      set({ bannedUserIds: parsedBans });
+                    }
                   }
                 }
               } catch (e) {}
-            }, 7000);
+            }, 5000);
           } catch (e) {}
         }
 
@@ -879,6 +934,25 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('reports')
+              .insert({
+                id: newReport.id,
+                reporter_id: newReport.reporter_id,
+                reporter_username: newReport.reporter_username,
+                reported_user_id: newReport.reported_user_id,
+                reported_username: newReport.reported_username,
+                reason: newReport.reason,
+                description: newReport.description,
+                status: 'pending',
+                created_at: newReport.created_at,
+              })
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
         // Send real-time WS report broadcast if connection available
         try {
           const ws = matchmakingEngine.getWebSocket();
@@ -940,6 +1014,23 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('reports')
+              .update({ status: action === 'ban' ? 'reviewed' : 'dismissed' })
+              .eq('id', reportId)
+              .then(() => {}, () => {});
+
+            if (action === 'ban' && targetReport) {
+              supabase
+                .from('banned_users')
+                .upsert({ user_id: targetReport.reported_user_id })
+                .then(() => {}, () => {});
+            }
+          } catch (e) {}
+        }
+
         set({
           reports: updatedReports,
           bannedUserIds: updatedBans,
@@ -959,6 +1050,16 @@ export const useChatStore = create<ChatStoreState>()(
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updatedBans));
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            if (bannedUserIds.includes(userId)) {
+              supabase.from('banned_users').delete().eq('user_id', userId).then(() => {}, () => {});
+            } else {
+              supabase.from('banned_users').upsert({ user_id: userId }).then(() => {}, () => {});
+            }
           } catch (e) {}
         }
 
