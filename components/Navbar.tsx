@@ -17,7 +17,7 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="w-full bg-[#f4f4f0] border-b border-[#d1d5dc] sticky top-0 z-40">
-      <div className="max-w-[1200px] mx-auto px-3 sm:px-8 h-12 sm:h-16 flex items-center justify-between gap-2">
+      <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-12 sm:h-14 flex items-center justify-between gap-2">
         {/* Brand & Wordmark */}
         <div 
           onClick={() => setViewState('landing')}

@@ -109,7 +109,7 @@ export default function Home() {
         {viewState === 'landing' && (
           <div className="w-full">
             {/* HERO SECTION */}
-            <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 sm:px-8 max-w-[1200px] mx-auto overflow-hidden">
+            <section className="relative pt-3 pb-8 sm:pt-6 sm:pb-12 px-3 sm:px-6 max-w-[1200px] mx-auto overflow-hidden">
               {/* Floating Decorative Mascot Coins */}
               <div className="absolute top-6 left-4 sm:left-12 pointer-events-none opacity-85">
                 <CoinMascot size={76} tiltAngle={-18} symbol="C" />

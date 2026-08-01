@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { ChatMessage } from '../lib/types';
 import { useChatStore } from '../lib/store/useChatStore';
 import { useBroadcastStore } from '../lib/store/useBroadcastStore';
 import { roomManager } from '../lib/realtime/roomManager';
@@ -233,6 +234,29 @@ export const ChatRoom: React.FC = () => {
     }
     prevTypingRef.current = partnerTyping;
   }, [messages, partnerTyping]);
+
+  // Auto-inject live broadcast announcement card into the chatroom conversation feed
+  useEffect(() => {
+    const activeBcast = useBroadcastStore.getState().activeBroadcast;
+    if (activeRoom && activeBcast && (activeBcast.description || activeBcast.title)) {
+      const annMsgId = 'msg_ann_' + activeBcast.id;
+      const currentMsgs = useChatStore.getState().messages;
+      if (!currentMsgs.some((m) => m.id === annMsgId)) {
+        const annMsg: ChatMessage = {
+          id: annMsgId,
+          room_id: activeRoom.id,
+          sender_id: 'system_announcement',
+          sender_username: '📢 Campus Announcement',
+          message: activeBcast.description || activeBcast.title,
+          created_at: activeBcast.starts_at || new Date().toISOString(),
+        };
+        try {
+          useChatStore.setState({ messages: [...currentMsgs, annMsg] });
+          roomManager.injectSystemMessage(annMsg);
+        } catch (e) {}
+      }
+    }
+  }, [activeRoom?.id, messages.length]);
 
   if (!activeRoom || !currentUser) {
     return (
