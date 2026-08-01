@@ -87,8 +87,8 @@ export const AdminDashboard: React.FC = () => {
           </p>
 
           {authError && (
-            <div className="mb-4 p-2.5 bg-[#dc341e]/10 border border-[#dc341e] text-xs font-bold text-[#dc341e] rounded text-left">
-              ⚠️ Invalid Passcode. Default key is: <code className="bg-white px-1.5 py-0.5 rounded border border-[#dc341e]">capitalk2026</code>
+            <div className="mb-4 p-2.5 bg-[#dc341e]/10 border border-[#dc341e] text-xs font-bold text-[#dc341e] rounded text-center">
+              ⚠️ Invalid Passcode. Access Denied.
             </div>
           )}
 

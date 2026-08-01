@@ -37,6 +37,9 @@ export interface ChatMessage {
     message?: string;
   };
   reactions?: Record<string, string[]>; // reaction_emoji -> array of user_ids
+  reaction_update?: { message_id: string; emoji_key: string };
+  is_profane?: boolean;
+  strike_count?: number;
   created_at: string;
 }
 

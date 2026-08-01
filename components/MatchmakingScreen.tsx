@@ -18,6 +18,8 @@ export const MatchmakingScreen: React.FC = () => {
     cancelSearch,
     setViewState,
     systemAnnouncement,
+    showQueueTimeoutModal,
+    setShowQueueTimeoutModal,
   } = useChatStore();
 
   const [tipIndex, setTipIndex] = useState(0);
@@ -160,6 +162,46 @@ export const MatchmakingScreen: React.FC = () => {
           <span className="font-medium">{MATCHMAKING_TIPS[tipIndex]}</span>
         </div>
       </div>
+
+      {/* 35s Queue Timeout Modal */}
+      {showQueueTimeoutModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border-4 border-black p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto mb-4 text-2xl shadow-sm">
+              ⏱️
+            </div>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-black tracking-tight mb-2">
+              No Active Students Found
+            </h3>
+            <p className="text-xs sm:text-sm font-medium text-[#242423] mb-6 leading-relaxed">
+              You've been in the queue for 35 seconds. No active student match was found right now. Would you like to rejoin the queue or return to the main dashboard?
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQueueTimeoutModal(false);
+                  startSearch();
+                }}
+                className="btn-gumroad-primary w-full py-3 text-sm justify-center"
+              >
+                <span>Rejoin Queue</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQueueTimeoutModal(false);
+                  setViewState('queue');
+                }}
+                className="btn-gumroad-ghost w-full py-3 text-sm justify-center"
+              >
+                <span>Return to Dashboard</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

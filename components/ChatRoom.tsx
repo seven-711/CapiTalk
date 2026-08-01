@@ -6,6 +6,7 @@ import { roomManager } from '../lib/realtime/roomManager';
 import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { filterProfanity } from '../lib/utils/safety';
 import { ReportModal } from './ReportModal';
+import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
 import {
   Send,
   Image as ImageIcon,
@@ -37,6 +38,7 @@ export const ChatRoom: React.FC = () => {
     partnerLeft,
     partnerLeftReason,
     sendMessage,
+    toggleReaction,
     sendTypingSignal,
     nextMatch,
     leaveRoom,
@@ -69,6 +71,23 @@ export const ChatRoom: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [activePickerMsgId, setActivePickerMsgId] = useState<string | null>(null);
+
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTouchStart = (msgId: string) => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      setActivePickerMsgId(msgId);
+    }, 380);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   // Image Preview & Caption state
   const [pendingImage, setPendingImage] = useState<{ previewUrl: string } | null>(null);
@@ -339,6 +358,35 @@ export const ChatRoom: React.FC = () => {
           const isMe = msg.sender_id === currentUser.id;
 
           if (isSystem) {
+            if (msg.message?.includes('Profanity Warning')) {
+              return (
+                <div key={msg.id} className="my-3 p-3.5 bg-[#dc341e]/10 border-2 border-[#dc341e] rounded-2xl shadow-sm text-black animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 bg-[#dc341e] text-white text-[10px] font-extrabold rounded uppercase tracking-wider">
+                      ⚠️ Profanity Warning
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-500">
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-extrabold text-[#dc341e] leading-relaxed">{msg.message}</p>
+                </div>
+              );
+            }
+
+            if (msg.message?.includes('Account Suspended')) {
+              return (
+                <div key={msg.id} className="my-3 p-4 bg-red-600 text-white border-2 border-black rounded-2xl shadow-lg animate-in fade-in duration-300">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded uppercase tracking-wider">
+                      ⛔ Account Banned
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-extrabold leading-relaxed">{msg.message}</p>
+                </div>
+              );
+            }
+
             return (
               <div key={msg.id} className="text-center my-4">
                 <span className="inline-block bg-white border border-[#d1d5dc] text-xs font-semibold px-4 py-1.5 rounded-full text-black">
@@ -369,11 +417,33 @@ export const ChatRoom: React.FC = () => {
                 </div>
               )}
 
+              {/* Floating Animated Reaction Picker */}
+              {activePickerMsgId === msg.id && (
+                <div className="mb-2 relative z-30 animate-in zoom-in-95 duration-150">
+                  <AnimatedReactionPicker
+                    onSelectReaction={(key) => {
+                      toggleReaction(msg.id, key);
+                      setActivePickerMsgId(null);
+                    }}
+                    onClose={() => setActivePickerMsgId(null)}
+                  />
+                </div>
+              )}
+
               {/* Main Message Content */}
               <div
-                className={`max-w-[85%] sm:max-w-[70%] p-3.5 rounded-[12px] border text-sm relative ${
+                onTouchStart={() => handleTouchStart(msg.id)}
+                onTouchEnd={handleTouchEnd}
+                onTouchMove={handleTouchEnd}
+                onMouseDown={() => handleTouchStart(msg.id)}
+                onMouseUp={handleTouchEnd}
+                className={`max-w-[85%] sm:max-w-[70%] p-3.5 rounded-[12px] border text-sm relative select-none cursor-pointer ${
                   isMe
-                    ? 'bg-black text-white border-black rounded-tr-none'
+                    ? msg.is_profane
+                      ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
+                      : 'bg-black text-white border-black rounded-tr-none'
+                    : msg.is_profane
+                    ? 'bg-red-50 text-black border-red-400 rounded-tl-none'
                     : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
                 }`}
               >
@@ -392,14 +462,33 @@ export const ChatRoom: React.FC = () => {
                 {/* Quick Action Toolbar on Hover */}
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 bg-white border border-black rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm text-black z-10">
                   <button
-                    onClick={() => setReplyTo(msg)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActivePickerMsgId(activePickerMsgId === msg.id ? null : msg.id);
+                    }}
+                    className="p-1 hover:text-amber-500"
+                    title="React"
+                  >
+                    <Smile className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReplyTo(msg);
+                    }}
                     className="p-1 hover:text-blue-600"
                     title="Reply"
                   >
                     <CornerUpLeft className="w-3 h-3" />
                   </button>
                   <button
-                    onClick={() => copyMessageText(msg.id, msg.message)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyMessageText(msg.id, msg.message);
+                    }}
                     className="p-1 hover:text-green-600"
                     title="Copy"
                   >
@@ -411,6 +500,28 @@ export const ChatRoom: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Animated Reaction Badges Row */}
+              {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {Object.entries(msg.reactions).map(([key, users]) => (
+                    <AnimatedReactionBadge
+                      key={key}
+                      reactionKey={key}
+                      count={users.length}
+                      isMe={currentUser ? users.includes(currentUser.id) : false}
+                      onClick={() => toggleReaction(msg.id, key)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Profanity Warning Flag Indicator directly under profane message */}
+              {msg.is_profane && (
+                <div className="mt-1 flex items-center gap-1 px-2.5 py-0.5 bg-red-100 border border-red-300 text-[#dc341e] text-[10px] font-extrabold rounded-full">
+                  <span>Profanity Flagged (Strike {msg.strike_count || 1}/3)</span>
+                </div>
+              )}
             </div>
           );
         })}

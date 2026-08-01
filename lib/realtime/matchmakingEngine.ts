@@ -224,14 +224,8 @@ class MatchmakingEngine {
       }
     }, 1000);
 
-    // 4. Automatic Safety Bot Fallback after 20 seconds so searching NEVER freezes endlessly
+    // 4. Clear any previous bot fallback timer
     if (this.botFallbackTimer) clearTimeout(this.botFallbackTimer);
-    this.botFallbackTimer = setTimeout(() => {
-      if (this.isSearching) {
-        console.log('[Matchmaker] Auto bot fallback triggered after wait timeout');
-        this.triggerLocalBotMatch(user, filter);
-      }
-    }, 20000);
   }
 
   private initSupabaseQueue(user: UserProfile, filter: QueueFilter) {

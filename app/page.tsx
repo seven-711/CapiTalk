@@ -212,7 +212,7 @@ export default function Home() {
                     Smart Department Filtering
                   </h3>
                   <p className="text-xs sm:text-sm text-[#242423] mt-2 leading-relaxed">
-                    Choose to pair with students from your own department or explore connections in Engineering, Nursing, Education, and Business.
+                    Choose to pair with students from your own department or explore connections in Engineering, Nursing, Education, Business, Computer Studies, CAS, Maritime, and Criminology.
                   </p>
                 </div>
 

@@ -7,6 +7,7 @@ import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
+import { checkProfanity } from '../utils/profanityFilter';
 
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -37,15 +38,20 @@ interface ChatStoreState {
   blockedUserIds: string[];
   reports: UserReport[];
   bannedUserIds: string[];
+  profanityStrikes: number;
+  bayotCount: number;
 
   actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error'; message: string } | null;
   systemAnnouncement: { id: string; message: string; timestamp: string } | null;
+  showQueueTimeoutModal: boolean;
+  setShowQueueTimeoutModal: (show: boolean) => void;
 
   initSession: () => void;
   registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => void;
   startSearch: () => void;
   cancelSearch: () => void;
   sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to']) => void;
+  toggleReaction: (messageId: string, emojiKey: string) => void;
   sendTypingSignal: (isTyping: boolean) => void;
   nextMatch: () => void;
   leaveRoom: () => void;
@@ -88,9 +94,13 @@ export const useChatStore = create<ChatStoreState>()(
       blockedUserIds: [],
       reports: [],
       bannedUserIds: [],
+      profanityStrikes: 0,
+      bayotCount: 0,
 
       actionToast: null,
       systemAnnouncement: null,
+      showQueueTimeoutModal: false,
+      setShowQueueTimeoutModal: (show: boolean) => set({ showQueueTimeoutModal: show }),
 
       initSession: () => {
         const { activeRoom, currentUser, isSearching } = get();
@@ -297,6 +307,12 @@ export const useChatStore = create<ChatStoreState>()(
             searchingTimeSeconds: elapsed,
             waitingCount: matchmakingEngine.getWaitingCount(),
           });
+
+          if (elapsed >= 35) {
+            if (searchTimer) clearInterval(searchTimer);
+            get().cancelSearch();
+            set({ showQueueTimeoutModal: true });
+          }
         }, 1000);
 
         if (unsubscribeMatch) unsubscribeMatch();
@@ -329,6 +345,7 @@ export const useChatStore = create<ChatStoreState>()(
             activeRoom: newRoom,
             messages: [welcomeMsg],
             viewState: 'chat',
+            bayotCount: 0,
           });
 
           roomManager.setPartnerId(partner.id);
@@ -337,6 +354,22 @@ export const useChatStore = create<ChatStoreState>()(
             currentUser,
             (incomingMsg) => {
               set((state) => {
+                if (incomingMsg.reaction_update) {
+                  const { message_id, emoji_key } = incomingMsg.reaction_update;
+                  const updatedMessages = state.messages.map((m) => {
+                    if (m.id !== message_id) return m;
+                    const rxns = { ...(m.reactions || {}) };
+                    const userList = rxns[emoji_key] || [];
+                    const has = userList.includes(incomingMsg.sender_id);
+                    const newList = has
+                      ? userList.filter((id) => id !== incomingMsg.sender_id)
+                      : [...userList, incomingMsg.sender_id];
+                    if (newList.length > 0) rxns[emoji_key] = newList;
+                    else delete rxns[emoji_key];
+                    return { ...m, reactions: rxns };
+                  });
+                  return { messages: updatedMessages };
+                }
                 if (state.messages.some((m) => m.id === incomingMsg.id)) return state;
                 return { messages: [...state.messages, incomingMsg] };
               });
@@ -395,8 +428,25 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to']) => {
-        const { activeRoom, currentUser, messages } = get();
+        const { activeRoom, currentUser, messages, profanityStrikes, bannedUserIds, bayotCount } = get();
         if (!activeRoom || !currentUser) return;
+
+        let newBayotCount = bayotCount;
+        if (text && text.toLowerCase().includes('bayot')) {
+          newBayotCount = bayotCount + 1;
+          set({ bayotCount: newBayotCount });
+        }
+
+        // Check for profanity in text with repetition count
+        const { isProfane, word } = checkProfanity(text || '', newBayotCount);
+        let newStrikes = profanityStrikes;
+        let isProfaneMsg = false;
+
+        if (isProfane && text) {
+          newStrikes = profanityStrikes + 1;
+          isProfaneMsg = true;
+          set({ profanityStrikes: newStrikes });
+        }
 
         const newMsg: ChatMessage = {
           id: 'msg_' + Math.random().toString(36).substring(2, 9),
@@ -406,10 +456,67 @@ export const useChatStore = create<ChatStoreState>()(
           message: text,
           image_url: imageUrl,
           reply_to: replyTo,
+          is_profane: isProfaneMsg,
+          strike_count: isProfaneMsg ? newStrikes : undefined,
           created_at: new Date().toISOString(),
         };
 
-        set({ messages: [...messages, newMsg] });
+        let updatedMessages = [...messages, newMsg];
+
+        if (isProfaneMsg) {
+          if (newStrikes < 3) {
+            const warningMsg: ChatMessage = {
+              id: 'msg_warn_' + Date.now(),
+              room_id: activeRoom.id,
+              sender_id: 'system',
+              sender_username: 'CapiTalk Moderation',
+              message: `⚠️ Profanity Warning (Strike ${newStrikes}/3): Inappropriate language detected ("${word}"). Sending profane language 3 times will result in an automatic account ban.`,
+              created_at: new Date().toISOString(),
+            };
+            updatedMessages = [...updatedMessages, warningMsg];
+
+            set({
+              messages: updatedMessages,
+              actionToast: {
+                type: 'error',
+                message: `⚠️ Profanity Warning (Strike ${newStrikes}/3)! 3 strikes will ban your account.`,
+              },
+            });
+          } else {
+            // 3 Strikes -> AUTO BAN USER
+            const banMsg: ChatMessage = {
+              id: 'msg_ban_' + Date.now(),
+              room_id: activeRoom.id,
+              sender_id: 'system',
+              sender_username: 'CapiTalk Moderation',
+              message: `⛔ Account Suspended: You have been automatically banned from CapiTalk for repeated profanity violations (3/3 strikes).`,
+              created_at: new Date().toISOString(),
+            };
+            updatedMessages = [...updatedMessages, banMsg];
+
+            const updatedBans = [...new Set([...bannedUserIds, currentUser.id])];
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updatedBans));
+              } catch (e) {}
+            }
+
+            set({
+              messages: updatedMessages,
+              bannedUserIds: updatedBans,
+              actionToast: {
+                type: 'ban',
+                message: '⛔ Account Banned: You have been suspended for repeated profanity violations (3/3 strikes).',
+              },
+            });
+
+            setTimeout(() => {
+              get().leaveRoom();
+            }, 2500);
+          }
+        } else {
+          set({ messages: updatedMessages });
+        }
 
         roomManager.sendMessage(newMsg);
 
@@ -438,6 +545,49 @@ export const useChatStore = create<ChatStoreState>()(
         }
       },
 
+      toggleReaction: (messageId: string, emojiKey: string) => {
+        const { messages, currentUser, activeRoom } = get();
+        if (!currentUser || !activeRoom) return;
+
+        const updatedMessages = messages.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const currentReactions = msg.reactions || {};
+          const userList = currentReactions[emojiKey] || [];
+          const hasReacted = userList.includes(currentUser.id);
+
+          let updatedUserList: string[];
+          if (hasReacted) {
+            updatedUserList = userList.filter((id) => id !== currentUser.id);
+          } else {
+            updatedUserList = [...userList, currentUser.id];
+          }
+
+          const newReactions = { ...currentReactions };
+          if (updatedUserList.length > 0) {
+            newReactions[emojiKey] = updatedUserList;
+          } else {
+            delete newReactions[emojiKey];
+          }
+
+          return { ...msg, reactions: newReactions };
+        });
+
+        set({ messages: updatedMessages });
+
+        roomManager.sendMessage({
+          id: 'rxn_' + Date.now(),
+          room_id: activeRoom.id,
+          sender_id: currentUser.id,
+          sender_username: currentUser.username,
+          created_at: new Date().toISOString(),
+          reaction_update: {
+            message_id: messageId,
+            emoji_key: emojiKey,
+          },
+        } as any);
+      },
+
       sendTypingSignal: (isTyping: boolean) => {
         roomManager.sendTypingSignal(isTyping);
       },
@@ -459,7 +609,7 @@ export const useChatStore = create<ChatStoreState>()(
           roomManager.leaveRoom();
         }
         if (currentUser) matchmakingEngine.leaveQueue(currentUser.id);
-        set({ activeRoom: null, messages: [], viewState: 'queue', partnerLeft: false, partnerLeftReason: null });
+        set({ activeRoom: null, messages: [], viewState: 'queue', partnerLeft: false, partnerLeftReason: null, bayotCount: 0 });
       },
 
       reportPartner: (reason: string, description: string) => {
