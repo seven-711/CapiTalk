@@ -398,7 +398,7 @@ export const FreedomWall: React.FC = () => {
                   className="btn-gumroad-primary text-xs px-6 py-2.5 flex items-center gap-1.5"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Publish to Freedom Wall</span>
+                  <span>Post</span>
                 </button>
               </div>
             </form>
