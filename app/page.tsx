@@ -8,6 +8,7 @@ import { RegistrationModal } from '../components/RegistrationModal';
 import { MatchmakingScreen } from '../components/MatchmakingScreen';
 import { ChatRoom } from '../components/ChatRoom';
 import { AdminDashboard } from '../components/AdminDashboard';
+import { FreedomWall } from '../components/FreedomWall';
 import {
   Sparkles,
   ShieldCheck,
@@ -69,24 +70,6 @@ export default function Home() {
     <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
       viewState === 'chat' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
     }`}>
-      {/* Live Campus Announcement Banner */}
-      {systemAnnouncement && (
-        <div className="bg-[#ffc900] border-b-2 border-black px-4 py-2 text-xs sm:text-sm font-extrabold text-black flex items-center justify-between shadow-sm z-50 shrink-0">
-          <div className="flex items-center gap-2 truncate">
-            <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded uppercase tracking-wider shrink-0">
-              Campus Announcement
-            </span>
-            <span className="truncate">{systemAnnouncement.message}</span>
-          </div>
-          <button
-            onClick={dismissAnnouncement}
-            className="p-1 hover:bg-black/10 rounded transition-colors shrink-0"
-            title="Dismiss Announcement"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Floating Action Toast Notification */}
       {actionToast && (
@@ -120,6 +103,8 @@ export default function Home() {
         {viewState === 'chat' && <ChatRoom />}
 
         {viewState === 'admin' && <AdminDashboard />}
+
+        {viewState === 'freedom_wall' && <FreedomWall />}
 
         {viewState === 'landing' && (
           <div className="w-full">
@@ -255,36 +240,59 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Feature 5 */}
-                <div className="gumroad-feature-card p-5 sm:p-8 hover:border-black transition-colors">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#f4f4f0] border border-black flex items-center justify-center mb-4 sm:mb-6">
-                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-black" />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
-                    Client Image Compression
-                  </h3>
-                  <p className="text-xs sm:text-sm text-[#242423] mt-2 leading-relaxed">
-                    Upload notes or study memes safely. Images are compressed client-side and converted to lightweight WebP thumbnails automatically.
-                  </p>
-                </div>
-
-                {/* Feature 6 */}
-                <div className="gumroad-feature-card p-5 sm:p-8 bg-black text-white hover:opacity-95 transition-opacity flex flex-col justify-between">
+                {/* Feature 5 - Campus Freedom Wall */}
+                <div className="gumroad-feature-card p-5 sm:p-8 hover:border-black transition-colors bg-[#ffc900]/10 border-2 border-black flex flex-col justify-between">
                   <div>
-                    <CoinMascot size={40} tiltAngle={12} className="mb-3 sm:mb-4" />
-                    <h3 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
-                      Ready to Start?
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-300 mt-2">
-                      Join hundreds of students chatting right now. No lengthy setup required!
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#ffc900] border border-black flex items-center justify-center mb-4 sm:mb-6 text-xl">
+                      📜
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
+                        Campus Freedom Wall
+                      </h3>
+                      <span className="px-2 py-0.5 bg-[#ff90e8] text-black text-[10px] font-extrabold rounded-full border border-black uppercase tracking-wider">
+                        Live
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-[#242423] mt-2 leading-relaxed">
+                      Leave anonymous thoughts, confessions, study advice, &amp; campus shoutouts on a dedicated public board with upvotes and department filtering.
                     </p>
                   </div>
                   <button
-                    onClick={() => setViewState(currentUser ? 'queue' : 'register')}
-                    className="mt-5 sm:mt-6 bg-[#ff90e8] text-black font-bold py-2.5 sm:py-3 px-4 rounded border border-white hover:bg-white transition-colors text-sm"
+                    type="button"
+                    onClick={() => setViewState('freedom_wall')}
+                    className="mt-4 text-xs font-extrabold text-black underline hover:text-[#ff90e8] transition-colors flex items-center gap-1 self-start"
                   >
-                    Launch Chat Room →
+                    <span>View Freedom Wall</span>
+                    <span>→</span>
                   </button>
+                </div>
+
+                {/* Feature 6 - Action CTA Card */}
+                <div className="gumroad-feature-card p-5 sm:p-8 bg-black text-white hover:opacity-95 transition-opacity flex flex-col justify-between border-2 border-black">
+                  <div>
+                    <CoinMascot size={40} tiltAngle={12} className="mb-3 sm:mb-4" />
+                    <h3 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                      Ready to Connect &amp; Share?
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-300 mt-2">
+                      Join hundreds of students chatting live or posting on the Freedom Wall right now!
+                    </p>
+                  </div>
+                  <div className="mt-5 sm:mt-6 flex flex-col gap-2">
+                    <button
+                      onClick={() => setViewState(currentUser ? 'queue' : 'register')}
+                      className="bg-[#ff90e8] text-black font-extrabold py-2.5 px-4 rounded-xl border border-white hover:bg-white transition-all text-xs sm:text-sm shadow-sm"
+                    >
+                      Launch Chat Room →
+                    </button>
+                    <button
+                      onClick={() => setViewState('freedom_wall')}
+                      className="bg-white/10 text-white font-extrabold py-2 px-4 rounded-xl border border-white/30 hover:bg-white hover:text-black transition-all text-xs"
+                    >
+                      📜 Open Freedom Wall
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>

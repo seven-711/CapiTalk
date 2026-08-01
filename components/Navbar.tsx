@@ -77,15 +77,30 @@ export const Navbar: React.FC = () => {
               </div>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setViewState('register')}
-              className="btn-gumroad-primary text-xs px-3 py-1.5"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Join CapiTalk</span>
-              <span className="sm:hidden">Join</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewState('freedom_wall')}
+                className={`text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border transition-all ${
+                  viewState === 'freedom_wall'
+                    ? 'bg-[#ff90e8] text-black border-black shadow-sm'
+                    : 'bg-white text-black border-[#d1d5dc] hover:border-black'
+                }`}
+                title="Campus Freedom Wall"
+              >
+                <span>📜 Freedom Wall</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewState('register')}
+                className="btn-gumroad-primary text-xs px-3 py-1.5"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Join CapiTalk</span>
+                <span className="sm:hidden">Join</span>
+              </button>
+            </div>
           )}
 
           <button

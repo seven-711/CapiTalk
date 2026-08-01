@@ -161,7 +161,21 @@ class MatchmakingEngine {
         if (announcement) {
           try {
             const { useChatStore } = require('../store/useChatStore');
-            useChatStore.setState({ systemAnnouncement: announcement });
+            const store = useChatStore.getState();
+            const annMsgId = 'msg_ann_' + announcement.id;
+            let updatedMessages = store.messages;
+            if (store.activeRoom && !updatedMessages.some((m: any) => m.id === annMsgId)) {
+              const annMsg = {
+                id: annMsgId,
+                room_id: store.activeRoom.id,
+                sender_id: 'system_announcement',
+                sender_username: '📢 Campus Announcement',
+                message: announcement.message,
+                created_at: new Date().toISOString(),
+              };
+              updatedMessages = [...updatedMessages, annMsg];
+            }
+            useChatStore.setState({ systemAnnouncement: announcement, messages: updatedMessages });
             if (typeof window !== 'undefined') {
               localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
             }

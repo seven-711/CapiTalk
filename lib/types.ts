@@ -54,3 +54,14 @@ export interface UserReport {
   status: "pending" | "reviewed" | "dismissed";
   created_at: string;
 }
+
+export interface FreedomPost {
+  id: string;
+  author_alias: string;
+  department: string;
+  message: string;
+  color: string;
+  likes_count: number;
+  liked_by_users: string[];
+  created_at: string;
+}

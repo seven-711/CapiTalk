@@ -5,7 +5,7 @@ import { useChatStore } from '../lib/store/useChatStore';
 import { MATCHMAKING_TIPS } from '../lib/constants';
 import { QueueFilter } from '../lib/types';
 import { CoinMascot } from './CoinMascot';
-import { Search, Filter, XCircle, Sparkles, Users, HelpCircle } from 'lucide-react';
+import { Search, Filter, XCircle, Sparkles, Users, HelpCircle, MessageSquare } from 'lucide-react';
 
 export const MatchmakingScreen: React.FC = () => {
   const {
@@ -39,42 +39,37 @@ export const MatchmakingScreen: React.FC = () => {
 
   return (
     <div className="w-full max-w-2xl mx-auto py-3 sm:py-8 px-3 sm:px-4">
-      {systemAnnouncement && (
-        <div className="mb-4 p-3 bg-[#ffc900] border-2 border-black rounded-2xl text-xs sm:text-sm font-extrabold text-black flex items-center justify-between shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2">
-            <span>📢</span>
-            <span>{systemAnnouncement.message}</span>
-          </div>
-        </div>
-      )}
 
       <div className="gumroad-feature-card p-4 sm:p-8 text-center relative">
         {/* User Card Summary — Gumroad Stat Badge Style */}
         {currentUser && (
-          <div className="inline-flex max-w-full items-center justify-between sm:justify-start gap-2.5 sm:gap-3.5 bg-white border border-[#d1d5dc] px-3.5 sm:px-4 py-2 rounded-2xl sm:rounded-full mb-6 sm:mb-8 shadow-sm text-left">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <img
-                src={currentUser.avatar_url}
-                alt={currentUser.username}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border border-black shrink-0 object-cover"
-              />
-              <div className="min-w-0 flex-1">
-                <span className="font-extrabold text-xs sm:text-sm text-black block truncate tracking-tight">
-                  {currentUser.username}
-                </span>
-                <span className="text-[11px] sm:text-xs font-medium text-[#242423] block truncate">
-                  {currentUser.department.replace('College of ', '')}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setViewState('register')}
-              className="text-[11px] font-semibold text-black bg-[#f4f4f0] hover:bg-black hover:text-white border border-[#d1d5dc] hover:border-black px-2.5 py-1 rounded-full transition-all shrink-0 ml-1"
-            >
-              Edit Profile
-            </button>
-          </div>
+<div className="flex w-full items-center gap-2.5 sm:gap-3.5 bg-white border border-[#d1d5dc] px-3.5 sm:px-4 py-2 rounded-2xl sm:rounded-full mb-6 sm:mb-8 shadow-sm">
+  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+    <img
+      src={currentUser.avatar_url}
+      alt={currentUser.username}
+      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border border-black shrink-0 object-cover"
+    />
+
+    <div className="min-w-0">
+      <span className="font-extrabold text-xs sm:text-sm text-black block truncate tracking-tight">
+        {currentUser.username}
+      </span>
+
+      <span className="text-[11px] sm:text-xs font-medium text-[#242423] block truncate">
+        {currentUser.department.replace("College of ", "")}
+      </span>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => setViewState("register")}
+    className="ml-auto text-[11px] font-semibold text-black bg-[#f4f4f0] hover:bg-black hover:text-white border border-[#d1d5dc] hover:border-black px-2.5 py-1 rounded-full transition-all shrink-0"
+  >
+    Edit Profile
+  </button>
+</div>
         )}
 
         {/* Filter Selection Tabs */}
@@ -147,12 +142,22 @@ export const MatchmakingScreen: React.FC = () => {
               Click below to enter the live matchmaking queue and start a real-time, random conversation with a student.
             </p>
 
-            <button
-              onClick={startSearch}
-              className="mt-6 btn-gumroad-primary text-base px-8 py-4 w-full sm:w-auto"
-            >
-              <span>Start Searching Now</span>
-            </button>
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={startSearch}
+                className="btn-gumroad-secondary text-base px-6 py-4 w-full sm:w-auto bg-[#ff90e8] hover:bg-[#ff70e0] text-black border-2 border-black font-extrabold flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all rounded-full"
+              >
+                <span>Start Searching Now</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewState('freedom_wall')}
+                className="btn-gumroad-secondary text-base px-6 py-4 w-full sm:w-auto bg-[#ff90e8] hover:bg-[#ff70e0] text-black border-2 border-black font-extrabold flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all rounded-full"
+              >
+                <span>Freedom Wall </span>
+              </button>
+            </div>
           </div>
         )}
 

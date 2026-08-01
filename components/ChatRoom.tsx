@@ -357,7 +357,25 @@ export const ChatRoom: React.FC = () => {
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
 
-          if (isSystem) {
+          if (isSystem || msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
+            if (msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
+              return (
+                <div key={msg.id} className="my-3.5 p-3.5 sm:p-4 bg-[#ffc900] border-2 border-black rounded-2xl shadow-md text-black animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="px-2.5 py-0.5 bg-black text-white text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider">
+                      📢 Campus Announcement
+                    </span>
+                    <span className="text-[10px] sm:text-xs font-bold text-black/70">
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-black">
+                    {msg.message}
+                  </p>
+                </div>
+              );
+            }
+
             if (msg.message?.includes('Profanity Warning')) {
               return (
                 <div key={msg.id} className="my-3 p-3.5 bg-[#dc341e]/10 border-2 border-[#dc341e] rounded-2xl shadow-sm text-black animate-in fade-in zoom-in-95 duration-200">

@@ -103,7 +103,35 @@ class RoomManager {
       }
     }
 
-    // 5. Connect to WebSocket server if available
+    // 5. Query Supabase Database for existing room messages across sessions
+    if (isSupabaseConfigured && supabase) {
+      try {
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('room_id', roomId)
+          .order('created_at', { ascending: true })
+          .then(({ data }) => {
+            if (data && data.length > 0) {
+              data.forEach((row: any) => {
+                const msg: ChatMessage = {
+                  id: row.id,
+                  room_id: row.room_id,
+                  sender_id: row.sender_id,
+                  sender_username: row.sender_username,
+                  message: row.message,
+                  image_url: row.image_url,
+                  created_at: row.created_at,
+                };
+                this.persistMessage(msg);
+                this.dispatchMessage(msg);
+              });
+            }
+          }, () => {});
+      } catch (e) {}
+    }
+
+    // 6. Connect to WebSocket server if available
     const ws = this.getSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -244,6 +272,24 @@ class RoomManager {
         localStorage.setItem(key, JSON.stringify(trimmed));
       }
     } catch (e) {}
+
+    // Persist asynchronously to Supabase PostgreSQL database
+    if (isSupabaseConfigured && supabase) {
+      try {
+        supabase
+          .from('messages')
+          .insert({
+            id: msg.id,
+            room_id: msg.room_id || this.currentRoomId,
+            sender_id: msg.sender_id,
+            sender_username: msg.sender_username,
+            message: msg.message || '',
+            image_url: msg.image_url || null,
+            created_at: msg.created_at,
+          })
+          .then(() => {}, () => {});
+      } catch (e) {}
+    }
   }
 
   private loadPersistedMessages() {

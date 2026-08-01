@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -20,8 +20,8 @@ interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'landing' | 'register' | 'queue' | 'chat' | 'admin';
-  setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin') => void;
+  viewState: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall';
+  setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall') => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -40,6 +40,7 @@ interface ChatStoreState {
   bannedUserIds: string[];
   profanityStrikes: number;
   bayotCount: number;
+  freedomPosts: FreedomPost[];
 
   actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error'; message: string } | null;
   systemAnnouncement: { id: string; message: string; timestamp: string } | null;
@@ -62,10 +63,66 @@ interface ChatStoreState {
   resolveReport: (reportId: string, action: 'dismiss' | 'ban') => void;
   toggleBanUser: (userId: string) => void;
 
+  addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>) => boolean;
+  likeFreedomPost: (postId: string) => void;
+
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
   dismissAnnouncement: () => void;
 }
+
+const DEMO_FREEDOM_POSTS: FreedomPost[] = [
+  {
+    id: 'post_1',
+    author_alias: 'Secret Admirer 🤫',
+    department: 'Nursing',
+    message: 'To the guy wearing a black hoodie in the 3rd floor library studying Anatomy yesterday... you are super cute! Hope we match here! 💛',
+    color: '#ffc900',
+    likes_count: 14,
+    liked_by_users: [],
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+  },
+  {
+    id: 'post_2',
+    author_alias: 'Stressed Senior ☕',
+    department: 'Engineering',
+    message: 'Thesis defense tomorrow! Praying to all the gods of CapiTalk that our system doesn’t crash in front of the panelists. Wish us luck! 🚀',
+    color: '#00e599',
+    likes_count: 23,
+    liked_by_users: [],
+    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+  },
+  {
+    id: 'post_3',
+    author_alias: 'Night Owl 🦉',
+    department: 'Information Technology',
+    message: 'Who else is awake grinding code at 2 AM? CapiTalk is keeping me sane while debugging promises! Hmu if you want to chat!',
+    color: '#ff90e8',
+    likes_count: 9,
+    liked_by_users: [],
+    created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+  },
+  {
+    id: 'post_4',
+    author_alias: 'Foodie Student 🍕',
+    department: 'Business & Accountancy',
+    message: 'Pro tip: The new sisig spot near the main gate is actually 10/10. Perfect budget lunch before 1 PM accounting lecture!',
+    color: '#c4b5fd',
+    likes_count: 19,
+    liked_by_users: [],
+    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+  },
+  {
+    id: 'post_5',
+    author_alias: 'Anon Freshie 🎒',
+    department: 'Arts & Sciences',
+    message: 'First semester in college has been crazy but meeting people through CapiTalk has made it so much better! Thanks everyone 🫶',
+    color: '#7dd3fc',
+    likes_count: 31,
+    liked_by_users: [],
+    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+  },
+];
 
 let searchTimer: NodeJS.Timeout | null = null;
 let unsubscribeMatch: (() => void) | null = null;
@@ -77,7 +134,7 @@ export const useChatStore = create<ChatStoreState>()(
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
       viewState: 'landing',
-      setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin') => set({ viewState: view }),
+      setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall') => set({ viewState: view }),
 
       queueFilter: 'anyone',
       setQueueFilter: (filter: QueueFilter) => set({ queueFilter: filter }),
@@ -96,6 +153,7 @@ export const useChatStore = create<ChatStoreState>()(
       bannedUserIds: [],
       profanityStrikes: 0,
       bayotCount: 0,
+      freedomPosts: [],
 
       actionToast: null,
       systemAnnouncement: null,
@@ -124,9 +182,41 @@ export const useChatStore = create<ChatStoreState>()(
             const rawAnnouncement = localStorage.getItem('capitalk_shared_announcement_v5');
             const loadedAnnouncement = rawAnnouncement ? JSON.parse(rawAnnouncement) : null;
 
-            set({ reports: mergedReports, bannedUserIds: mergedBans, systemAnnouncement: loadedAnnouncement });
+            const rawFreedom = localStorage.getItem('capitalk_freedom_wall_v1');
+            const loadedFreedom: FreedomPost[] = rawFreedom ? JSON.parse(rawFreedom) : DEMO_FREEDOM_POSTS;
+
+            set({ reports: mergedReports, bannedUserIds: mergedBans, systemAnnouncement: loadedAnnouncement, freedomPosts: loadedFreedom });
             localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(mergedReports));
             localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(mergedBans));
+            if (!rawFreedom) {
+              localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(DEMO_FREEDOM_POSTS));
+            }
+
+            // Sync Freedom Wall posts from Supabase PostgreSQL Database across all devices
+            if (supabase && isSupabaseConfigured) {
+              try {
+                supabase
+                  .from('freedom_posts')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                  .then(({ data, error }) => {
+                    if (data && data.length > 0 && !error) {
+                      const loadedFromDb: FreedomPost[] = data.map((row: any) => ({
+                        id: row.id,
+                        author_alias: row.author_alias || 'Anon Student',
+                        department: row.department || 'General',
+                        message: row.message,
+                        color: row.color || '#ffc900',
+                        likes_count: row.likes_count || 0,
+                        liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
+                        created_at: row.created_at,
+                      }));
+                      set({ freedomPosts: loadedFromDb });
+                      localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
+                    }
+                  }, () => {});
+              } catch (e) {}
+            }
 
             window.addEventListener('storage', (e) => {
               if (e.key === 'capitalk_shared_reports_v5' && e.newValue) {
@@ -142,7 +232,24 @@ export const useChatStore = create<ChatStoreState>()(
               } else if (e.key === 'capitalk_shared_announcement_v5') {
                 try {
                   const updated = e.newValue ? JSON.parse(e.newValue) : null;
-                  set({ systemAnnouncement: updated });
+                  set((state) => {
+                    let updatedMessages = state.messages;
+                    if (updated && state.activeRoom) {
+                      const annMsgId = 'msg_ann_' + updated.id;
+                      if (!updatedMessages.some((m) => m.id === annMsgId)) {
+                        const annMsg: ChatMessage = {
+                          id: annMsgId,
+                          room_id: state.activeRoom.id,
+                          sender_id: 'system_announcement',
+                          sender_username: '📢 Campus Announcement',
+                          message: updated.message,
+                          created_at: new Date().toISOString(),
+                        };
+                        updatedMessages = [...updatedMessages, annMsg];
+                      }
+                    }
+                    return { systemAnnouncement: updated, messages: updatedMessages };
+                  });
                 } catch (err) {}
               }
             });
@@ -152,7 +259,26 @@ export const useChatStore = create<ChatStoreState>()(
               broadcastChannel.onmessage = (event) => {
                 if (event.data?.type === 'ANNOUNCEMENT_BROADCAST') {
                   const announcement = event.data.announcement;
-                  set({ systemAnnouncement: announcement });
+                  set((state) => {
+                    let updatedMessages = state.messages;
+                    if (announcement && state.activeRoom) {
+                      const annMsgId = 'msg_ann_' + announcement.id;
+                      if (!updatedMessages.some((m) => m.id === annMsgId)) {
+                        const annMsg: ChatMessage = {
+                          id: annMsgId,
+                          room_id: state.activeRoom.id,
+                          sender_id: 'system_announcement',
+                          sender_username: '📢 Campus Announcement',
+                          message: announcement.message,
+                          created_at: new Date().toISOString(),
+                        };
+                        updatedMessages = [...updatedMessages, annMsg];
+                      }
+                    }
+                    return { systemAnnouncement: announcement, messages: updatedMessages };
+                  });
+                } else if (event.data?.type === 'FREEDOM_WALL_UPDATE') {
+                  set({ freedomPosts: event.data.posts });
                 }
               };
             }
@@ -165,7 +291,24 @@ export const useChatStore = create<ChatStoreState>()(
                   .on('broadcast', { event: 'announcement' }, (payload: any) => {
                     const announcement = payload?.payload;
                     if (announcement) {
-                      set({ systemAnnouncement: announcement });
+                      set((state) => {
+                        let updatedMessages = state.messages;
+                        if (state.activeRoom) {
+                          const annMsgId = 'msg_ann_' + announcement.id;
+                          if (!updatedMessages.some((m) => m.id === annMsgId)) {
+                            const annMsg: ChatMessage = {
+                              id: annMsgId,
+                              room_id: state.activeRoom.id,
+                              sender_id: 'system_announcement',
+                              sender_username: '📢 Campus Announcement',
+                              message: announcement.message,
+                              created_at: new Date().toISOString(),
+                            };
+                            updatedMessages = [...updatedMessages, annMsg];
+                          }
+                        }
+                        return { systemAnnouncement: announcement, messages: updatedMessages };
+                      });
                       if (typeof window !== 'undefined') {
                         localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
                       }
@@ -175,19 +318,62 @@ export const useChatStore = create<ChatStoreState>()(
               } catch (e) {}
             }
 
-            // Brave / Privacy Shields Fallback Polling (1.5s interval for browsers blocking sockets/events)
+            // 7-Second Background AJAX Auto-Sync Loop (Refreshes Freedom Wall, announcements, and messages without reloading page)
             setInterval(() => {
               try {
-                const rawAnn = localStorage.getItem('capitalk_shared_announcement_v5');
-                const latestAnn = rawAnn ? JSON.parse(rawAnn) : null;
-                const currentStore = get();
+                // 1. Sync Freedom Wall Posts from Supabase / LocalStorage
+                if (supabase && isSupabaseConfigured) {
+                  supabase
+                    .from('freedom_posts')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .then(({ data, error }) => {
+                      if (data && data.length > 0 && !error) {
+                        const loadedFromDb: FreedomPost[] = data.map((row: any) => ({
+                          id: row.id,
+                          author_alias: row.author_alias || 'Anon Student',
+                          department: row.department || 'General',
+                          message: row.message,
+                          color: row.color || '#ffc900',
+                          likes_count: row.likes_count || 0,
+                          liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
+                          created_at: row.created_at,
+                        }));
+                        const store = get();
+                        if (JSON.stringify(loadedFromDb) !== JSON.stringify(store.freedomPosts)) {
+                          set({ freedomPosts: loadedFromDb });
+                          localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
+                        }
+                      }
+                    }, () => {});
+                } else {
+                  const rawFreedom = localStorage.getItem('capitalk_freedom_wall_v1');
+                  if (rawFreedom) {
+                    const parsed: FreedomPost[] = JSON.parse(rawFreedom);
+                    const store = get();
+                    if (JSON.stringify(parsed) !== JSON.stringify(store.freedomPosts)) {
+                      set({ freedomPosts: parsed });
+                    }
+                  }
+                }
 
-                const annChanged = JSON.stringify(latestAnn) !== JSON.stringify(currentStore.systemAnnouncement);
-                if (annChanged) {
-                  set({ systemAnnouncement: latestAnn });
+                // 2. Sync Reports & Bans
+                const rawReports = localStorage.getItem('capitalk_shared_reports_v5');
+                const rawBans = localStorage.getItem('capitalk_shared_bans_v5');
+                if (rawReports) {
+                  const parsedReports = JSON.parse(rawReports);
+                  if (JSON.stringify(parsedReports) !== JSON.stringify(get().reports)) {
+                    set({ reports: parsedReports });
+                  }
+                }
+                if (rawBans) {
+                  const parsedBans = JSON.parse(rawBans);
+                  if (JSON.stringify(parsedBans) !== JSON.stringify(get().bannedUserIds)) {
+                    set({ bannedUserIds: parsedBans });
+                  }
                 }
               } catch (e) {}
-            }, 1500);
+            }, 7000);
           } catch (e) {}
         }
 
@@ -731,6 +917,111 @@ export const useChatStore = create<ChatStoreState>()(
         });
       },
 
+      addFreedomPost: (postData) => {
+        const { freedomPosts } = get();
+        const newPost: FreedomPost = {
+          id: 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          author_alias: postData.author_alias || 'Anon Student',
+          department: postData.department || 'General',
+          message: postData.message,
+          color: postData.color || '#ffc900',
+          likes_count: 0,
+          liked_by_users: [],
+          created_at: new Date().toISOString(),
+        };
+
+        const updated = [newPost, ...freedomPosts];
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('freedom_posts')
+              .insert({
+                id: newPost.id,
+                author_alias: newPost.author_alias,
+                department: newPost.department,
+                message: newPost.message,
+                color: newPost.color,
+                likes_count: newPost.likes_count,
+                liked_by_users: newPost.liked_by_users,
+                created_at: newPost.created_at,
+              })
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        set({
+          freedomPosts: updated,
+          actionToast: { type: 'announcement', message: '✨ Anonymous post published to Freedom Wall!' },
+        });
+        return true;
+      },
+
+      likeFreedomPost: (postId: string) => {
+        const { freedomPosts, currentUser } = get();
+        const userId = currentUser ? currentUser.id : 'guest_' + Date.now();
+
+        const updated = freedomPosts.map((post) => {
+          if (post.id !== postId) return post;
+          const likedUsers = post.liked_by_users || [];
+          const hasLiked = likedUsers.includes(userId);
+
+          let newLikedUsers: string[];
+          if (hasLiked) {
+            newLikedUsers = likedUsers.filter((id) => id !== userId);
+          } else {
+            newLikedUsers = [...likedUsers, userId];
+          }
+
+          return {
+            ...post,
+            liked_by_users: newLikedUsers,
+            likes_count: newLikedUsers.length,
+          };
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const targetPost = updated.find((p) => p.id === postId);
+            if (targetPost) {
+              supabase
+                .from('freedom_posts')
+                .update({
+                  likes_count: targetPost.likes_count,
+                  liked_by_users: targetPost.liked_by_users,
+                })
+                .eq('id', postId)
+                .then(() => {}, () => {});
+            }
+          } catch (e) {}
+        }
+
+        set({ freedomPosts: updated });
+      },
+
       clearToast: () => set({ actionToast: null }),
 
       broadcastAnnouncement: (message: string) => {
@@ -779,8 +1070,29 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
+        const { activeRoom, messages } = get();
+        let updatedMessages = messages;
+        if (activeRoom) {
+          const annMsgId = 'msg_ann_' + announcementObj.id;
+          if (!updatedMessages.some((m) => m.id === annMsgId)) {
+            const annMsg: ChatMessage = {
+              id: annMsgId,
+              room_id: activeRoom.id,
+              sender_id: 'system_announcement',
+              sender_username: '📢 Campus Announcement',
+              message: message.trim(),
+              created_at: new Date().toISOString(),
+            };
+            updatedMessages = [...updatedMessages, annMsg];
+            try {
+              roomManager.sendMessage(annMsg);
+            } catch (e) {}
+          }
+        }
+
         set({
           systemAnnouncement: announcementObj,
+          messages: updatedMessages,
           actionToast: { type: 'announcement', message: '📢 Campus announcement broadcast live to all students!' },
         });
       },
