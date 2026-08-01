@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -41,11 +41,14 @@ interface ChatStoreState {
   profanityStrikes: number;
   bayotCount: number;
   freedomPosts: FreedomPost[];
+  feedbackList: UserFeedback[];
 
   actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error'; message: string } | null;
   systemAnnouncement: { id: string; message: string; timestamp: string } | null;
   showQueueTimeoutModal: boolean;
   setShowQueueTimeoutModal: (show: boolean) => void;
+  showFeedbackModal: boolean;
+  setShowFeedbackModal: (show: boolean) => void;
 
   initSession: () => void;
   registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => void;
@@ -65,6 +68,7 @@ interface ChatStoreState {
 
   addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>) => boolean;
   likeFreedomPost: (postId: string) => void;
+  submitFeedback: (input: { category: UserFeedback['category']; rating: number; message: string }) => void;
 
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
@@ -159,6 +163,9 @@ export const useChatStore = create<ChatStoreState>()(
       systemAnnouncement: null,
       showQueueTimeoutModal: false,
       setShowQueueTimeoutModal: (show: boolean) => set({ showQueueTimeoutModal: show }),
+      feedbackList: [],
+      showFeedbackModal: false,
+      setShowFeedbackModal: (show: boolean) => set({ showFeedbackModal: show }),
 
       initSession: () => {
         const { activeRoom, currentUser, isSearching } = get();
@@ -1125,6 +1132,47 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
         set({ systemAnnouncement: null });
+      },
+
+      submitFeedback: ({ category, rating, message }) => {
+        const { currentUser, feedbackList } = get();
+        const newFeedback: UserFeedback = {
+          id: 'fb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          user_id: currentUser?.id,
+          username: currentUser?.username || 'Anonymous Student',
+          category,
+          rating,
+          message: message.trim(),
+          created_at: new Date().toISOString(),
+        };
+
+        const updated = [newFeedback, ...feedbackList];
+        set({
+          feedbackList: updated,
+          showFeedbackModal: false,
+          actionToast: { type: 'announcement', message: '🎉 Thank you! Your feedback has been received.' },
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_feedback_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('feedback')
+              .insert({
+                user_id: newFeedback.user_id,
+                username: newFeedback.username,
+                category: newFeedback.category,
+                rating: newFeedback.rating,
+                message: newFeedback.message,
+              })
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
       },
     }),
     {

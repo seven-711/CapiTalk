@@ -101,7 +101,7 @@ export const RegistrationModal: React.FC = () => {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. pixelwizard, dev_july"
+              placeholder="e.g. engr_masarap, nursing_mwa , poging_marino"
               className="gumroad-input w-full"
               maxLength={20}
             />
@@ -140,7 +140,7 @@ export const RegistrationModal: React.FC = () => {
               type="text"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="e.g. Coffee lover & 3rd year coding student ☕"
+              placeholder="e.g. matcha_lover, opaw_nga_marino"
               className="gumroad-input w-full"
               maxLength={80}
             />

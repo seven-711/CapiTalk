@@ -4,11 +4,10 @@ export const CU_DEPARTMENTS = [
   "College of Nursing",
   "College of Business Administration",
   "College of Education",
-  "College of Criminal Justice",
+  "College of Criminology",
   "College of Arts and Sciences",
-  "College of Hospitality Management",
+  "College of Maritime Education",
   "Senior High School",
-  "Others",
 ] as const;
 
 export type DepartmentType = typeof CU_DEPARTMENTS[number];

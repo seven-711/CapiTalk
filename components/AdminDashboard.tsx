@@ -45,7 +45,7 @@ export const AdminDashboard: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'announcements'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'users' | 'announcements' | 'feedback'>('reports');
   const [reportFilter, setReportFilter] = useState<'all' | 'pending' | 'reviewed' | 'dismissed'>('all');
   
   const [announcementText, setAnnouncementText] = useState('');
@@ -66,7 +66,7 @@ export const AdminDashboard: React.FC = () => {
   const handleBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!announcementText.trim()) return;
-    broadcastAnnouncement(announcementText);
+    broadcastAnnouncement(announcementText.trim());
     setAnnouncementSent(true);
     setTimeout(() => {
       setAnnouncementText('');
@@ -210,6 +210,16 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           Broadcast Announcement
+        </button>
+        <button
+          onClick={() => setActiveTab('feedback')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
+            activeTab === 'feedback'
+              ? 'bg-black text-white border-black shadow-sm'
+              : 'bg-white text-[#242423] border-[#d1d5dc] hover:border-black'
+          }`}
+        >
+          💬 Student Feedback ({useChatStore.getState().feedbackList.length})
         </button>
       </div>
 
@@ -536,6 +546,58 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* Tab 4: Student Feedback & Suggestions */}
+      {activeTab === 'feedback' && (
+        <div className="gumroad-card overflow-hidden">
+          <div className="p-4 bg-[#f4f4f0] border-b border-[#d1d5dc] flex items-center justify-between">
+            <h3 className="font-extrabold text-sm text-black">Student Feedback &amp; Suggestions</h3>
+            <span className="text-xs font-bold px-3 py-1 bg-[#701a31] text-white border border-black rounded-full">
+              {useChatStore.getState().feedbackList.length} Submissions
+            </span>
+          </div>
+
+          {useChatStore.getState().feedbackList.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              <p className="text-sm font-bold text-black">No feedback submissions yet.</p>
+              <p className="text-xs text-gray-500 mt-1">Student feedback and bug reports will appear here.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#d1d5dc]">
+              {useChatStore.getState().feedbackList.map((item) => (
+                <div key={item.id} className="p-4 bg-white hover:bg-[#fff1f3]/50 transition-colors">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-xs text-black">@{item.username || 'Anonymous'}</span>
+                      <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full border border-black uppercase tracking-wider ${
+                        item.category === 'bug'
+                          ? 'bg-[#c41e3a] text-white'
+                          : item.category === 'suggestion'
+                          ? 'bg-[#ffc900] text-black'
+                          : item.category === 'ui_ux'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-black text-white'
+                      }`}>
+                        {item.category}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[...Array(item.rating)].map((_, i) => (
+                        <span key={i} className="text-amber-400 text-xs">★</span>
+                      ))}
+                      <span className="text-[10px] text-gray-400 ml-1">
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-[#242423] font-medium leading-relaxed bg-[#fbf9f5] p-3 rounded-xl border border-[#d1d5dc] mt-2">
+                    "{item.message}"
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

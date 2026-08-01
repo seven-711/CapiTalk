@@ -8,6 +8,7 @@ import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { filterProfanity } from '../lib/utils/safety';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { ReportModal } from './ReportModal';
+import { FeedbackModal } from './FeedbackModal';
 import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
 import {
   Send,
@@ -52,6 +53,7 @@ export const ChatRoom: React.FC = () => {
     systemAnnouncement,
     dismissAnnouncement,
     broadcastAnnouncement,
+    setShowFeedbackModal,
   } = useChatStore();
 
   const [text, setText] = useState('');
@@ -413,8 +415,8 @@ export const ChatRoom: React.FC = () => {
         </div>
       </div>
 
-      {/* Loudspeaker Campus Announcement Booking Bar */}
-      <div className="bg-white border-b-2 border-black px-3 sm:px-6 py-2 flex items-center justify-between shadow-2xs shrink-0 z-10">
+      {/* Loudspeaker Campus Announcement Booking Bar (Temporarily commented pending GCash Business approval) */}
+      {/* <div className="bg-white border-b-2 border-black px-3 sm:px-6 py-2 flex items-center justify-between shadow-2xs shrink-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#fff1f3] border-2 border-black flex items-center justify-center text-[#701a31] shrink-0 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             <Megaphone className="w-4 h-4 text-[#701a31]" />
@@ -441,7 +443,7 @@ export const ChatRoom: React.FC = () => {
         >
           Book
         </button>
-      </div>
+      </div> */}
 
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
       <div className="bg-[#fbf9f5] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
@@ -451,15 +453,20 @@ export const ChatRoom: React.FC = () => {
 
           if (isSystem || msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
             if (msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
+              const displayMessage = msg.message?.replace(/^\[ADMIN\]\s*/i, '') || '';
+
               return (
                 <div key={msg.id} className="my-3.5 p-3.5 sm:p-4 bg-[#fff1f3] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black animate-in fade-in zoom-in-95 duration-200">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="text-[10px] sm:text-xs font-bold text-black/70">
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap sm:flex-nowrap">
+                    <span className="px-3 py-1 bg-[#701a31] text-white border-2 border-black text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1">
+                      📢 ADMIN NA GWAPO
+                    </span>
+                    <span className="text-[10px] sm:text-xs font-bold text-black/70 shrink-0">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-black">
-                    {msg.message}
+                    {displayMessage}
                   </p>
                 </div>
               );
@@ -544,8 +551,6 @@ export const ChatRoom: React.FC = () => {
                   onTouchStart={() => handleTouchStart(msg.id)}
                   onTouchEnd={handleTouchEnd}
                   onTouchMove={handleTouchEnd}
-                  onMouseDown={() => handleTouchStart(msg.id)}
-                  onMouseUp={handleTouchEnd}
                   className={`p-3.5 rounded-[12px] border text-sm relative select-none cursor-pointer flex-1 min-w-0 ${
                     isMe
                       ? msg.is_profane
@@ -678,7 +683,7 @@ export const ChatRoom: React.FC = () => {
                 <WifiOff className="w-5 h-5" />
               )}
             </div>
-            <div className="text-center max-w-sm">
+            <div className="text-center max-w-sm space-y-2">
               <p className="text-sm font-extrabold text-black">
                 {partnerLeftReason === 'inactivity'
                   ? 'User Disconnected (Inactivity)'
@@ -688,25 +693,47 @@ export const ChatRoom: React.FC = () => {
                   ? 'Partner Skipped Chat'
                   : 'Connection Ended'}
               </p>
-              <p className="text-xs text-[#242423] mt-0.5 leading-relaxed">
-                {partnerLeftReason === 'inactivity' ? (
-                  <>
-                    <span className="font-semibold">{partner.username}</span> was automatically disconnected after 30 seconds of inactivity.
-                  </>
-                ) : partnerLeftReason === 'exited' ? (
-                  <>
-                    <span className="font-semibold">{partner.username}</span> clicked exit and left the conversation.
-                  </>
-                ) : partnerLeftReason === 'skipped' ? (
-                  <>
-                    <span className="font-semibold">{partner.username}</span> skipped to the next chat room.
-                  </>
-                ) : (
-                  <>
-                    <span className="font-semibold">{partner.username}</span> has left the conversation.
-                  </>
-                )}
-              </p>
+              
+              {/* Ended Chat Indicator with Report / Block & Feedback Prompt */}
+              <div className="text-xs text-[#242423] space-y-1.5 pt-1">
+                <p className="font-medium">
+                  {partnerLeftReason === 'left' || partnerLeftReason === 'exited' ? (
+                    <>You ended the chat.</>
+                  ) : partnerLeftReason === 'skipped' ? (
+                    <>{partner.username} skipped the chat.</>
+                  ) : partnerLeftReason === 'inactivity' ? (
+                    <>{partner.username} was disconnected due to inactivity.</>
+                  ) : (
+                    <>Chat ended.</>
+                  )}{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(true)}
+                    className="font-extrabold text-[#701a31] hover:underline"
+                  >
+                    Report?
+                  </button>{' '}
+                  ·{' '}
+                  <button
+                    type="button"
+                    onClick={blockPartner}
+                    className="font-extrabold text-[#c41e3a] hover:underline"
+                  >
+                    Block
+                  </button>
+                </p>
+
+                <p className="text-[11px] font-bold tracking-wider uppercase text-gray-500 pt-1">
+                  FOUND A BUG OR HAVE SUGGESTIONS?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowFeedbackModal(true)}
+                    className="text-[#701a31] hover:underline font-extrabold normal-case text-xs"
+                  >
+                    Send it here!
+                  </button>
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -964,8 +991,8 @@ export const ChatRoom: React.FC = () => {
         </div>
       )}
 
-      {/* Loudspeaker Booking & Demo Checkout Modal */}
-      {showLoudspeakerModal && (
+      {/* Loudspeaker Booking & Demo Checkout Modal (Temporarily commented pending GCash Business approval) */}
+      {/* {showLoudspeakerModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white border-4 border-black p-6 sm:p-8 rounded-3xl max-w-lg w-full text-left shadow-2xl animate-in zoom-in-95 duration-200 relative">
             <button
@@ -1016,7 +1043,6 @@ export const ChatRoom: React.FC = () => {
                 </span>
               </div>
 
-              {/* Demo Payment Gateway Section */}
               <div className="p-4 bg-[#f4f4f0] border-2 border-black rounded-2xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-extrabold text-black uppercase flex items-center gap-1.5">
@@ -1084,7 +1110,7 @@ export const ChatRoom: React.FC = () => {
                   {isProcessingPayment ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Processing Demo Payment...</span>
+                      <span>Processing...</span>
                     </>
                   ) : (
                     <>
@@ -1096,7 +1122,9 @@ export const ChatRoom: React.FC = () => {
             </form>
           </div>
         </div>
-      )}
+      )} */}
+      {/* Feedback & Bug Report Modal */}
+      <FeedbackModal />
     </div>
   );
 };

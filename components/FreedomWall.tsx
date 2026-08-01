@@ -108,7 +108,7 @@ export const FreedomWall: React.FC = () => {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-3 py-1 bg-[#701a31] border-2 border-black text-white text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <span className="px-4 py-2 bg-[#701a31] border-2 border-black text-white text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 Campus Wall
               </span>
             </div>

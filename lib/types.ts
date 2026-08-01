@@ -65,3 +65,13 @@ export interface FreedomPost {
   liked_by_users: string[];
   created_at: string;
 }
+
+export interface UserFeedback {
+  id: string;
+  user_id?: string;
+  username?: string;
+  category: 'bug' | 'suggestion' | 'ui_ux' | 'general';
+  rating: number;
+  message: string;
+  created_at: string;
+}

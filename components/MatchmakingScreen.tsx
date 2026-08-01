@@ -45,6 +45,12 @@ export const MatchmakingScreen: React.FC = () => {
         {currentUser && (
 <div className="flex w-full items-center gap-2.5 sm:gap-3.5 bg-white border border-[#d1d5dc] px-3.5 sm:px-4 py-2 rounded-2xl sm:rounded-full mb-6 sm:mb-8 shadow-sm">
   <div className="flex items-center gap-2.5 min-w-0 flex-1">
+    <img
+      src={currentUser.avatar_url}
+      alt={currentUser.username}
+      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border-2 border-black shrink-0 object-cover"
+    />
+
     <div className="min-w-0 text-left">
       <span className="font-extrabold text-xs sm:text-sm text-black block truncate">
         {currentUser.username}
@@ -54,12 +60,6 @@ export const MatchmakingScreen: React.FC = () => {
         {currentUser.department.replace("College of ", "")}
       </span>
     </div>
-
-    <img
-      src={currentUser.avatar_url}
-      alt={currentUser.username}
-      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f4f4f0] border-2 border-black shrink-0 object-cover"
-    />
   </div>
 
   <button

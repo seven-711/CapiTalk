@@ -28,8 +28,8 @@ export const GlobalBroadcastBanner: React.FC = () => {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap leading-none">
-              <span className="px-2 py-0.5 bg-black text-white text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider">
-                📢 Sponsored Broadcast
+              <span className="px-2.5 py-0.5 bg-[#701a31] text-white border border-black text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                📢 Campus Broadcast
               </span>
               <span className="text-[10px] sm:text-xs font-bold text-black/70 flex items-center gap-1">
                 by @{activeBroadcast.owner_name}

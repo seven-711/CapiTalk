@@ -4,6 +4,7 @@ import React from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CoinMascot } from './CoinMascot';
 import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck } from 'lucide-react';
+import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 
 export const Navbar: React.FC = () => {
@@ -105,6 +106,15 @@ export const Navbar: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => useChatStore.getState().setShowFeedbackModal(true)}
+            className="p-1.5 sm:p-2 rounded border bg-white text-[#242423] border-[#d1d5dc] hover:border-black transition-colors"
+            title="Feedback & Bug Report"
+          >
+            <span className="text-xs sm:text-sm font-bold">💬</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setViewState('admin')}
             className={`p-1.5 sm:p-2 rounded border transition-colors ${
               viewState === 'admin'
@@ -117,6 +127,7 @@ export const Navbar: React.FC = () => {
           </button>
         </div>
       </div>
+      <FeedbackModal />
     </header>
   );
 };

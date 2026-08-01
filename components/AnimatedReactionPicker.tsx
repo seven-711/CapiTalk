@@ -34,7 +34,9 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
         <button
           key={item.key}
           type="button"
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
             onSelectReaction(item.key);
             if (onClose) onClose();
           }}
