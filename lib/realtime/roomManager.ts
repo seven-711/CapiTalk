@@ -265,6 +265,12 @@ class RoomManager {
     const roomId = msg.room_id || this.currentRoomId;
     if (!roomId) return;
 
+    // Reaction updates should be dispatched without persisting as empty text messages
+    if (msg.reaction_update) {
+      this.dispatchMessage(msg);
+      return;
+    }
+
     try {
       const key = MSG_STORAGE_PREFIX + roomId;
       const raw = localStorage.getItem(key);

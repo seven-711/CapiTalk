@@ -74,29 +74,18 @@ export const AnimatedReactionBadge: React.FC<{
     <button
       type="button"
       onClick={(e) => {
+        e.preventDefault();
         e.stopPropagation();
         onClick();
       }}
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs sm:text-sm font-extrabold transition-all shadow-sm hover:scale-110 active:scale-95 ${
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold transition-all border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 ${
         isMe
-          ? 'bg-[#ff90e8]/30 border-black text-black shadow-md'
-          : 'bg-white border-black text-black hover:bg-[#f4f4f0]'
+          ? 'bg-[#701a31] text-white'
+          : 'bg-white text-black hover:bg-[#fff1f3]'
       }`}
     >
-      <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0">
-        <DotLottieReact
-          src={item.file}
-          loop
-          autoplay
-          style={{
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'transparent',
-            transform: reactionKey === 'like' ? 'scale(1.35)' : 'none',
-          }}
-        />
-      </div>
-      <span className="text-xs sm:text-sm font-extrabold leading-none">{count}</span>
+      <span className="text-sm sm:text-base leading-none select-none">{item.emoji}</span>
+      <span className="text-xs font-extrabold leading-none">{count}</span>
     </button>
   );
 };

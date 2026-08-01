@@ -448,6 +448,10 @@ export const ChatRoom: React.FC = () => {
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
       <div className="bg-[#fbf9f5] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
         {messages.map((msg) => {
+          if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
+            return null;
+          }
+
           const isSystem = msg.sender_id === 'system';
           const isMe = msg.sender_id === currentUser.id;
 
