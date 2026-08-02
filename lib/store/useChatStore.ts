@@ -43,6 +43,7 @@ interface ChatStoreState {
   freedomPosts: FreedomPost[];
   feedbackList: UserFeedback[];
   wallNotifications: WallNotification[];
+  myPostIds: string[];
   targetPostId: string | null;
   setTargetPostId: (id: string | null) => void;
 
@@ -176,6 +177,17 @@ export const useChatStore = create<ChatStoreState>()(
       targetPostId: null,
       setTargetPostId: (id: string | null) => set({ targetPostId: id }),
 
+      myPostIds: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const stored = localStorage.getItem('capitalk_my_post_ids_v1');
+              return stored ? JSON.parse(stored) : ['post_1'];
+            } catch (e) {
+              return ['post_1'];
+            }
+          })()
+        : ['post_1'],
+
       addWallNotification: (notifData) => {
         const newNotif: WallNotification = {
           id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -200,6 +212,29 @@ export const useChatStore = create<ChatStoreState>()(
             broadcastChannel.postMessage({ type: 'WALL_NOTIFICATIONS_UPDATE', notifications: updated });
           } catch (e) {}
         }
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const user = get().currentUser;
+            const currentUserId = user ? user.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+            supabase
+              .from('notifications')
+              .insert({
+                id: newNotif.id,
+                target_user_id: currentUserId,
+                post_id: newNotif.post_id,
+                type: newNotif.type,
+                actor_alias: newNotif.actor_alias,
+                actor_department: newNotif.actor_department,
+                message_snippet: newNotif.message_snippet,
+                comment_text: newNotif.comment_text,
+                admin_remark: newNotif.admin_remark,
+                read: newNotif.read,
+                created_at: newNotif.created_at,
+              })
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
         set({ wallNotifications: updated });
       },
 
@@ -396,6 +431,46 @@ export const useChatStore = create<ChatStoreState>()(
                   set({ freedomPosts: event.data.posts });
                 } else if (event.data?.type === 'WALL_NOTIFICATIONS_UPDATE') {
                   set({ wallNotifications: event.data.notifications });
+                } else if (event.data?.type === 'FREEDOM_WALL_LIKE') {
+                  const { postId, actorAlias, actorDept, messageSnippet, likerId } = event.data;
+                  const { myPostIds, currentUser } = get();
+                  const currentUserId = currentUser ? currentUser.id : '';
+                  if (myPostIds.includes(postId) && likerId !== currentUserId) {
+                    get().addWallNotification({
+                      post_id: postId,
+                      type: 'like',
+                      actor_alias: actorAlias,
+                      actor_department: actorDept,
+                      message_snippet: messageSnippet,
+                    });
+                  }
+                } else if (event.data?.type === 'FREEDOM_WALL_COMMENT') {
+                  const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId } = event.data;
+                  const { myPostIds, currentUser } = get();
+                  const currentUserId = currentUser ? currentUser.id : '';
+                  if (myPostIds.includes(postId) && commenterId !== currentUserId) {
+                    get().addWallNotification({
+                      post_id: postId,
+                      type: 'comment',
+                      actor_alias: actorAlias,
+                      actor_department: actorDept,
+                      message_snippet: messageSnippet,
+                      comment_text: commentText,
+                    });
+                  }
+                } else if (event.data?.type === 'FREEDOM_WALL_ADMIN_REMARK') {
+                  const { postId, messageSnippet, adminRemark, reportedUsername, reporterUsername } = event.data;
+                  const { myPostIds, currentUser } = get();
+                  const myUsername = currentUser ? currentUser.username : '';
+                  if (myPostIds.includes(postId) || myUsername === reportedUsername || myUsername === reporterUsername) {
+                    get().addWallNotification({
+                      post_id: postId,
+                      type: 'admin_remark',
+                      actor_alias: '👑 CapiTalk Admin',
+                      message_snippet: messageSnippet,
+                      admin_remark: adminRemark,
+                    });
+                  }
                 }
               };
             }
@@ -436,6 +511,73 @@ export const useChatStore = create<ChatStoreState>()(
                       if (typeof window !== 'undefined') {
                         localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
                       }
+                    }
+                  })
+                  .subscribe();
+
+                const wallChannel = supabase.channel('capitalk_global_wall_events');
+                wallChannel
+                  .on('broadcast', { event: 'FREEDOM_WALL_LIKE' }, (payload: any) => {
+                    const { postId, actorAlias, actorDept, messageSnippet, likerId } = payload?.payload || {};
+                    const { myPostIds, currentUser } = get();
+                    const currentUserId = currentUser ? currentUser.id : '';
+                    if (myPostIds.includes(postId) && likerId !== currentUserId) {
+                      get().addWallNotification({
+                        post_id: postId,
+                        type: 'like',
+                        actor_alias: actorAlias,
+                        actor_department: actorDept,
+                        message_snippet: messageSnippet,
+                      });
+                    }
+                  })
+                  .on('broadcast', { event: 'FREEDOM_WALL_COMMENT' }, (payload: any) => {
+                    const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId } = payload?.payload || {};
+                    const { myPostIds, currentUser } = get();
+                    const currentUserId = currentUser ? currentUser.id : '';
+                    if (myPostIds.includes(postId) && commenterId !== currentUserId) {
+                      get().addWallNotification({
+                        post_id: postId,
+                        type: 'comment',
+                        actor_alias: actorAlias,
+                        actor_department: actorDept,
+                        message_snippet: messageSnippet,
+                        comment_text: commentText,
+                      });
+                    }
+                  })
+                  .on('broadcast', { event: 'FREEDOM_WALL_ADMIN_REMARK' }, (payload: any) => {
+                    const { postId, messageSnippet, adminRemark, reportedUsername, reporterUsername } = payload?.payload || {};
+                    const { myPostIds, currentUser } = get();
+                    const myUsername = currentUser ? currentUser.username : '';
+                    if (myPostIds.includes(postId) || myUsername === reportedUsername || myUsername === reporterUsername) {
+                      get().addWallNotification({
+                        post_id: postId,
+                        type: 'admin_remark',
+                        actor_alias: '👑 CapiTalk Admin',
+                        message_snippet: messageSnippet,
+                        admin_remark: adminRemark,
+                      });
+                    }
+                  })
+                  .subscribe();
+
+                const user = get().currentUser;
+                const currentUserId = user ? user.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+                const userNotifChannel = supabase.channel(`user:${currentUserId}:notifications`);
+                userNotifChannel
+                  .on('broadcast', { event: 'new_notification' }, (payload: any) => {
+                    const notif = payload?.payload;
+                    if (notif) {
+                      get().addWallNotification({
+                        post_id: notif.post_id,
+                        type: notif.type,
+                        actor_alias: notif.actor_alias,
+                        actor_department: notif.actor_department,
+                        message_snippet: notif.message_snippet,
+                        comment_text: notif.comment_text,
+                        admin_remark: notif.admin_remark,
+                      });
                     }
                   })
                   .subscribe();
@@ -1190,14 +1332,17 @@ export const useChatStore = create<ChatStoreState>()(
           updatedBans = [...new Set([...bannedUserIds, targetReport.reported_user_id])];
         }
 
-        if (targetReport) {
-          addWallNotification({
-            post_id: targetReport.post_id || 'admin_action',
-            type: 'admin_remark',
-            actor_alias: '👑 CapiTalk Admin',
-            message_snippet: targetReport.post_message ? targetReport.post_message.slice(0, 60) : 'Reported Content',
-            admin_remark: remarkText,
-          });
+        if (broadcastChannel && targetReport) {
+          try {
+            broadcastChannel.postMessage({
+              type: 'FREEDOM_WALL_ADMIN_REMARK',
+              postId: targetReport.post_id || 'admin_action',
+              messageSnippet: targetReport.post_message ? targetReport.post_message.slice(0, 60) : 'Reported Content',
+              adminRemark: remarkText,
+              reportedUsername: targetReport.reported_username,
+              reporterUsername: targetReport.reporter_username,
+            });
+          } catch (e) {}
         }
 
         if (typeof window !== 'undefined') {
@@ -1273,9 +1418,11 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       addFreedomPost: (postData) => {
-        const { freedomPosts } = get();
+        const { freedomPosts, currentUser } = get();
+        const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
         const newPost: FreedomPost = {
           id: 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          author_id: currentUserId,
           author_alias: postData.author_alias || 'Anon Student',
           department: postData.department || 'General',
           message: postData.message,
@@ -1301,24 +1448,41 @@ export const useChatStore = create<ChatStoreState>()(
 
         if (supabase && isSupabaseConfigured) {
           try {
+            const insertPayload: any = {
+              id: newPost.id,
+              author_alias: newPost.author_alias,
+              department: newPost.department,
+              message: newPost.message,
+              color: newPost.color,
+              likes_count: newPost.likes_count,
+              liked_by_users: newPost.liked_by_users,
+              created_at: newPost.created_at,
+            };
+            if (newPost.author_id) {
+              insertPayload.author_id = newPost.author_id;
+            }
             supabase
               .from('freedom_posts')
-              .insert({
-                id: newPost.id,
-                author_alias: newPost.author_alias,
-                department: newPost.department,
-                message: newPost.message,
-                color: newPost.color,
-                likes_count: newPost.likes_count,
-                liked_by_users: newPost.liked_by_users,
-                created_at: newPost.created_at,
-              })
-              .then(() => {}, () => {});
+              .insert(insertPayload)
+              .then(({ error }) => {
+                if (error && error.message?.includes('author_id')) {
+                  delete insertPayload.author_id;
+                  supabase?.from('freedom_posts').insert(insertPayload).then(() => {}, () => {});
+                }
+              }, () => {});
+          } catch (e) {}
+        }
+
+        const updatedMyPostIds = [newPost.id, ...get().myPostIds];
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedMyPostIds));
           } catch (e) {}
         }
 
         set({
           freedomPosts: updated,
+          myPostIds: updatedMyPostIds,
           actionToast: { type: 'announcement', message: '✨ Anonymous post published to Freedom Wall!' },
         });
         return true;
@@ -1421,17 +1585,7 @@ export const useChatStore = create<ChatStoreState>()(
           };
         });
 
-        if (targetPost && !targetPost.liked_by_users?.includes(userId)) {
-          const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');
-          const actorAlias = `Someone from ${deptShort}`;
-          get().addWallNotification({
-            post_id: postId,
-            type: 'like',
-            actor_alias: actorAlias,
-            actor_department: currentUser?.department || 'Engineering',
-            message_snippet: targetPost.message.slice(0, 60),
-          });
-        }
+        const isNewLike = targetPost && !targetPost.liked_by_users?.includes(userId);
 
         if (typeof window !== 'undefined') {
           try {
@@ -1442,6 +1596,18 @@ export const useChatStore = create<ChatStoreState>()(
         if (broadcastChannel) {
           try {
             broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+            if (isNewLike && targetPost) {
+              const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');
+              const actorAlias = `Someone from ${deptShort}`;
+              broadcastChannel.postMessage({
+                type: 'FREEDOM_WALL_LIKE',
+                postId,
+                actorAlias,
+                actorDept: currentUser?.department || 'Engineering',
+                messageSnippet: targetPost.message.slice(0, 60),
+                likerId: userId,
+              });
+            }
           } catch (e) {}
         }
 
@@ -1457,6 +1623,37 @@ export const useChatStore = create<ChatStoreState>()(
                 })
                 .eq('id', postId)
                 .then(() => {}, () => {});
+
+              if (isNewLike) {
+                const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');
+                const actorAlias = `Someone from ${deptShort}`;
+                const targetUserId = targetPost.author_id || targetPost.id;
+                
+                const userChannel = supabase.channel(`user:${targetUserId}:notifications`);
+                userChannel.send({
+                  type: 'broadcast',
+                  event: 'new_notification',
+                  payload: {
+                    target_user_id: targetUserId,
+                    post_id: postId,
+                    type: 'like',
+                    actor_alias: actorAlias,
+                    actor_department: currentUser?.department || 'Engineering',
+                    message_snippet: targetPost.message.slice(0, 60),
+                  },
+                }).then(() => {}, () => {});
+
+                supabase.from('notifications').insert({
+                  id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                  target_user_id: targetUserId,
+                  post_id: postId,
+                  type: 'like',
+                  actor_alias: actorAlias,
+                  actor_department: currentUser?.department || 'Engineering',
+                  message_snippet: targetPost.message.slice(0, 60),
+                  read: false,
+                }).then(() => {}, () => {});
+              }
             }
           } catch (e) {}
         }
@@ -1624,6 +1821,7 @@ export const useChatStore = create<ChatStoreState>()(
         reports: state.reports,
         bannedUserIds: state.bannedUserIds,
         wallNotifications: state.wallNotifications,
+        myPostIds: state.myPostIds,
       }),
     }
   )

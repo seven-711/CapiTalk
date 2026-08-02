@@ -239,14 +239,20 @@ export const FreedomWall: React.FC = () => {
     }));
     setNewCommentText('');
 
-    addWallNotification({
-      post_id: selectedPostForComments.id,
-      type: 'comment',
-      actor_alias: newComment.author_alias,
-      actor_department: newComment.department,
-      message_snippet: selectedPostForComments.message.slice(0, 60),
-      comment_text: newComment.message.slice(0, 60),
-    });
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('capitalk_global_realtime');
+        bc.postMessage({
+          type: 'FREEDOM_WALL_COMMENT',
+          postId: selectedPostForComments.id,
+          actorAlias: newComment.author_alias,
+          actorDept: newComment.department,
+          messageSnippet: selectedPostForComments.message.slice(0, 60),
+          commentText: newComment.message.slice(0, 60),
+          commenterId: currentUser ? currentUser.id : 'guest',
+        });
+      } catch (e) {}
+    }
 
     if (typeof window !== 'undefined') {
       try {
@@ -264,6 +270,34 @@ export const FreedomWall: React.FC = () => {
           message: newComment.message,
           created_at: newComment.created_at,
         });
+
+        const targetUserId = selectedPostForComments.author_id || selectedPostForComments.id;
+        const userChannel = supabase.channel(`user:${targetUserId}:notifications`);
+        userChannel.send({
+          type: 'broadcast',
+          event: 'new_notification',
+          payload: {
+            target_user_id: targetUserId,
+            post_id: selectedPostForComments.id,
+            type: 'comment',
+            actor_alias: newComment.author_alias,
+            actor_department: newComment.department,
+            message_snippet: selectedPostForComments.message.slice(0, 60),
+            comment_text: newComment.message.slice(0, 60),
+          },
+        }).then(() => {}, () => {});
+
+        supabase.from('notifications').insert({
+          id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          target_user_id: targetUserId,
+          post_id: selectedPostForComments.id,
+          type: 'comment',
+          actor_alias: newComment.author_alias,
+          actor_department: newComment.department,
+          message_snippet: selectedPostForComments.message.slice(0, 60),
+          comment_text: newComment.message.slice(0, 60),
+          read: false,
+        }).then(() => {}, () => {});
       } catch (e) {}
     }
   };
@@ -316,8 +350,10 @@ export const FreedomWall: React.FC = () => {
     }
 
     const success = addFreedomPost({
-      author_alias: postAsAdmin ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin') : (alias.trim() || 'Anon Student'),
-      department: department || 'General',
+      author_alias: postAsAdmin
+        ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
+        : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student')),
+      department: currentUser ? currentUser.department : (department || 'General'),
       message: message.trim(),
       color: postAsAdmin ? '#701a31' : selectedColor,
       is_admin: postAsAdmin,
@@ -914,38 +950,23 @@ export const FreedomWall: React.FC = () => {
             )}
 
             <form onSubmit={handlePostSubmit} className="space-y-2.5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase mb-0.5">
-                    Anonymous Alias / Nickname
-                  </label>
-                  <input
-                    type="text"
-                    value={alias}
-                    onChange={(e) => setAlias(e.target.value)}
-                    placeholder="e.g. Secret Admirer, Stressed Senior"
-                    maxLength={30}
-                    className="w-full px-2.5 py-1.5 text-xs border-2 border-black rounded-lg font-bold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0]"
-                  />
+              <div className="flex items-center justify-between p-2.5 bg-[#f4f4f0] border-2 border-black rounded-xl text-black">
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-full bg-[#ffc900] border border-black flex items-center justify-center font-black text-xs text-black shrink-0">
+                    {(currentUser?.username || alias || 'A').charAt(0).toUpperCase()}
+                  </span>
+                  <div>
+                    <span className="text-xs font-black text-black block">
+                      {currentUser ? currentUser.username : alias || 'Anon Student'}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-600 block">
+                      {currentUser ? currentUser.department.replace('College of ', '') : 'General Student'}
+                    </span>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase mb-0.5">
-                    Department Tag
-                  </label>
-                  <select
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs border-2 border-black rounded-lg font-bold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0]"
-                  >
-                    <option value="General">General / All Student</option>
-                    {CU_DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept.replace('College of ', '')}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <span className="text-[9px] sm:text-[10px] font-extrabold bg-black text-white px-2 py-0.5 rounded-full uppercase shrink-0">
+                  Profile Identity
+                </span>
               </div>
 
               <div>

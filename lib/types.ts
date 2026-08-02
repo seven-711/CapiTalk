@@ -71,6 +71,7 @@ export interface FreedomComment {
 
 export interface FreedomPost {
   id: string;
+  author_id?: string;
   author_alias: string;
   department: string;
   message: string;

@@ -174,7 +174,8 @@ export const Navbar: React.FC = () => {
             </div>
           )}
 
-          {/* Wall Notifications Bell Dropdown */}
+          {/* Wall Notifications Bell Dropdown (TEMPORARILY DISABLED AS REQUESTED) */}
+          {/*
           <div className="relative">
             <button
               type="button"
@@ -206,7 +207,6 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Desktop Notification Dropdown Menu */}
             {showNotifPopover && (
               <div className="hidden sm:block absolute right-0 mt-2 w-88 bg-white border-2 border-black rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in zoom-in-95">
                 <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-black/15">
@@ -246,10 +246,8 @@ export const Navbar: React.FC = () => {
               </div>
             )}
 
-            {/* Mobile Full-Screen Notifications View */}
             {showNotifPopover && (
               <div className="block sm:hidden fixed inset-0 z-[100] bg-[#f4f4f0] p-4 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom duration-200">
-                {/* Mobile View Top Bar */}
                 <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-3 shrink-0 bg-[#f4f4f0]">
                   <button
                     type="button"
@@ -278,7 +276,6 @@ export const Navbar: React.FC = () => {
                   )}
                 </div>
 
-                {/* Mobile Notification List */}
                 <div className="flex-1 overflow-y-auto space-y-3 pb-6">
                   {wallNotifications.length === 0 ? (
                     <div className="text-center py-16 text-sm font-bold text-gray-500">
@@ -291,6 +288,7 @@ export const Navbar: React.FC = () => {
               </div>
             )}
           </div>
+          */}
 
           <button
             type="button"

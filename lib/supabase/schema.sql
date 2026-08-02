@@ -137,6 +137,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcasts;
 -- 10. Freedom Wall Posts Table
 CREATE TABLE IF NOT EXISTS public.freedom_posts (
   id TEXT PRIMARY KEY,
+  author_id TEXT,
   author_alias TEXT DEFAULT 'Anon Student',
   department TEXT NOT NULL,
   message TEXT NOT NULL,
@@ -148,6 +149,28 @@ CREATE TABLE IF NOT EXISTS public.freedom_posts (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.freedom_posts 
+ADD COLUMN IF NOT EXISTS author_id TEXT;
+
 ALTER TABLE public.freedom_posts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Freedom Posts Access" ON public.freedom_posts FOR ALL USING (true);
 ALTER PUBLICATION supabase_realtime ADD TABLE public.freedom_posts;
+
+-- 11. Wall Notifications Table (for offline notification persistence & target delivery)
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id TEXT PRIMARY KEY,
+  target_user_id TEXT NOT NULL,
+  post_id TEXT NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('like', 'comment', 'admin_remark')),
+  actor_alias TEXT NOT NULL,
+  actor_department TEXT,
+  message_snippet TEXT NOT NULL,
+  comment_text TEXT,
+  admin_remark TEXT,
+  read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Notifications Access" ON public.notifications FOR ALL USING (true);
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
