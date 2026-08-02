@@ -418,7 +418,7 @@ export const FreedomWall: React.FC = () => {
             <div className="flex items-center gap-1.5 sm:gap-2 truncate">
               {isPinned ? (
                 <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                  📌 PINNED ANNOUNCEMENT
+                  📌 PINNED NOTE
                 </span>
               ) : isPostAdmin ? (
                 <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
