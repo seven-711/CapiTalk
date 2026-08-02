@@ -133,3 +133,21 @@ CREATE TABLE IF NOT EXISTS public.broadcasts (
 ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Broadcasts Access" ON public.broadcasts FOR ALL USING (true);
 ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcasts;
+
+-- 10. Freedom Wall Posts Table
+CREATE TABLE IF NOT EXISTS public.freedom_posts (
+  id TEXT PRIMARY KEY,
+  author_alias TEXT DEFAULT 'Anon Student',
+  department TEXT NOT NULL,
+  message TEXT NOT NULL,
+  color TEXT DEFAULT '#ffc900',
+  likes_count INT DEFAULT 0,
+  liked_by_users JSONB DEFAULT '[]'::jsonb,
+  is_admin BOOLEAN DEFAULT FALSE,
+  is_pinned BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.freedom_posts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Freedom Posts Access" ON public.freedom_posts FOR ALL USING (true);
+ALTER PUBLICATION supabase_realtime ADD TABLE public.freedom_posts;

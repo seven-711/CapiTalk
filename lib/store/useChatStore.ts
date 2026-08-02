@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -42,6 +42,9 @@ interface ChatStoreState {
   bayotCount: number;
   freedomPosts: FreedomPost[];
   feedbackList: UserFeedback[];
+  wallNotifications: WallNotification[];
+  targetPostId: string | null;
+  setTargetPostId: (id: string | null) => void;
 
   actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error'; message: string } | null;
   systemAnnouncement: { id: string; message: string; timestamp: string } | null;
@@ -64,13 +67,18 @@ interface ChatStoreState {
   blockPartner: () => void;
   triggerBotMatch: () => void;
 
-  resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post') => void;
+  resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post', adminRemark?: string) => void;
   toggleBanUser: (userId: string) => void;
 
   addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>) => boolean;
   deleteFreedomPost: (postId: string) => void;
   likeFreedomPost: (postId: string) => void;
+  togglePinFreedomPost: (postId: string) => void;
   submitFeedback: (input: { category: UserFeedback['category']; rating: number; message: string }) => void;
+
+  addWallNotification: (notif: Omit<WallNotification, 'id' | 'created_at' | 'read'>) => void;
+  markWallNotificationsAsRead: () => void;
+  clearWallNotifications: () => void;
 
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
@@ -140,6 +148,8 @@ const DEMO_FREEDOM_POSTS: FreedomPost[] = [
   },
 ];
 
+const DEMO_WALL_NOTIFICATIONS: WallNotification[] = [];
+
 let searchTimer: NodeJS.Timeout | null = null;
 let unsubscribeMatch: (() => void) | null = null;
 
@@ -151,6 +161,76 @@ export const useChatStore = create<ChatStoreState>()(
 
       viewState: 'landing',
       setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall') => set({ viewState: view }),
+
+      wallNotifications: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const stored = localStorage.getItem('capitalk_wall_notifications_v2');
+              return stored ? JSON.parse(stored) : DEMO_WALL_NOTIFICATIONS;
+            } catch (e) {
+              return DEMO_WALL_NOTIFICATIONS;
+            }
+          })()
+        : DEMO_WALL_NOTIFICATIONS,
+
+      targetPostId: null,
+      setTargetPostId: (id: string | null) => set({ targetPostId: id }),
+
+      addWallNotification: (notifData) => {
+        const newNotif: WallNotification = {
+          id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          post_id: notifData.post_id,
+          type: notifData.type,
+          actor_alias: notifData.actor_alias,
+          actor_department: notifData.actor_department,
+          message_snippet: notifData.message_snippet,
+          comment_text: notifData.comment_text,
+          admin_remark: notifData.admin_remark,
+          created_at: new Date().toISOString(),
+          read: false,
+        };
+        const updated = [newNotif, ...get().wallNotifications];
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
+          } catch (e) {}
+        }
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'WALL_NOTIFICATIONS_UPDATE', notifications: updated });
+          } catch (e) {}
+        }
+        set({ wallNotifications: updated });
+      },
+
+      markWallNotificationsAsRead: () => {
+        const updated = get().wallNotifications.map((n) => ({ ...n, read: true }));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
+          } catch (e) {}
+        }
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'WALL_NOTIFICATIONS_UPDATE', notifications: updated });
+          } catch (e) {}
+        }
+        set({ wallNotifications: updated });
+      },
+
+      clearWallNotifications: () => {
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify([]));
+          } catch (e) {}
+        }
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'WALL_NOTIFICATIONS_UPDATE', notifications: [] });
+          } catch (e) {}
+        }
+        set({ wallNotifications: [] });
+      },
 
       queueFilter: 'anyone',
       setQueueFilter: (filter: QueueFilter) => set({ queueFilter: filter }),
@@ -229,6 +309,7 @@ export const useChatStore = create<ChatStoreState>()(
                         likes_count: row.likes_count || 0,
                         liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
                         is_admin: !!row.is_admin,
+                        is_pinned: !!row.is_pinned,
                         created_at: row.created_at,
                       }));
                       set({ freedomPosts: loadedFromDb });
@@ -313,6 +394,8 @@ export const useChatStore = create<ChatStoreState>()(
                   });
                 } else if (event.data?.type === 'FREEDOM_WALL_UPDATE') {
                   set({ freedomPosts: event.data.posts });
+                } else if (event.data?.type === 'WALL_NOTIFICATIONS_UPDATE') {
+                  set({ wallNotifications: event.data.notifications });
                 }
               };
             }
@@ -379,6 +462,7 @@ export const useChatStore = create<ChatStoreState>()(
                           likes_count: row.likes_count || 0,
                           liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
                           is_admin: !!row.is_admin,
+                          is_pinned: !!row.is_pinned,
                           created_at: row.created_at,
                         }));
                         const store = get();
@@ -1074,23 +1158,46 @@ export const useChatStore = create<ChatStoreState>()(
         });
       },
 
-      resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post') => {
-        const { reports, bannedUserIds, deleteFreedomPost } = get();
+      resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post', adminRemark?: string) => {
+        const { reports, bannedUserIds, deleteFreedomPost, addWallNotification } = get();
         const targetReport = reports.find((r) => r.id === reportId);
 
         if (action === 'delete_post' && targetReport?.post_id) {
           deleteFreedomPost(targetReport.post_id);
         }
 
+        const defaultRemark =
+          action === 'delete_post'
+            ? 'Admin reviewed the report: Note was deleted for community guideline violation.'
+            : action === 'ban'
+            ? 'Admin reviewed the report: User account was issued an official warning & ban.'
+            : 'Admin reviewed the report and dismissed it as no violation was found.';
+
+        const remarkText = adminRemark && adminRemark.trim() ? adminRemark.trim() : defaultRemark;
+
         const updatedReports = reports.map((r) =>
           r.id === reportId
-            ? { ...r, status: (action === 'ban' || action === 'delete_post') ? ('reviewed' as const) : ('dismissed' as const) }
+            ? {
+                ...r,
+                status: (action === 'ban' || action === 'delete_post') ? ('reviewed' as const) : ('dismissed' as const),
+                admin_remark: remarkText,
+              }
             : r
         );
 
         let updatedBans = bannedUserIds;
         if (action === 'ban' && targetReport) {
           updatedBans = [...new Set([...bannedUserIds, targetReport.reported_user_id])];
+        }
+
+        if (targetReport) {
+          addWallNotification({
+            post_id: targetReport.post_id || 'admin_action',
+            type: 'admin_remark',
+            actor_alias: '👑 CapiTalk Admin',
+            message_snippet: targetReport.post_message ? targetReport.post_message.slice(0, 60) : 'Reported Content',
+            admin_remark: remarkText,
+          });
         }
 
         if (typeof window !== 'undefined') {
@@ -1126,10 +1233,10 @@ export const useChatStore = create<ChatStoreState>()(
             type: action === 'ban' ? 'ban' : 'announcement',
             message:
               action === 'delete_post'
-                ? '🗑️ Reported note deleted and report resolved.'
+                ? '🗑️ Reported note deleted & Admin remark notification sent.'
                 : action === 'ban'
-                ? '🚫 Student user banned from CapiTalk.'
-                : 'Report dismissed.',
+                ? '🚫 Student user banned & Admin warning remark sent.'
+                : 'Report dismissed & notification updated.',
           },
         });
       },
@@ -1248,9 +1355,52 @@ export const useChatStore = create<ChatStoreState>()(
         });
       },
 
+      togglePinFreedomPost: (postId: string) => {
+        const { freedomPosts } = get();
+        const target = freedomPosts.find((p) => p.id === postId);
+        if (!target) return;
+
+        const isNowPinned = !target.is_pinned;
+
+        const updated = freedomPosts.map((post) =>
+          post.id === postId ? { ...post, is_pinned: isNowPinned } : post
+        );
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('freedom_posts')
+              .update({ is_pinned: isNowPinned })
+              .eq('id', postId)
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        set({
+          freedomPosts: updated,
+          actionToast: {
+            type: 'announcement',
+            message: isNowPinned ? '📌 Note pinned to top of Freedom Wall!' : '📌 Note unpinned from Freedom Wall.',
+          },
+        });
+      },
+
       likeFreedomPost: (postId: string) => {
         const { freedomPosts, currentUser } = get();
         const userId = currentUser ? currentUser.id : 'guest_' + Date.now();
+        const targetPost = freedomPosts.find((p) => p.id === postId);
 
         const updated = freedomPosts.map((post) => {
           if (post.id !== postId) return post;
@@ -1270,6 +1420,18 @@ export const useChatStore = create<ChatStoreState>()(
             likes_count: newLikedUsers.length,
           };
         });
+
+        if (targetPost && !targetPost.liked_by_users?.includes(userId)) {
+          const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');
+          const actorAlias = `Someone from ${deptShort}`;
+          get().addWallNotification({
+            post_id: postId,
+            type: 'like',
+            actor_alias: actorAlias,
+            actor_department: currentUser?.department || 'Engineering',
+            message_snippet: targetPost.message.slice(0, 60),
+          });
+        }
 
         if (typeof window !== 'undefined') {
           try {
@@ -1461,6 +1623,7 @@ export const useChatStore = create<ChatStoreState>()(
         blockedUserIds: state.blockedUserIds,
         reports: state.reports,
         bannedUserIds: state.bannedUserIds,
+        wallNotifications: state.wallNotifications,
       }),
     }
   )

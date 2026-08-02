@@ -26,6 +26,7 @@ import {
   Calendar,
   Layers,
   Unlock,
+  Pin,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -46,9 +47,34 @@ export const FreedomWall: React.FC = () => {
     addFreedomPost,
     deleteFreedomPost,
     likeFreedomPost,
+    togglePinFreedomPost,
+    addWallNotification,
     setViewState,
     startSearch,
+    targetPostId,
+    setTargetPostId,
   } = useChatStore();
+
+  // Scroll to targeted post card from notifications
+  React.useEffect(() => {
+    if (!targetPostId) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`post-${targetPostId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-[#701a31]', 'scale-105');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-[#701a31]', 'scale-105');
+          setTargetPostId(null);
+        }, 3000);
+      } else {
+        setTargetPostId(null);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [targetPostId, setTargetPostId]);
 
   // Admin Privilege Detection
   const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
@@ -213,6 +239,15 @@ export const FreedomWall: React.FC = () => {
     }));
     setNewCommentText('');
 
+    addWallNotification({
+      post_id: selectedPostForComments.id,
+      type: 'comment',
+      actor_alias: newComment.author_alias,
+      actor_department: newComment.department,
+      message_snippet: selectedPostForComments.message.slice(0, 60),
+      comment_text: newComment.message.slice(0, 60),
+    });
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(`capitalk_comments_${selectedPostForComments.id}`, JSON.stringify(updated));
@@ -334,7 +369,12 @@ export const FreedomWall: React.FC = () => {
   };
 
   const todayPosts = React.useMemo(() => {
-    return filteredPosts.filter((post) => isToday(post.created_at));
+    const todayOnly = filteredPosts.filter((post) => isToday(post.created_at));
+    return [...todayOnly].sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return 0;
+    });
   }, [filteredPosts]);
 
   const pastPosts = React.useMemo(() => {
@@ -358,13 +398,17 @@ export const FreedomWall: React.FC = () => {
   const renderPostCard = (post: FreedomPost) => {
     const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
+    const isPinned = !!post.is_pinned;
 
     return (
       <div
         key={post.id}
+        id={`post-${post.id}`}
         style={{ backgroundColor: post.color || (isPostAdmin ? '#701a31' : '#ffc900') }}
         className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-black transition-all flex flex-col justify-between group relative overflow-hidden ${
-          isPostAdmin
+          isPinned
+            ? 'border-4 border-black ring-4 ring-[#ffc900] shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
+            : isPostAdmin
             ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/80 shadow-[0_0_30px_rgba(112,26,49,0.85)] animate-pulse text-white'
             : 'text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
         }`}
@@ -372,7 +416,11 @@ export const FreedomWall: React.FC = () => {
         <div>
           <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
             <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-              {isPostAdmin ? (
+              {isPinned ? (
+                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
+                  📌 PINNED ANNOUNCEMENT
+                </span>
+              ) : isPostAdmin ? (
                 <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
                   👑 ADMIN NOTE
                 </span>
@@ -382,18 +430,18 @@ export const FreedomWall: React.FC = () => {
                 </span>
               )}
             </div>
-            <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
+            <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
               {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
 
-          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin ? 'text-white drop-shadow-sm' : 'text-black'}`}>
+          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-black'}`}>
             "{post.message}"
           </p>
         </div>
 
-        <div className={`pt-2 sm:pt-3 border-t flex items-center justify-between gap-2 ${isPostAdmin ? 'border-white/30' : 'border-black/20'}`}>
-          <span className={`text-[11px] sm:text-xs font-extrabold italic truncate ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
+        <div className={`pt-2 sm:pt-3 border-t flex items-center justify-between gap-2 ${isPostAdmin && !isPinned ? 'border-white/30' : 'border-black/20'}`}>
+          <span className={`text-[11px] sm:text-xs font-extrabold italic truncate ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/80'}`}>
             ~ {post.author_alias || 'Anon Student'}
           </span>
 
@@ -408,14 +456,29 @@ export const FreedomWall: React.FC = () => {
             </button>
 
             {isAdminUser && (
-              <button
-                type="button"
-                onClick={() => setSelectedPostForDelete(post)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
-                title="Admin: Delete Note"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => togglePinFreedomPost(post.id)}
+                  className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
+                    isPinned
+                      ? 'bg-[#ffc900] text-black border-black shadow-md scale-105'
+                      : 'bg-white text-black hover:bg-amber-100'
+                  }`}
+                  title={isPinned ? "Admin: Unpin Note" : "Admin: Pin Note to top"}
+                >
+                  <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-black' : ''}`} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPostForDelete(post)}
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
+                  title="Admin: Delete Note"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
             )}
 
             <button

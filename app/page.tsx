@@ -342,7 +342,7 @@ export default function Home() {
                       <span className="text-emerald-600">✓</span> Report Misconduct
                     </h4>
                     <p className="text-xs text-[#242423] mt-1">
-                      Use the top-bar Report button anytime to alert campus moderators to inappropriate behavior.
+                      Use the top-bar Report button anytime to alert CapiTalk moderators to inappropriate behavior.
                     </p>
                   </div>
                 </div>

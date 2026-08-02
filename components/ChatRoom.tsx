@@ -173,7 +173,7 @@ export const ChatRoom: React.FC = () => {
     setShowInactivityAlert(false);
   }, []);
 
-  // Monitor 20 seconds of user inactivity
+  // Monitor 60 seconds of user inactivity
   useEffect(() => {
     if (partnerLeft) return;
 
@@ -181,7 +181,7 @@ export const ChatRoom: React.FC = () => {
 
     const interval = setInterval(() => {
       const idleMs = Date.now() - lastActivityRef.current;
-      if (idleMs >= 20000 && !showInactivityAlert) {
+      if (idleMs >= 60000 && !showInactivityAlert) {
         setShowInactivityAlert(true);
         setInactivityCountdown(10);
       }
@@ -985,7 +985,7 @@ export const ChatRoom: React.FC = () => {
         </div>
       )}
 
-      {/* 20s Inactivity Timeout Warning Modal */}
+      {/* 60s Inactivity Timeout Warning Modal */}
       {showInactivityAlert && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white border-2 border-black rounded-[16px] max-w-md w-full p-6 shadow-2xl text-center space-y-4">
@@ -998,7 +998,7 @@ export const ChatRoom: React.FC = () => {
                 Are You Still There?
               </h3>
               <p className="text-xs sm:text-sm text-[#242423] mt-1.5 leading-relaxed">
-                You've been inactive for <span className="font-bold text-black">20 seconds</span>. Please confirm you are still active, or this chat will automatically end in:
+                You've been inactive for <span className="font-bold text-black">60 seconds</span>. Please confirm you are still active, or this chat will automatically end in:
               </p>
             </div>
 

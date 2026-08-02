@@ -56,6 +56,7 @@ export interface UserReport {
   post_id?: string;
   post_author_alias?: string;
   post_message?: string;
+  admin_remark?: string;
   created_at: string;
 }
 
@@ -78,6 +79,7 @@ export interface FreedomPost {
   liked_by_users: string[];
   comments_count?: number;
   is_admin?: boolean;
+  is_pinned?: boolean;
   created_at: string;
 }
 
@@ -89,4 +91,17 @@ export interface UserFeedback {
   rating: number;
   message: string;
   created_at: string;
+}
+
+export interface WallNotification {
+  id: string;
+  post_id: string;
+  type: 'like' | 'comment' | 'admin_remark';
+  actor_alias: string; // e.g. "Someone from Engr." or "👑 CapiTalk Admin"
+  actor_department?: string;
+  message_snippet: string;
+  comment_text?: string;
+  admin_remark?: string;
+  created_at: string;
+  read: boolean;
 }
