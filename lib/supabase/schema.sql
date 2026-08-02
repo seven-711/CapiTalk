@@ -18,9 +18,10 @@ INSERT INTO public.departments (name) VALUES
   ('College of Computer Studies'),
   ('College of Engineering'),
   ('College of Nursing'),
+  ('College of Medical Technology'),
   ('College of Business Administration'),
   ('College of Education'),
-  ('College of Criminal Criminology'),
+  ('College of Criminology'),
   ('College of Arts and Sciences'),
   ('Senior High School')
 ON CONFLICT (name) DO NOTHING;

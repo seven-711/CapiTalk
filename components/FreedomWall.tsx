@@ -22,6 +22,10 @@ import {
   Trash2,
   ShieldAlert,
   RefreshCw,
+  Archive,
+  Calendar,
+  Layers,
+  Unlock,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -53,6 +57,11 @@ export const FreedomWall: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPostForReport, setSelectedPostForReport] = useState<FreedomPost | null>(null);
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
+
+  // Encapsulated Archives State
+  const [encapsulatePastDays, setEncapsulatePastDays] = useState(true);
+  const [selectedCapsuleDate, setSelectedCapsuleDate] = useState<string | null>(null);
+  const [selectedCapsulePosts, setSelectedCapsulePosts] = useState<FreedomPost[]>([]);
   const [alias, setAlias] = useState(currentUser ? currentUser.username : 'Anon Student');
   const [department, setDepartment] = useState<string>(currentUser ? currentUser.department : 'General');
   const [message, setMessage] = useState('');
@@ -314,41 +323,164 @@ export const FreedomWall: React.FC = () => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
+  const isToday = (dateString: string) => {
+    const postDate = new Date(dateString);
+    const today = new Date();
+    return (
+      postDate.getFullYear() === today.getFullYear() &&
+      postDate.getMonth() === today.getMonth() &&
+      postDate.getDate() === today.getDate()
+    );
+  };
+
+  const todayPosts = React.useMemo(() => {
+    return filteredPosts.filter((post) => isToday(post.created_at));
+  }, [filteredPosts]);
+
+  const pastPosts = React.useMemo(() => {
+    return filteredPosts.filter((post) => !isToday(post.created_at));
+  }, [filteredPosts]);
+
+  const pastGroupedByDate = React.useMemo(() => {
+    const groups: { [dateStr: string]: FreedomPost[] } = {};
+    pastPosts.forEach((post) => {
+      const dateStr = new Date(post.created_at).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(post);
+    });
+    return groups;
+  }, [pastPosts]);
+
+  const renderPostCard = (post: FreedomPost) => {
+    const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
+    const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
+
+    return (
+      <div
+        key={post.id}
+        style={{ backgroundColor: post.color || (isPostAdmin ? '#701a31' : '#ffc900') }}
+        className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-black transition-all flex flex-col justify-between group relative overflow-hidden ${
+          isPostAdmin
+            ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/80 shadow-[0_0_30px_rgba(112,26,49,0.85)] animate-pulse text-white'
+            : 'text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
+        }`}
+      >
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 truncate">
+              {isPostAdmin ? (
+                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
+                  👑 ADMIN NOTE
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 sm:px-2.5 bg-black text-white text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0">
+                  {post.department.replace('College of ', '')}
+                </span>
+              )}
+            </div>
+            <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
+              {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+
+          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin ? 'text-white drop-shadow-sm' : 'text-black'}`}>
+            "{post.message}"
+          </p>
+        </div>
+
+        <div className={`pt-2 sm:pt-3 border-t flex items-center justify-between gap-2 ${isPostAdmin ? 'border-white/30' : 'border-black/20'}`}>
+          <span className={`text-[11px] sm:text-xs font-extrabold italic truncate ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
+            ~ {post.author_alias || 'Anon Student'}
+          </span>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedPostForReport(post)}
+              className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs"
+              title="Report this note to admin"
+            >
+              <Flag className="w-3.5 h-3.5" />
+            </button>
+
+            {isAdminUser && (
+              <button
+                type="button"
+                onClick={() => setSelectedPostForDelete(post)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
+                title="Admin: Delete Note"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => openCommentsModal(post)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-black bg-white text-xs font-extrabold text-black hover:bg-black hover:text-white transition-all shadow-xs"
+              title="View & Post Comments"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>{commentsCountMap[post.id] || 0}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => likeFreedomPost(post.id)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 text-xs font-extrabold transition-all shadow-sm ${
+                hasLiked
+                  ? 'bg-rose-500 text-white border-black shadow-md scale-105'
+                  : 'bg-white border-black text-black hover:bg-black hover:text-white'
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
+              <span>{post.likes_count}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full max-w-6xl mx-auto py-4 sm:py-8 px-3 sm:px-6 animate-in fade-in duration-200">
+    <div className="w-full max-w-6xl mx-auto py-2.5 sm:py-8 px-2 sm:px-6 animate-in fade-in duration-200">
       {/* Top Banner Navigation & Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8 bg-white border-2 border-black p-4 sm:p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 mb-3 sm:mb-8 bg-white border-2 border-black p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             type="button"
             onClick={() => setViewState('queue')}
-            className="p-2 bg-[#f4f4f0] hover:bg-black hover:text-white border border-black rounded-full transition-all shrink-0"
+            className="p-1.5 sm:p-2 bg-[#f4f4f0] hover:bg-black hover:text-white border border-black rounded-full transition-all shrink-0"
             title="Back to Matchmaking"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-4 py-2 bg-[#701a31] border-2 border-black text-white text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <span className="px-3 py-1 sm:px-4 sm:py-2 bg-[#701a31] border-2 border-black text-white text-[11px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 Campus Wall
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-row items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className="btn-gumroad-primary text-xs sm:text-sm px-5 py-3 w-full sm:w-auto flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+            className="btn-gumroad-primary text-xs sm:text-sm px-3.5 py-2 sm:px-5 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Share thoughts...</span>
           </button>
           <button
             type="button"
             onClick={startSearch}
-            className="btn-gumroad-ghost text-xs sm:text-sm px-4 py-3 w-full sm:w-auto flex items-center justify-center gap-1.5"
+            className="btn-gumroad-ghost text-xs sm:text-sm px-3 py-2 sm:px-4 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1"
           >
             <span>Start Chat</span>
           </button>
@@ -356,45 +488,58 @@ export const FreedomWall: React.FC = () => {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="mb-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#f4f4f0] p-3 border-2 border-black rounded-2xl">
+      <div className="mb-3.5 sm:mb-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 sm:gap-3 bg-[#f4f4f0] p-2 sm:p-3 border-2 border-black rounded-xl sm:rounded-2xl">
         {/* Tab Selection */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 md:pb-0 scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab('latest')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap border ${
+            className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border ${
               activeTab === 'latest'
                 ? 'bg-black text-white border-black shadow-sm'
                 : 'bg-white text-black border-[#d1d5dc] hover:border-black'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Latest Posts</span>
+            <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>Latest</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('trending')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap border ${
+            className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border ${
               activeTab === 'trending'
                 ? 'bg-black text-white border-black shadow-sm'
                 : 'bg-white text-black border-[#d1d5dc] hover:border-black'
             }`}
           >
-            <Flame className="w-3.5 h-3.5 text-amber-400" />
-            <span>Trending / Top Liked</span>
+            <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
+            <span>Trending</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setEncapsulatePastDays(!encapsulatePastDays)}
+            className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border ${
+              encapsulatePastDays
+                ? 'bg-[#701a31] text-white border-black shadow-sm'
+                : 'bg-white text-black border-[#d1d5dc] hover:border-black'
+            }`}
+            title="Encapsulate notes from past days into daily archive capsules"
+          >
+            <Archive className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#ffc900]" />
+            <span>{encapsulatePastDays ? 'Encapsulated 📦' : 'Unfolded 🔓'}</span>
           </button>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-full md:max-w-md">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2 flex-1 max-w-full md:max-w-md">
           {/* Search Box */}
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search posts..."
-              className="w-full pl-9 pr-3 py-2 sm:py-1.5 text-xs bg-white border border-black rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full pl-8 pr-2.5 py-1.5 text-[11px] sm:text-xs bg-white border border-black rounded-lg sm:rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
 
@@ -402,7 +547,7 @@ export const FreedomWall: React.FC = () => {
           <select
             value={departmentFilter}
             onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="text-xs bg-white border border-black rounded-xl px-2.5 py-2 sm:py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-black w-full sm:w-auto shrink-0"
+            className="text-[11px] sm:text-xs bg-white border border-black rounded-lg sm:rounded-xl px-2 py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-black w-full sm:w-auto shrink-0"
           >
             <option value="all">All Departments</option>
             {CU_DEPARTMENTS.map((dept) => (
@@ -414,13 +559,13 @@ export const FreedomWall: React.FC = () => {
         </div>
       </div>
 
-      {/* Freedom Wall Posts Grid */}
+      {/* Freedom Wall Content */}
       {filteredPosts.length === 0 ? (
-        <div className="text-center py-16 bg-white border-2 border-black rounded-3xl p-8 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto mb-4 text-2xl">
+        <div className="text-center py-10 sm:py-16 bg-white border-2 border-black rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto mb-3 text-xl sm:text-2xl">
             📜
           </div>
-          <h3 className="text-xl font-extrabold text-black">No Freedom Wall Posts Found</h3>
+          <h3 className="text-lg sm:text-xl font-extrabold text-black">No Freedom Wall Posts Found</h3>
           <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
             {searchQuery || departmentFilter !== 'all'
               ? 'No posts match your active search filter. Try clearing filters!'
@@ -434,98 +579,108 @@ export const FreedomWall: React.FC = () => {
             <span>Write First Post</span>
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {filteredPosts.map((post) => {
-            const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
-            const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
-
-            return (
-              <div
-                key={post.id}
-                style={{ backgroundColor: post.color || (isPostAdmin ? '#701a31' : '#ffc900') }}
-                className={`p-5 rounded-3xl border-2 border-black transition-all flex flex-col justify-between group relative overflow-hidden ${
-                  isPostAdmin
-                    ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/80 shadow-[0_0_30px_rgba(112,26,49,0.85)] animate-pulse text-white'
-                    : 'text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2 truncate">
-                      {isPostAdmin ? (
-                        <span className="px-3 py-1 bg-[#ffc900] text-black text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                          👑 OFFICIAL ADMIN NOTE
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 bg-black text-white text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0">
-                          {post.department.replace('College of ', '')}
-                        </span>
-                      )}
-                    </div>
-                    <span className={`text-[10px] font-bold shrink-0 ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
-                      {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-
-                  <p className={`text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-4 ${isPostAdmin ? 'text-white drop-shadow-sm' : 'text-black'}`}>
-                    "{post.message}"
-                  </p>
-                </div>
-
-                <div className={`pt-3 border-t flex items-center justify-between gap-2 ${isPostAdmin ? 'border-white/30' : 'border-black/20'}`}>
-                  <span className={`text-xs font-extrabold italic truncate ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
-                    ~ {post.author_alias || 'Anon Student'}
-                  </span>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPostForReport(post)}
-                      className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs"
-                      title="Report this note to admin"
-                    >
-                      <Flag className="w-3.5 h-3.5" />
-                    </button>
-
-                    {isAdminUser && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPostForDelete(post)}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
-                        title="Admin: Delete Note"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => openCommentsModal(post)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-black bg-white text-xs font-extrabold text-black hover:bg-black hover:text-white transition-all shadow-xs"
-                      title="View & Post Comments"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>{commentsCountMap[post.id] || 0}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => likeFreedomPost(post.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 text-xs font-extrabold transition-all shadow-sm ${
-                        hasLiked
-                          ? 'bg-rose-500 text-white border-black shadow-md scale-105'
-                          : 'bg-white border-black text-black hover:bg-black hover:text-white'
-                      }`}
-                    >
-                      <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
-                      <span>{post.likes_count}</span>
-                    </button>
-                  </div>
-                </div>
+      ) : encapsulatePastDays && !searchQuery.trim() ? (
+        <div className="space-y-6 sm:space-y-10">
+          {/* Today's Live Notes Section */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5 sm:mb-4 pb-1.5 sm:pb-2 border-b-2 border-black">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] border-2 border-black rounded-full text-[10px] sm:text-xs font-black text-black uppercase tracking-wider shadow-xs flex items-center gap-1">
+                  <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 animate-bounce" />
+                  Today's Live Notes ({todayPosts.length})
+                </span>
               </div>
-            );
-          })}
+              <span className="text-[11px] sm:text-xs font-extrabold text-black">
+                {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+
+            {todayPosts.length === 0 ? (
+              <div className="p-5 sm:p-8 text-center bg-white border-2 border-black rounded-2xl sm:rounded-3xl shadow-sm text-xs font-bold text-gray-600">
+                ✨ No notes published yet today! Be the first student to share a thought on the wall today.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+                {todayPosts.map((post) => renderPostCard(post))}
+              </div>
+            )}
+          </div>
+
+          {/* Past Days Encapsulated Archives Section */}
+          {Object.keys(pastGroupedByDate).length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2.5 sm:mb-4 pb-1.5 sm:pb-2 border-b-2 border-black">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#701a31] border-2 border-black text-white text-[10px] sm:text-xs font-black rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1">
+                    <Archive className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#ffc900]" />
+                    Encapsulated Past Archives ({Object.keys(pastGroupedByDate).length} Capsules)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEncapsulatePastDays(false)}
+                  className="text-[11px] sm:text-xs font-extrabold text-black hover:text-[#701a31] transition-colors"
+                >
+                  Unfold Days 🔓
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+                {Object.entries(pastGroupedByDate).map(([dateStr, posts]) => {
+                  const sampleAliases = Array.from(new Set(posts.map((p) => p.author_alias || 'Anon Student'))).slice(0, 3).join(', ');
+                  const totalLikes = posts.reduce((sum, p) => sum + (p.likes_count || 0), 0);
+
+                  return (
+                    <div
+                      key={dateStr}
+                      onClick={() => {
+                        setSelectedCapsuleDate(dateStr);
+                        setSelectedCapsulePosts(posts);
+                      }}
+                      className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-black bg-white hover:bg-[#f4f4f0] transition-all flex flex-col justify-between cursor-pointer group shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
+                          <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider flex items-center gap-1 border border-black shadow-xs">
+                            <Archive className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#ffc900]" />
+                            Daily Capsule
+                          </span>
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-600">
+                            {dateStr}
+                          </span>
+                        </div>
+
+                        <h4 className="text-base sm:text-lg font-black text-black mb-1">
+                          {dateStr} Archive 📦
+                        </h4>
+                        <p className="text-[11px] sm:text-xs text-gray-600 font-semibold mb-2.5 sm:mb-4 line-clamp-2">
+                          Includes confessions by <span className="text-black font-extrabold">{sampleAliases}</span> and others.
+                        </p>
+                      </div>
+
+                      <div className="pt-2 sm:pt-3 border-t border-black/15 flex items-center justify-between text-xs font-bold text-black">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <span className="px-2 py-0.5 bg-[#ffc900] border border-black rounded-full text-[10px] sm:text-[11px] font-black text-black shadow-xs">
+                            📜 {posts.length} Notes
+                          </span>
+                          <span className="text-[10px] sm:text-[11px] font-bold text-gray-600">
+                            ❤️ {totalLikes}
+                          </span>
+                        </div>
+                        <span className="text-[11px] sm:text-xs font-black text-[#701a31] group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                          Unfold Capsule 🔓
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+          {filteredPosts.map((post) => renderPostCard(post))}
         </div>
       )}
 
@@ -541,7 +696,7 @@ export const FreedomWall: React.FC = () => {
 
       {/* Comments Modal */}
       {selectedPostForComments && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-[#f4f4f0] border-2 border-black rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative max-h-[90vh] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b-2 border-black">
@@ -632,47 +787,47 @@ export const FreedomWall: React.FC = () => {
 
       {/* Create Anonymous Post Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border-4 border-black p-6 sm:p-8 rounded-3xl max-w-lg w-full text-left shadow-2xl animate-in zoom-in-95 duration-200 relative">
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white border-2 sm:border-4 border-black p-4 sm:p-6 rounded-2xl max-w-lg w-full text-left shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[95vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => {
                 setShowCreateModal(false);
                 setModerationError(null);
               }}
-              className="absolute top-4 right-4 p-1.5 hover:bg-black/10 rounded-full transition-colors text-black"
+              className="absolute top-3 right-3 p-1 hover:bg-black/10 rounded-full transition-colors text-black"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 bg-[#ffc900] border border-black text-black text-[10px] font-extrabold rounded-full uppercase tracking-wider">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="px-2 py-0.5 bg-[#ffc900] border border-black text-black text-[9px] font-extrabold rounded-full uppercase tracking-wider">
                 Anonymous Post
               </span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-extrabold text-black tracking-tight">
+            <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
               Post to Freedom Wall ✏️
             </h3>
-            <p className="text-xs text-[#242423] mt-1 mb-5">
+            <p className="text-[11px] text-[#242423] mt-0.5 mb-3">
               Share your thoughts safely and anonymously with fellow students.
             </p>
 
             {moderationError && (
-              <div className="mb-4 p-3 bg-red-100 border-2 border-red-500 text-red-700 text-xs font-bold rounded-2xl flex items-start gap-2">
+              <div className="mb-3 p-2.5 bg-red-100 border-2 border-red-500 text-red-700 text-xs font-bold rounded-xl flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
                 <span>{moderationError}</span>
               </div>
             )}
 
             {isAdminUser && (
-              <div className="mb-4 p-3.5 bg-[#701a31] border-2 border-black rounded-2xl text-white shadow-md flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <Flame className="w-5 h-5 text-[#ffc900] animate-bounce shrink-0" />
+              <div className="mb-3 p-2.5 sm:p-3 bg-[#701a31] border-2 border-black rounded-xl text-white shadow-md flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-[#ffc900] animate-bounce shrink-0" />
                   <div>
-                    <span className="text-xs font-black uppercase tracking-wider block text-[#ffc900]">
+                    <span className="text-[11px] font-black uppercase tracking-wider block text-[#ffc900]">
                       👑 Admin Privilege Mode
                     </span>
-                    <span className="text-[11px] font-bold text-white/90 block">
+                    <span className="text-[10px] font-bold text-white/90 block">
                       Post note with glowing aura & official Admin badge
                     </span>
                   </div>
@@ -690,15 +845,15 @@ export const FreedomWall: React.FC = () => {
                     }}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ffc900]"></div>
+                  <div className="w-9 h-5 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#ffc900]"></div>
                 </label>
               </div>
             )}
 
-            <form onSubmit={handlePostSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handlePostSubmit} className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[#242423] uppercase mb-1">
+                  <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase mb-0.5">
                     Anonymous Alias / Nickname
                   </label>
                   <input
@@ -707,18 +862,18 @@ export const FreedomWall: React.FC = () => {
                     onChange={(e) => setAlias(e.target.value)}
                     placeholder="e.g. Secret Admirer, Stressed Senior"
                     maxLength={30}
-                    className="w-full px-3 py-2 text-xs border-2 border-black rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0]"
+                    className="w-full px-2.5 py-1.5 text-xs border-2 border-black rounded-lg font-bold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#242423] uppercase mb-1">
+                  <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase mb-0.5">
                     Department Tag
                   </label>
                   <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border-2 border-black rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0]"
+                    className="w-full px-2.5 py-1.5 text-xs border-2 border-black rounded-lg font-bold focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0]"
                   >
                     <option value="General">General / All Student</option>
                     {CU_DEPARTMENTS.map((dept) => (
@@ -731,7 +886,7 @@ export const FreedomWall: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#242423] uppercase mb-1">
+                <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase mb-0.5">
                   Card Theme Color
                 </label>
                 <div className="flex items-center gap-2">
@@ -741,10 +896,10 @@ export const FreedomWall: React.FC = () => {
                       type="button"
                       onClick={() => setSelectedColor(c.hex)}
                       style={{ backgroundColor: c.hex }}
-                      className={`w-7 h-7 rounded-full border-2 transition-transform ${
+                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
                         selectedColor === c.hex
-                          ? 'border-black scale-125 shadow-sm'
-                          : 'border-black/40 hover:scale-110'
+                          ? 'border-black scale-115 shadow-xs'
+                          : 'border-black/40 hover:scale-105'
                       }`}
                       title={c.name}
                     />
@@ -753,8 +908,8 @@ export const FreedomWall: React.FC = () => {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-[#242423] uppercase">
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase">
                     Your Anonymous Message
                   </label>
                   <span className="text-[10px] font-bold text-gray-500">
@@ -762,34 +917,34 @@ export const FreedomWall: React.FC = () => {
                   </span>
                 </div>
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   maxLength={300}
                   placeholder="Type your confession, thought, shoutout, or campus vibe here..."
-                  className="w-full p-3 text-xs sm:text-sm border-2 border-black rounded-2xl font-semibold focus:outline-none focus:ring-2 focus:ring-black bg-white text-black"
+                  className="w-full p-2.5 text-xs border-2 border-black rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-black bg-white text-black"
                 />
               </div>
 
               {/* Anti-Bot Verification Challenge */}
               {!postAsAdmin && (
-                <div className="p-3.5 bg-amber-50 border-2 border-black rounded-2xl space-y-2">
+                <div className="p-2.5 bg-amber-50 border-2 border-black rounded-xl space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-extrabold text-black uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldAlert className="w-4 h-4 text-amber-600" />
-                      🤖 Anti-Bot Human Verification
+                    <label className="text-[10px] sm:text-xs font-extrabold text-black uppercase tracking-wider flex items-center gap-1">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                      🤖 Anti-Bot Verification
                     </label>
-                    <span className="text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-400">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-400">
                       {dailyPostCount}/{DAILY_MAX_POSTS} Notes Today
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-gray-700 font-medium">
-                    Solve this quick math puzzle to verify you are a student and prevent automated bot spam:
+                  <p className="text-[10px] text-gray-700 font-medium">
+                    Solve this quick math puzzle to verify you are a student:
                   </p>
 
-                  <div className="flex items-center gap-3">
-                    <div className="px-3.5 py-1.5 bg-white border-2 border-black rounded-xl font-black text-sm text-black shadow-xs flex items-center gap-1">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="px-2.5 py-1 bg-white border-2 border-black rounded-lg font-black text-xs sm:text-sm text-black shadow-xs flex items-center gap-1">
                       <span>{captchaNum1}</span>
                       <span>+</span>
                       <span>{captchaNum2}</span>
@@ -801,14 +956,14 @@ export const FreedomWall: React.FC = () => {
                       value={captchaInput}
                       onChange={(e) => setCaptchaInput(e.target.value)}
                       placeholder="Answer?"
-                      className="w-24 px-3 py-1.5 text-xs border-2 border-black rounded-xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                      className="w-20 px-2 py-1 text-xs border-2 border-black rounded-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-black bg-white"
                       required={!postAsAdmin}
                     />
 
                     <button
                       type="button"
                       onClick={generateCaptcha}
-                      className="p-1.5 hover:bg-black/10 rounded-lg text-black transition-colors"
+                      className="p-1 hover:bg-black/10 rounded-lg text-black transition-colors"
                       title="New Math Puzzle"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
@@ -819,26 +974,26 @@ export const FreedomWall: React.FC = () => {
 
               {/* Cooldown Warning Notice */}
               {cooldownRemaining > 0 && !postAsAdmin && (
-                <div className="p-3 bg-amber-100 border-2 border-amber-500 rounded-2xl text-amber-900 text-xs font-bold flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-700 shrink-0 animate-spin" />
+                <div className="p-2.5 bg-amber-100 border-2 border-amber-500 rounded-xl text-amber-900 text-xs font-bold flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0 animate-spin" />
                   <span>
-                    ⏳ Cooldown active: Please wait <span className="text-black font-black underline">{cooldownRemaining} seconds</span> before posting another note.
+                    ⏳ Cooldown active: Please wait <span className="text-black font-black underline">{cooldownRemaining}s</span> before posting.
                   </span>
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="btn-gumroad-ghost text-xs px-4 py-2.5"
+                  className="btn-gumroad-ghost text-xs px-3.5 py-2"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)}
-                  className={`btn-gumroad-primary text-xs px-6 py-2.5 flex items-center gap-1.5 ${
+                  className={`btn-gumroad-primary text-xs px-5 py-2 flex items-center gap-1.5 ${
                     !postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)
                       ? 'opacity-50 cursor-not-allowed bg-gray-400 border-gray-600'
                       : ''
@@ -871,9 +1026,68 @@ export const FreedomWall: React.FC = () => {
       {selectedPostForDelete && (
         <DeleteNoteModal
           post={selectedPostForDelete}
-          onConfirm={() => deleteFreedomPost(selectedPostForDelete.id)}
+          onConfirm={() => {
+            deleteFreedomPost(selectedPostForDelete.id);
+            setSelectedCapsulePosts((prev) => prev.filter((p) => p.id !== selectedPostForDelete.id));
+          }}
           onClose={() => setSelectedPostForDelete(null)}
         />
+      )}
+
+      {/* Encapsulated Capsule Viewer Modal */}
+      {selectedCapsuleDate && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-black rounded-[32px] max-w-4xl w-full p-6 relative shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCapsuleDate(null);
+                setSelectedCapsulePosts([]);
+              }}
+              className="absolute top-5 right-5 p-1.5 hover:bg-black/10 rounded-full text-black transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6 pb-3 border-b-2 border-black">
+              <div className="p-3 bg-[#701a31] border-2 border-black rounded-2xl text-white shadow-xs">
+                <Archive className="w-6 h-6 text-[#ffc900]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 bg-[#ffc900] border border-black text-black text-[10px] font-black rounded-full uppercase">
+                    Encapsulated Archive
+                  </span>
+                  <span className="text-xs font-bold text-gray-500">
+                    {selectedCapsulePosts.length} Notes Total
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-black">
+                  {selectedCapsuleDate} Daily Capsule 📦
+                </h3>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 pr-1 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {selectedCapsulePosts.map((post) => renderPostCard(post))}
+              </div>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-black/15 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCapsuleDate(null);
+                  setSelectedCapsulePosts([]);
+                }}
+                className="btn-gumroad-ghost text-xs px-5 py-2"
+              >
+                Close Capsule
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

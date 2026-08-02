@@ -89,6 +89,16 @@ const DEMO_FREEDOM_POSTS: FreedomPost[] = [
     created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
   {
+    id: 'post_medtech_1',
+    author_alias: 'Microbiology Whiz 🔬',
+    department: 'College of Medical Technology',
+    message: 'Finished 4 hours of hematology lab duty and Gram staining! Shoutout to all fellow MedTech students surviving practical exams this week! 🧫🧪',
+    color: '#00e599',
+    likes_count: 18,
+    liked_by_users: [],
+    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+  },
+  {
     id: 'post_2',
     author_alias: 'Stressed Senior ☕',
     department: 'Engineering',

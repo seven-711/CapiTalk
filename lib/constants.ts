@@ -2,6 +2,7 @@ export const CU_DEPARTMENTS = [
   "College of Computer Studies",
   "College of Engineering",
   "College of Nursing",
+  "College of Medical Technology",
   "College of Business Administration",
   "College of Education",
   "College of Criminology",
@@ -51,6 +52,14 @@ export const BOT_PARTNERS: Array<{
     department: "College of Nursing",
     bio: "Duty starts at 6 AM! Coffee is life 💉",
     avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=kate&backgroundColor=ffc900",
+    status: "in_chat",
+  },
+  {
+    id: "bot_medtech",
+    username: "medtech_claire",
+    department: "College of Medical Technology",
+    bio: "Microbiology lab duties & hematology smears 🔬🧫",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=medtechclaire&backgroundColor=00e599",
     status: "in_chat",
   },
   {
