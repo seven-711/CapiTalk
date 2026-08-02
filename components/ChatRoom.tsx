@@ -84,6 +84,21 @@ export const ChatRoom: React.FC = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activePickerMsgId, setActivePickerMsgId] = useState<string | null>(null);
+  const [confirmNext, setConfirmNext] = useState(false);
+  const confirmNextTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleNextClick = () => {
+    if (!confirmNext) {
+      setConfirmNext(true);
+      // Auto-reset after 3 seconds if not confirmed
+      if (confirmNextTimerRef.current) clearTimeout(confirmNextTimerRef.current);
+      confirmNextTimerRef.current = setTimeout(() => setConfirmNext(false), 3000);
+    } else {
+      if (confirmNextTimerRef.current) clearTimeout(confirmNextTimerRef.current);
+      setConfirmNext(false);
+      nextMatch();
+    }
+  };
 
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -432,11 +447,18 @@ export const ChatRoom: React.FC = () => {
 
           <button
             type="button"
-            onClick={nextMatch}
-            className="btn-gumroad-primary text-xs py-1.5 px-2 sm:px-4"
+            onClick={handleNextClick}
+            className={`text-xs py-1.5 px-2 sm:px-4 flex items-center gap-1.5 rounded font-bold border-2 transition-all duration-200 active:scale-95 ${
+              confirmNext
+                ? 'bg-red-600 border-red-700 text-white shadow-[3px_3px_0px_0px_rgba(185,28,28,1)] hover:bg-red-700 animate-pulse'
+                : 'btn-gumroad-primary'
+            }`}
+            title={confirmNext ? 'Click again to skip to next chat' : 'Skip to next chat'}
           >
-            <FastForward className="w-3.5 h-3.5 text-amber-300" />
-            <span className="hidden sm:inline">Next Chat</span>
+            <FastForward className={`w-3.5 h-3.5 ${confirmNext ? 'text-white' : 'text-amber-300'}`} />
+            <span className={confirmNext ? 'inline' : 'hidden sm:inline'}>
+              {confirmNext ? 'Sure?' : 'Next Chat'}
+            </span>
           </button>
         </div>
       </div>

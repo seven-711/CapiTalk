@@ -33,6 +33,7 @@ export const AdminDashboard: React.FC = () => {
     bannedUserIds,
     freedomPosts,
     deleteFreedomPost,
+    approveFreedomPost,
     togglePinFreedomPost,
     resolveReport,
     toggleBanUser,
@@ -68,6 +69,7 @@ export const AdminDashboard: React.FC = () => {
   } | null>(null);
   const [customRemarkText, setCustomRemarkText] = useState('');
   const [wallSearchQuery, setWallSearchQuery] = useState('');
+  const [wallFilter, setWallFilter] = useState<'pending' | 'published' | 'all'>('pending');
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reportFilter, setReportFilter] = useState<'all' | 'pending' | 'reviewed' | 'dismissed'>('all');
   
@@ -449,7 +451,7 @@ export const AdminDashboard: React.FC = () => {
       {activeTab === 'wall_notes' && (
         <div className="space-y-6">
           <div className="gumroad-card p-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-4">
               <div>
                 <h3 className="text-lg font-extrabold text-black flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#701a31]" />
@@ -460,15 +462,49 @@ export const AdminDashboard: React.FC = () => {
                 </p>
               </div>
 
-              <div className="relative w-full md:w-72">
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={wallSearchQuery}
-                  onChange={(e) => setWallSearchQuery(e.target.value)}
-                  placeholder="Search wall notes..."
-                  className="gumroad-input w-full pl-9 py-2 text-xs"
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto">
+                <div className="flex items-center bg-white border border-[#d1d5dc] p-1 rounded-lg text-xs font-medium w-full sm:w-auto">
+                  <button
+                    onClick={() => setWallFilter('pending')}
+                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded capitalize font-bold transition-colors ${
+                      wallFilter === 'pending'
+                        ? 'bg-black text-white'
+                        : 'text-[#242423] hover:text-black'
+                    }`}
+                  >
+                    Pending ({freedomPosts.filter(p => p.status === 'pending').length})
+                  </button>
+                  <button
+                    onClick={() => setWallFilter('published')}
+                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded capitalize font-bold transition-colors ${
+                      wallFilter === 'published'
+                        ? 'bg-black text-white'
+                        : 'text-[#242423] hover:text-black'
+                    }`}
+                  >
+                    Published
+                  </button>
+                  <button
+                    onClick={() => setWallFilter('all')}
+                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded capitalize font-bold transition-colors ${
+                      wallFilter === 'all'
+                        ? 'bg-black text-white'
+                        : 'text-[#242423] hover:text-black'
+                    }`}
+                  >
+                    All
+                  </button>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={wallSearchQuery}
+                    onChange={(e) => setWallSearchQuery(e.target.value)}
+                    placeholder="Search notes..."
+                    className="gumroad-input w-full pl-9 py-2 text-xs"
+                  />
+                </div>
               </div>
             </div>
 
@@ -479,13 +515,18 @@ export const AdminDashboard: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {freedomPosts
-                  .filter(
-                    (p) =>
+                  .filter((p) => {
+                    const statusMatch =
+                      wallFilter === 'all' ||
+                      (wallFilter === 'pending' && p.status === 'pending') ||
+                      (wallFilter === 'published' && p.status !== 'pending');
+                    const searchMatch =
                       !wallSearchQuery.trim() ||
                       p.message.toLowerCase().includes(wallSearchQuery.toLowerCase()) ||
                       p.author_alias.toLowerCase().includes(wallSearchQuery.toLowerCase()) ||
-                      p.department.toLowerCase().includes(wallSearchQuery.toLowerCase())
-                  )
+                      p.department.toLowerCase().includes(wallSearchQuery.toLowerCase());
+                    return statusMatch && searchMatch;
+                  })
                   .map((post) => (
                     <div
                       key={post.id}
@@ -519,6 +560,17 @@ export const AdminDashboard: React.FC = () => {
                           <span className="text-[10px] font-bold bg-white/80 border border-black/30 px-2 py-0.5 rounded-full">
                             ❤️ {post.likes_count}
                           </span>
+                          {post.status === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => approveFreedomPost(post.id)}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-colors"
+                              title="Approve Note & Publish to Wall"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Approve</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => togglePinFreedomPost(post.id)}
@@ -538,7 +590,7 @@ export const AdminDashboard: React.FC = () => {
                             className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-colors"
                           >
                             <Trash2 className="w-3 h-3" />
-                            Delete
+                            <span>{post.status === 'pending' ? 'Reject' : 'Delete'}</span>
                           </button>
                         </div>
                       </div>

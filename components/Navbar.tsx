@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CoinMascot } from './CoinMascot';
 import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft } from 'lucide-react';
@@ -19,6 +19,24 @@ export const Navbar: React.FC = () => {
 
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const onlineCount = useOnlineCount();
+
+  // Secret admin access: tap the logo 5 times within 2 seconds
+  const logoTapCount = useRef(0);
+  const logoTapTimer = useRef<NodeJS.Timeout | null>(null);
+  const handleLogoTap = () => {
+    logoTapCount.current += 1;
+    if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
+    if (logoTapCount.current >= 5) {
+      logoTapCount.current = 0;
+      setViewState('admin');
+      return;
+    }
+    logoTapTimer.current = setTimeout(() => {
+      logoTapCount.current = 0;
+    }, 2000);
+    // First tap still navigates to landing as normal
+    if (logoTapCount.current === 1) setViewState('landing');
+  };
 
   const unreadCount = (wallNotifications || []).filter((n) => !n.read).length;
 
@@ -102,7 +120,7 @@ export const Navbar: React.FC = () => {
       <div className="max-w-[1200px] mx-auto px-2 sm:px-6 h-10 sm:h-14 flex items-center justify-between gap-1 sm:gap-2 relative">
         {/* Brand & Wordmark */}
         <div 
-          onClick={() => setViewState('landing')}
+          onClick={handleLogoTap}
           className="flex items-center gap-1.5 sm:gap-2 cursor-pointer group shrink-0"
         >
           <CoinMascot size={22} tiltAngle={-8} />
@@ -299,18 +317,7 @@ export const Navbar: React.FC = () => {
             <span className="text-xs font-bold">💬</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setViewState('admin')}
-            className={`p-1 sm:p-1.5 rounded border transition-colors ${
-              viewState === 'admin'
-                ? 'bg-black text-white border-black'
-                : 'bg-white text-[#242423] border-[#d1d5dc] hover:border-black'
-            }`}
-            title="Admin Dashboard"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-          </button>
+          {/* Admin button hidden — access via 5 rapid taps on the CapiTalk logo */}
         </div>
       </div>
       <FeedbackModal />

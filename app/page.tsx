@@ -369,9 +369,6 @@ export default function Home() {
               <button onClick={() => setViewState('register')} className="hover:text-black">
                 Register
               </button>
-              <button onClick={() => setViewState('admin')} className="hover:text-black">
-                Admin Access
-              </button>
             </div>
           </div>
         </footer>

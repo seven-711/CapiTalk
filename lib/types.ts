@@ -78,9 +78,11 @@ export interface FreedomPost {
   color: string;
   likes_count: number;
   liked_by_users: string[];
+  liked_by_profiles?: Record<string, { username: string; department: string }>;
   comments_count?: number;
   is_admin?: boolean;
   is_pinned?: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
   created_at: string;
 }
 

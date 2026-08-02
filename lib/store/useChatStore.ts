@@ -73,6 +73,7 @@ interface ChatStoreState {
 
   addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>) => boolean;
   deleteFreedomPost: (postId: string) => void;
+  approveFreedomPost: (postId: string) => void;
   likeFreedomPost: (postId: string) => void;
   togglePinFreedomPost: (postId: string) => void;
   submitFeedback: (input: { category: UserFeedback['category']; rating: number; message: string }) => void;
@@ -335,18 +336,29 @@ export const useChatStore = create<ChatStoreState>()(
                   .order('created_at', { ascending: false })
                   .then(({ data, error }) => {
                     if (data && data.length > 0 && !error) {
-                      const loadedFromDb: FreedomPost[] = data.map((row: any) => ({
-                        id: row.id,
-                        author_alias: row.author_alias || 'Anon Student',
-                        department: row.department || 'General',
-                        message: row.message,
-                        color: row.color || '#ffc900',
-                        likes_count: row.likes_count || 0,
-                        liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
-                        is_admin: !!row.is_admin,
-                        is_pinned: !!row.is_pinned,
-                        created_at: row.created_at,
-                      }));
+                      const loadedFromDb: FreedomPost[] = data.map((row: any) => {
+                        const rawColor = row.color || '#ffc900';
+                        const parts = rawColor.split('||');
+                        const dbColor = parts[0];
+                        const dbStatus = parts[1] || row.status || 'approved';
+                        let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
+                        try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
+
+                        return {
+                          id: row.id,
+                          author_alias: row.author_alias || 'Anon Student',
+                          department: row.department || 'General',
+                          message: row.message,
+                          color: dbColor,
+                          likes_count: row.likes_count || 0,
+                          liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
+                          liked_by_profiles: dbProfiles,
+                          is_admin: !!row.is_admin,
+                          is_pinned: !!row.is_pinned,
+                          status: dbStatus,
+                          created_at: row.created_at,
+                        };
+                      });
                       set({ freedomPosts: loadedFromDb });
                       localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
                     }
@@ -595,22 +607,48 @@ export const useChatStore = create<ChatStoreState>()(
                     .order('created_at', { ascending: false })
                     .then(({ data, error }) => {
                       if (data && data.length > 0 && !error) {
-                        const loadedFromDb: FreedomPost[] = data.map((row: any) => ({
-                          id: row.id,
-                          author_alias: row.author_alias || 'Anon Student',
-                          department: row.department || 'General',
-                          message: row.message,
-                          color: row.color || '#ffc900',
-                          likes_count: row.likes_count || 0,
-                          liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
-                          is_admin: !!row.is_admin,
-                          is_pinned: !!row.is_pinned,
-                          created_at: row.created_at,
-                        }));
                         const store = get();
-                        if (JSON.stringify(loadedFromDb) !== JSON.stringify(store.freedomPosts)) {
-                          set({ freedomPosts: loadedFromDb });
-                          localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
+                        const localMap = new Map(store.freedomPosts.map((p) => [p.id, p]));
+                        const dbIds = new Set(data.map((r: any) => r.id));
+                        const localOnlyPosts = store.freedomPosts.filter((p) => !dbIds.has(p.id) && p.status === 'pending');
+
+                        const loadedFromDb: FreedomPost[] = data.map((row: any) => {
+                          const localPost = localMap.get(row.id);
+                          const dbLikedBy: string[] = Array.isArray(row.liked_by_users) ? row.liked_by_users : [];
+                          const localLikedBy: string[] = localPost?.liked_by_users || [];
+                          const useLikedBy = localLikedBy.length !== dbLikedBy.length ? localLikedBy : dbLikedBy;
+                          
+                          const rawColor = row.color || '#ffc900';
+                          const parts = rawColor.split('||');
+                          const dbColor = parts[0];
+                          const dbStatus = parts[1] || row.status || 'approved';
+                          let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
+                          try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
+
+                          const mergedProfiles = {
+                            ...(localPost?.liked_by_profiles || {}),
+                            ...dbProfiles,
+                          };
+                          return {
+                            id: row.id,
+                            author_alias: row.author_alias || 'Anon Student',
+                            department: row.department || 'General',
+                            message: row.message,
+                            color: dbColor,
+                            likes_count: useLikedBy.length,
+                            liked_by_users: useLikedBy,
+                            liked_by_profiles: mergedProfiles,
+                            is_admin: !!row.is_admin,
+                            is_pinned: !!row.is_pinned,
+                            status: dbStatus,
+                            created_at: row.created_at,
+                          };
+                        });
+                        
+                        const finalPosts = [...localOnlyPosts, ...loadedFromDb].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                        if (JSON.stringify(finalPosts) !== JSON.stringify(store.freedomPosts)) {
+                          set({ freedomPosts: finalPosts });
+                          localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(finalPosts));
                         }
                       }
                     }, () => {});
@@ -1430,6 +1468,7 @@ export const useChatStore = create<ChatStoreState>()(
           likes_count: 0,
           liked_by_users: [],
           is_admin: !!postData.is_admin,
+          status: postData.is_admin ? 'approved' : 'pending',
           created_at: new Date().toISOString(),
         };
 
@@ -1448,12 +1487,13 @@ export const useChatStore = create<ChatStoreState>()(
 
         if (supabase && isSupabaseConfigured) {
           try {
+            const encodedColor = `${newPost.color}||${newPost.status}||${JSON.stringify(newPost.liked_by_profiles || {})}`;
             const insertPayload: any = {
               id: newPost.id,
               author_alias: newPost.author_alias,
               department: newPost.department,
               message: newPost.message,
-              color: newPost.color,
+              color: encodedColor,
               likes_count: newPost.likes_count,
               liked_by_users: newPost.liked_by_users,
               created_at: newPost.created_at,
@@ -1483,9 +1523,49 @@ export const useChatStore = create<ChatStoreState>()(
         set({
           freedomPosts: updated,
           myPostIds: updatedMyPostIds,
-          actionToast: { type: 'announcement', message: '✨ Anonymous post published to Freedom Wall!' },
+          actionToast: {
+            type: 'announcement',
+            message: postData.is_admin
+              ? '✨ Admin post published to Freedom Wall!'
+              : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.',
+          },
         });
         return true;
+      },
+
+      approveFreedomPost: (postId: string) => {
+        const { freedomPosts } = get();
+        const updated = freedomPosts.map((post) => {
+          if (post.id !== postId) return post;
+          return { ...post, status: 'approved' as const };
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const post = freedomPosts.find(p => p.id === postId);
+            if (post) {
+              const encodedColor = `${post.color}||approved||${JSON.stringify(post.liked_by_profiles || {})}`;
+              supabase.from('freedom_posts').update({ color: encodedColor }).eq('id', postId).then(() => {}, () => {});
+            }
+          } catch (e) {}
+        }
+
+        set({
+          freedomPosts: updated,
+          actionToast: { type: 'announcement', message: '🟢 Note approved & published to Freedom Wall!' },
+        });
       },
 
       deleteFreedomPost: (postId: string) => {
@@ -1578,9 +1658,23 @@ export const useChatStore = create<ChatStoreState>()(
             newLikedUsers = [...likedUsers, userId];
           }
 
+          // Update liked_by_profiles map: add or remove the current user's profile
+          const profiles = { ...(post.liked_by_profiles || {}) };
+          if (hasLiked) {
+            delete profiles[userId];
+          } else {
+            const username = currentUser ? currentUser.username : `Student #${userId.slice(-4)}`;
+            const department = currentUser ? currentUser.department : 'General';
+            profiles[userId] = {
+              username,
+              department,
+            };
+          }
+
           return {
             ...post,
             liked_by_users: newLikedUsers,
+            liked_by_profiles: profiles,
             likes_count: newLikedUsers.length,
           };
         });
@@ -1615,11 +1709,13 @@ export const useChatStore = create<ChatStoreState>()(
           try {
             const targetPost = updated.find((p) => p.id === postId);
             if (targetPost) {
+              const encodedColor = `${targetPost.color}||${targetPost.status}||${JSON.stringify(targetPost.liked_by_profiles || {})}`;
               supabase
                 .from('freedom_posts')
                 .update({
                   likes_count: targetPost.likes_count,
                   liked_by_users: targetPost.liked_by_users,
+                  color: encodedColor,
                 })
                 .eq('id', postId)
                 .then(() => {}, () => {});
