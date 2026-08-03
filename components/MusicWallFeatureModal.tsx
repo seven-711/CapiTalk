@@ -32,12 +32,11 @@ export const MusicWallFeatureModal: React.FC<MusicWallFeatureModalProps> = ({
           </button>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white text-[10px] sm:text-xs font-black rounded-full uppercase tracking-wider mb-2 border border-black shadow-xs">
-            <Sparkles className="w-3.5 h-3.5 text-[#ffc900] animate-spin" />
             <span>WHAT'S NEW ON CAPITALK</span>
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-black tracking-tight leading-tight">
-            Music Wall & Song Dedications 🎵
+            Music Wall & Song Dedications
           </h2>
           <p className="text-xs sm:text-sm font-bold text-black/80 mt-1">
             Express your feelings with live audio previews and personalized souvenir notes!
@@ -119,7 +118,7 @@ export const MusicWallFeatureModal: React.FC<MusicWallFeatureModalProps> = ({
             }}
             className="w-full sm:w-auto bg-[#ffc900] hover:bg-[#ffdb4d] text-black font-black py-3 px-6 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all flex items-center justify-center gap-2 text-sm"
           >
-            <span>Explore Music Wall 🎶</span>
+            <span>Explore Music Wall</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
