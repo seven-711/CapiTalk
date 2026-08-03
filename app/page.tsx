@@ -10,6 +10,7 @@ import { ChatRoom } from '../components/ChatRoom';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
+import { MusicWallFeatureModal } from '../components/MusicWallFeatureModal';
 import {
   Sparkles,
   ShieldCheck,
@@ -37,6 +38,32 @@ export default function Home() {
     systemAnnouncement,
     dismissAnnouncement,
   } = useChatStore();
+
+  const [showFeatureModal, setShowFeatureModal] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const seen = localStorage.getItem('capitalk_music_wall_feature_v1');
+      if (!seen) {
+        setShowFeatureModal(true);
+      }
+    }
+
+    const handleOpenModal = () => setShowFeatureModal(true);
+    window.addEventListener('capitalk_open_feature_modal', handleOpenModal);
+    return () => window.removeEventListener('capitalk_open_feature_modal', handleOpenModal);
+  }, []);
+
+  const handleCloseFeatureModal = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('capitalk_music_wall_feature_v1', 'true');
+    }
+    setShowFeatureModal(false);
+  };
+
+  const handleExploreMusicWall = () => {
+    setViewState('music_wall');
+  };
 
   React.useEffect(() => {
     if (actionToast) {
@@ -71,6 +98,13 @@ export default function Home() {
     <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
       viewState === 'chat' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
     }`}>
+
+      {/* Feature Announcement Modal (Shows Once) */}
+      <MusicWallFeatureModal
+        isOpen={showFeatureModal}
+        onClose={handleCloseFeatureModal}
+        onExplore={handleExploreMusicWall}
+      />
 
       {/* Floating Action Toast Notification */}
       {actionToast && (

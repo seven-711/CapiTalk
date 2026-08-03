@@ -184,6 +184,19 @@ export const Navbar: React.FC = () => {
               <span className="sm:hidden">Tunes</span>
               <span className="hidden sm:inline">🎵 Music Wall</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('capitalk_open_feature_modal'));
+                }
+              }}
+              className="hidden md:flex text-[10px] sm:text-[11px] font-black bg-[#ffc900] hover:bg-black hover:text-white text-black border-2 border-black px-2.5 py-0.5 rounded-full transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none items-center gap-1 shrink-0"
+              title="What's New on CapiTalk"
+            >
+              <span>✨ What's New</span>
+            </button>
           </div>
 
           {currentUser ? (
