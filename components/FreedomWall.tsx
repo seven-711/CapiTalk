@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CU_DEPARTMENTS } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
@@ -29,9 +29,11 @@ import {
   Pin,
   Users,
   CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
+import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
 
 const POST_COLORS = [
   { name: 'Maroon', hex: '#701a31' },
@@ -123,17 +125,21 @@ export const FreedomWall: React.FC = () => {
   const DAILY_MAX_POSTS = 10;
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
   const [dailyPostCount, setDailyPostCount] = useState<number>(0);
-  const [captchaNum1, setCaptchaNum1] = useState(3);
-  const [captchaNum2, setCaptchaNum2] = useState(5);
-  const [captchaInput, setCaptchaInput] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
-  const generateCaptcha = () => {
-    const n1 = Math.floor(Math.random() * 8) + 1;
-    const n2 = Math.floor(Math.random() * 8) + 1;
-    setCaptchaNum1(n1);
-    setCaptchaNum2(n2);
-    setCaptchaInput('');
-  };
+  const [honeypot, setHoneypot] = useState('');
+  const [deviceId, setDeviceId] = useState<string>('');
+  
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    // Generate or retrieve persistent device ID
+    if (typeof window !== 'undefined') {
+      const persistentId = getOrCreatePersistentUUID();
+      setDeviceId(persistentId);
+    }
+  }, []);
+
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -177,7 +183,7 @@ export const FreedomWall: React.FC = () => {
 
   React.useEffect(() => {
     if (showCreateModal) {
-      generateCaptcha();
+      setTurnstileToken(null);
       setModerationError(null);
     }
   }, [showCreateModal]);
@@ -326,36 +332,65 @@ export const FreedomWall: React.FC = () => {
     }
   };
 
-  const handlePostSubmit = (e: React.FormEvent) => {
+  const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setModerationError(null);
 
-    if (!message.trim()) {
-      setModerationError('Please enter your message before posting.');
+    if (!message.trim() || message.length > 300) {
+      setModerationError('Message must be between 1 and 300 characters.');
       return;
     }
+
+    const getAvailableTimeStr = (seconds: number) => {
+      const unlockDate = new Date(Date.now() + seconds * 1000);
+      return unlockDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+
+    const getDailyResetTimeStr = () => {
+      try {
+        const raw = localStorage.getItem('capitalk_wall_post_history');
+        if (raw) {
+          const timestamps: number[] = JSON.parse(raw);
+          if (timestamps.length >= DAILY_MAX_POSTS) {
+            const oldest = Math.min(...timestamps);
+            const resetDate = new Date(oldest + 24 * 60 * 60 * 1000);
+            return resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        }
+      } catch (e) {}
+      return 'tomorrow';
+    };
 
     if (!postAsAdmin && !isAdminUser) {
       // 1. Check Cooldown
       if (cooldownRemaining > 0) {
-        setModerationError(`⏳ Rate Limit Active: Please wait ${cooldownRemaining}s before publishing your next note to prevent bot spam.`);
+        const timeStr = getAvailableTimeStr(cooldownRemaining);
+        const errMsg = `⏳ Rate Limit Active: Please wait ${cooldownRemaining}s before publishing your next note (Available at ${timeStr}).`;
+        setModerationError(errMsg);
+        useChatStore.setState({
+          actionToast: {
+            type: 'error',
+            message: errMsg,
+          },
+        });
         return;
       }
 
       // 2. Check Daily Limit Cap
       if (dailyPostCount >= DAILY_MAX_POSTS) {
-        setModerationError(`🚫 Daily Cap Exceeded: You have reached the maximum limit of ${DAILY_MAX_POSTS} Freedom Wall notes per day.`);
+        const resetTimeStr = getDailyResetTimeStr();
+        const errMsg = `🚫 Daily Cap Exceeded: Reached max limit of ${DAILY_MAX_POSTS} notes today. You can post again at ${resetTimeStr}.`;
+        setModerationError(errMsg);
+        useChatStore.setState({
+          actionToast: {
+            type: 'error',
+            message: errMsg,
+          },
+        });
         return;
       }
 
-      // 3. Check Anti-Bot Math Challenge
-      if (parseInt(captchaInput.trim(), 10) !== captchaNum1 + captchaNum2) {
-        setModerationError(`🤖 Human Verification Failed: ${captchaNum1} + ${captchaNum2} is not ${captchaInput || 'blank'}. Please enter the correct sum!`);
-        generateCaptcha();
-        return;
-      }
-
-      // 4. Check Duplicate Spam
+      // 3. Check Duplicate Spam
       const isDuplicate = (freedomPosts || [])
         .slice(0, 20)
         .some((p) => p.message.trim().toLowerCase() === message.trim().toLowerCase());
@@ -373,7 +408,7 @@ export const FreedomWall: React.FC = () => {
       return;
     }
 
-    const success = addFreedomPost({
+    const success = await addFreedomPost({
       author_alias: postAsAdmin
         ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
         : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student')),
@@ -381,7 +416,7 @@ export const FreedomWall: React.FC = () => {
       message: message.trim(),
       color: postAsAdmin ? '#701a31' : selectedColor,
       is_admin: postAsAdmin,
-    });
+    }, honeypot, deviceId);
 
     if (success) {
       if (!postAsAdmin && !isAdminUser) {
@@ -407,6 +442,9 @@ export const FreedomWall: React.FC = () => {
 
   const filteredPosts = (freedomPosts || [])
     .filter((post) => {
+      // Filter out song dedications (they belong on the Music Wall)
+      if (post.song_title) return false;
+
       // Pending approval filter: pending notes are only visible to the author or admins
       if (post.status === 'pending') {
         const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
@@ -641,17 +679,16 @@ export const FreedomWall: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className="btn-gumroad-primary text-xs sm:text-sm px-3.5 py-2 sm:px-5 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+            className="btn-gumroad-primary text-xs sm:text-sm px-3.5 py-2 sm:px-4 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] bg-[#ffc900] hover:bg-[#ffc900]/80"
           >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Share thoughts...</span>
+            <span>Share</span>
           </button>
           <button
             type="button"
             onClick={startSearch}
             className="btn-gumroad-ghost text-xs sm:text-sm px-3 py-2 sm:px-4 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1"
           >
-            <span>Start Chat</span>
+            <span>Chat</span>
           </button>
         </div>
       </div>
@@ -982,9 +1019,11 @@ export const FreedomWall: React.FC = () => {
             </p>
 
             {moderationError && (
-              <div className="mb-3 p-2.5 bg-red-100 border-2 border-red-500 text-red-700 text-xs font-bold rounded-xl flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-                <span>{moderationError}</span>
+              <div className="mb-4 p-3.5 sm:p-4 bg-rose-100 border-2 border-black rounded-xl text-black font-extrabold text-xs sm:text-sm flex items-start gap-2.5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1 leading-snug break-words">
+                  {moderationError}
+                </div>
               </div>
             )}
 
@@ -1082,57 +1121,53 @@ export const FreedomWall: React.FC = () => {
 
               {/* Anti-Bot Verification Challenge */}
               {!postAsAdmin && (
-                <div className="p-2.5 bg-amber-50 border-2 border-black rounded-xl space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] sm:text-xs font-extrabold text-black uppercase tracking-wider flex items-center gap-1">
-                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-                      🤖 Anti-Bot Verification
-                    </label>
-                    <span className="text-[9px] sm:text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-400">
-                      {dailyPostCount}/{DAILY_MAX_POSTS} Notes Today
-                    </span>
-                  </div>
-
-                  <p className="text-[10px] text-gray-700 font-medium">
-                    Solve this quick math puzzle to verify you are a student:
-                  </p>
-
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="px-2.5 py-1 bg-white border-2 border-black rounded-lg font-black text-xs sm:text-sm text-black shadow-xs flex items-center gap-1">
-                      <span>{captchaNum1}</span>
-                      <span>+</span>
-                      <span>{captchaNum2}</span>
-                      <span>=</span>
-                    </div>
-
-                    <input
-                      type="number"
-                      value={captchaInput}
-                      onChange={(e) => setCaptchaInput(e.target.value)}
-                      placeholder="Answer?"
-                      className="w-20 px-2 py-1 text-xs border-2 border-black rounded-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-black bg-white"
-                      required={!postAsAdmin}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={generateCaptcha}
-                      className="p-1 hover:bg-black/10 rounded-lg text-black transition-colors"
-                      title="New Math Puzzle"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                <div className="hidden">
+                  <label htmlFor="report-nickname">Nickname</label>
+                  <input
+                    type="text"
+                    id="report-nickname"
+                    name="report-nickname"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                    autoComplete="off"
+                    tabIndex={-1}
+                  />
                 </div>
               )}
 
               {/* Cooldown Warning Notice */}
-              {cooldownRemaining > 0 && !postAsAdmin && (
-                <div className="p-2.5 bg-amber-100 border-2 border-amber-500 rounded-xl text-amber-900 text-xs font-bold flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0 animate-spin" />
-                  <span>
-                    ⏳ Cooldown active: Please wait <span className="text-black font-black underline">{cooldownRemaining}s</span> before posting.
-                  </span>
+              {!isAdminUser && cooldownRemaining > 0 && (
+                <div className="p-3 bg-amber-50 border-2 border-amber-400 rounded-xl text-black shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-black text-amber-900">
+                    <Clock className="w-4 h-4 shrink-0 animate-spin text-amber-700" />
+                    <span>⏳ Cooldown Active ({cooldownRemaining}s remaining)</span>
+                  </div>
+                  <p className="text-[11px] font-bold text-amber-900 mt-1">
+                    You can post your next note at <strong>{new Date(Date.now() + cooldownRemaining * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>.
+                  </p>
+                </div>
+              )}
+
+              {!isAdminUser && cooldownRemaining === 0 && dailyPostCount >= DAILY_MAX_POSTS && (
+                <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-black shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-black text-rose-900">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-700" />
+                    <span>🚫 Daily Limit Reached (10/10 notes)</span>
+                  </div>
+                  <p className="text-[11px] font-bold text-rose-900 mt-1">
+                    You have published 10 notes today. You can post again at <strong>{(() => {
+                      try {
+                        const raw = localStorage.getItem('capitalk_wall_post_history');
+                        if (raw) {
+                          const ts: number[] = JSON.parse(raw);
+                          if (ts.length >= DAILY_MAX_POSTS) {
+                            return new Date(Math.min(...ts) + 24 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                          }
+                        }
+                      } catch (e) {}
+                      return 'tomorrow';
+                    })()}</strong>.
+                  </p>
                 </div>
               )}
 
@@ -1167,6 +1202,7 @@ export const FreedomWall: React.FC = () => {
           </div>
         </div>
       )}
+
 
       {/* Report Note Modal */}
       {selectedPostForReport && (

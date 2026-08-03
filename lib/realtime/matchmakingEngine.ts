@@ -128,11 +128,21 @@ class MatchmakingEngine {
 
   private sendJoin() {
     if (this.ws?.readyState === WebSocket.OPEN && this.currentUser) {
-      this.ws.send(JSON.stringify({
-        type: 'QUEUE_JOIN',
-        user: this.currentUser,
-        filter: this.currentFilter,
-      }));
+      try {
+        const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
+        this.ws.send(JSON.stringify({
+          type: 'QUEUE_JOIN',
+          user: this.currentUser,
+          filter: this.currentFilter,
+          blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
+        }));
+      } catch (e) {
+        this.ws.send(JSON.stringify({
+          type: 'QUEUE_JOIN',
+          user: this.currentUser,
+          filter: this.currentFilter,
+        }));
+      }
     }
   }
 
@@ -275,11 +285,21 @@ class MatchmakingEngine {
         })
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
-            await this.supabaseChannel.track({
-              user,
-              filter,
-              joinedAt: Date.now(),
-            });
+            try {
+              const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
+              await this.supabaseChannel.track({
+                user,
+                filter,
+                blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
+                joinedAt: Date.now(),
+              });
+            } catch (e) {
+              await this.supabaseChannel.track({
+                user,
+                filter,
+                joinedAt: Date.now(),
+              });
+            }
           }
         });
     } catch (e) {
@@ -288,16 +308,16 @@ class MatchmakingEngine {
   }
 
   private processSupabasePresence(currentUser: UserProfile, myFilter: QueueFilter, presenceState: Record<string, any[]>) {
-    const candidates: { user: UserProfile; filter: QueueFilter }[] = [];
+    const candidates: { user: UserProfile; filter: QueueFilter; blockedUserIds?: string[] }[] = [];
     Object.values(presenceState).forEach((presences) => {
       presences.forEach((p) => {
         if (p.user && p.user.id !== currentUser.id) {
-          candidates.push({ user: p.user, filter: p.filter });
+          candidates.push({ user: p.user, filter: p.filter, blockedUserIds: p.blockedUserIds });
         }
       });
     });
 
-    const partner = candidates.find((c) => this.filterMatches(myFilter, c.filter, currentUser, c.user));
+    const partner = candidates.find((c) => this.filterMatches(myFilter, c.filter, currentUser, c.user, c.blockedUserIds));
     if (partner) {
       const matchPayload: MatchPayload = {
         roomId: 'room_' + Math.random().toString(36).substring(2, 9),
@@ -315,10 +335,24 @@ class MatchmakingEngine {
     }
   }
 
-  private filterMatches(myFilter: QueueFilter, partnerFilter: QueueFilter, myUser: UserProfile, partnerUser: UserProfile): boolean {
+  private filterMatches(
+    myFilter: QueueFilter, 
+    partnerFilter: QueueFilter, 
+    myUser: UserProfile, 
+    partnerUser: UserProfile, 
+    partnerBlockedUserIds?: string[]
+  ): boolean {
     try {
       const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
-      if (blockedUserIds?.includes(partnerUser.id) || bannedUserIds?.includes(partnerUser.id)) {
+      const myBlocked = [...(blockedUserIds || []), ...(bannedUserIds || [])];
+
+      // 1. Did I block them, or are they banned?
+      if (myBlocked.includes(partnerUser.id)) {
+        return false;
+      }
+
+      // 2. Did they block me?
+      if (partnerBlockedUserIds && Array.isArray(partnerBlockedUserIds) && partnerBlockedUserIds.includes(myUser.id)) {
         return false;
       }
     } catch (e) {}
@@ -342,7 +376,7 @@ class MatchmakingEngine {
       const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
       const queueItems: any[] = raw ? JSON.parse(raw) : [];
       const partner = queueItems.find(
-        (q) => q.user.id !== user.id && Date.now() - q.joinedAt < 120000 && this.filterMatches(filter, q.filter, user, q.user)
+        (q) => q.user.id !== user.id && Date.now() - q.joinedAt < 120000 && this.filterMatches(filter, q.filter, user, q.user, q.blockedUserIds)
       );
 
       if (partner) {
@@ -452,10 +486,16 @@ class MatchmakingEngine {
   private syncToLocalStorage(user: UserProfile, filter: QueueFilter) {
     if (typeof window === 'undefined') return;
     try {
+      const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
       const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
       const existing: any[] = raw ? JSON.parse(raw) : [];
       const filtered = existing.filter((q) => q.user.id !== user.id && Date.now() - q.joinedAt < 120000);
-      filtered.push({ user, filter, joinedAt: Date.now() });
+      filtered.push({
+        user,
+        filter,
+        blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
+        joinedAt: Date.now()
+      });
       localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(filtered));
     } catch (e) {}
   }

@@ -8,6 +8,7 @@ import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { checkProfanity } from '../utils/profanityFilter';
+import { getOrCreatePersistentUUID } from '../utils/uuid';
 
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -20,8 +21,8 @@ interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall';
-  setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall') => void;
+  viewState: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall';
+  setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall') => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -71,7 +72,7 @@ interface ChatStoreState {
   resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post', adminRemark?: string) => void;
   toggleBanUser: (userId: string) => void;
 
-  addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>) => boolean;
+  addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>, honeypot?: string, deviceId?: string) => Promise<boolean>;
   deleteFreedomPost: (postId: string) => void;
   approveFreedomPost: (postId: string) => void;
   likeFreedomPost: (postId: string) => void;
@@ -162,7 +163,7 @@ export const useChatStore = create<ChatStoreState>()(
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
       viewState: 'landing',
-      setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall') => set({ viewState: view }),
+      setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall') => set({ viewState: view }),
 
       wallNotifications: typeof window !== 'undefined'
         ? (() => {
@@ -346,6 +347,7 @@ export const useChatStore = create<ChatStoreState>()(
 
                         return {
                           id: row.id,
+                          author_id: row.author_id,
                           author_alias: row.author_alias || 'Anon Student',
                           department: row.department || 'General',
                           message: row.message,
@@ -357,10 +359,53 @@ export const useChatStore = create<ChatStoreState>()(
                           is_pinned: !!row.is_pinned,
                           status: dbStatus,
                           created_at: row.created_at,
+                          song_title: row.song_title,
+                          song_artist: row.song_artist,
+                          song_image_url: row.song_image_url,
+                          song_preview_url: row.song_preview_url,
+                          song_link: row.song_link,
+                          dedicated_to: row.dedicated_to,
                         };
                       });
                       set({ freedomPosts: loadedFromDb });
                       localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
+                    }
+                  }, () => {});
+              } catch (e) {}
+
+              // Sync bidirectional block list from Supabase Database
+              try {
+                const user = get().currentUser;
+                if (user) {
+                  supabase
+                    .from('blocks')
+                    .select('*')
+                    .or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`)
+                    .then(({ data, error }) => {
+                      if (data && data.length > 0 && !error) {
+                        const dbBlockedIds = data.map((b: any) => b.blocker_id === user.id ? b.blocked_id : b.blocker_id);
+                        const currentBlocked = get().blockedUserIds;
+                        const merged = [...new Set([...currentBlocked, ...dbBlockedIds])];
+                        set({ blockedUserIds: merged });
+                      }
+                    }, () => {});
+                }
+              } catch (e) {}
+
+              // Sync banned users list from Supabase Database
+              try {
+                supabase
+                  .from('banned_users')
+                  .select('user_id, device_id')
+                  .then(({ data, error }) => {
+                    if (data && data.length > 0 && !error) {
+                      const dbBans = data.flatMap((b: any) => [b.user_id, b.device_id]).filter(Boolean);
+                      const currentBans = get().bannedUserIds;
+                      const mergedBans = [...new Set([...currentBans, ...dbBans])];
+                      set({ bannedUserIds: mergedBans });
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(mergedBans));
+                      }
                     }
                   }, () => {});
               } catch (e) {}
@@ -631,6 +676,7 @@ export const useChatStore = create<ChatStoreState>()(
                           };
                           return {
                             id: row.id,
+                            author_id: row.author_id,
                             author_alias: row.author_alias || 'Anon Student',
                             department: row.department || 'General',
                             message: row.message,
@@ -642,6 +688,12 @@ export const useChatStore = create<ChatStoreState>()(
                             is_pinned: !!row.is_pinned,
                             status: dbStatus,
                             created_at: row.created_at,
+                            song_title: row.song_title,
+                            song_artist: row.song_artist,
+                            song_image_url: row.song_image_url,
+                            song_preview_url: row.song_preview_url,
+                            song_link: row.song_link,
+                            dedicated_to: row.dedicated_to,
                           };
                         });
                         
@@ -821,8 +873,9 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => {
+        const persistentId = getOrCreatePersistentUUID();
         const newUser: UserProfile = {
-          id: 'usr_' + Math.random().toString(36).substring(2, 9),
+          id: persistentId,
           username: username.trim(),
           department,
           avatar_url: avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
@@ -1255,9 +1308,26 @@ export const useChatStore = create<ChatStoreState>()(
         if (!activeRoom || !currentUser) return;
 
         const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
+        const updatedBlocked = [...new Set([...blockedUserIds, partner.id])];
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('blocks')
+              .upsert(
+                { blocker_id: currentUser.id, blocked_id: partner.id },
+                { onConflict: 'blocker_id,blocked_id' }
+              )
+              .then(({ error }) => {
+                if (error && !error.message?.includes('duplicate key')) {
+                  console.error('[Supabase Block Error]', error.message);
+                }
+              }, () => {});
+          } catch (e) {}
+        }
 
         set({
-          blockedUserIds: [...new Set([...blockedUserIds, partner.id])],
+          blockedUserIds: updatedBlocked,
           actionToast: {
             type: 'block',
             message: `🚫 ${partner.username} blocked. You will no longer be paired with them.`,
@@ -1455,7 +1525,7 @@ export const useChatStore = create<ChatStoreState>()(
         });
       },
 
-      addFreedomPost: (postData) => {
+      addFreedomPost: async (postData, honeypot, deviceId) => {
         const { freedomPosts, currentUser } = get();
         const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
         const newPost: FreedomPost = {
@@ -1465,6 +1535,12 @@ export const useChatStore = create<ChatStoreState>()(
           department: postData.department || 'General',
           message: postData.message,
           color: postData.color || '#ffc900',
+          song_title: postData.song_title,
+          song_artist: postData.song_artist,
+          song_image_url: postData.song_image_url,
+          song_preview_url: postData.song_preview_url,
+          song_link: postData.song_link,
+          dedicated_to: postData.dedicated_to,
           likes_count: 0,
           liked_by_users: [],
           is_admin: !!postData.is_admin,
@@ -1472,65 +1548,67 @@ export const useChatStore = create<ChatStoreState>()(
           created_at: new Date().toISOString(),
         };
 
-        const updated = [newPost, ...freedomPosts];
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
-          } catch (e) {}
-        }
+        try {
+          const res = await fetch('/api/freedom-wall/post', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-device-id': deviceId || 'unknown'
+            },
+            body: JSON.stringify({ honeypot, postData: newPost })
+          });
+          
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            console.error('Failed to publish note to server:', errorData);
+            set({
+              actionToast: {
+                type: 'error',
+                message: errorData.error || 'Failed to publish note to server.',
+              },
+            });
+            return false;
+          }
 
-        if (broadcastChannel) {
-          try {
-            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
-          } catch (e) {}
-        }
+          // ONLY update local state and broadcast after server approves the post
+          const currentList = get().freedomPosts;
+          const updated = [newPost, ...currentList];
+          const updatedMyPostIds = [newPost.id, ...get().myPostIds];
 
-        if (supabase && isSupabaseConfigured) {
-          try {
-            const encodedColor = `${newPost.color}||${newPost.status}||${JSON.stringify(newPost.liked_by_profiles || {})}`;
-            const insertPayload: any = {
-              id: newPost.id,
-              author_alias: newPost.author_alias,
-              department: newPost.department,
-              message: newPost.message,
-              color: encodedColor,
-              likes_count: newPost.likes_count,
-              liked_by_users: newPost.liked_by_users,
-              created_at: newPost.created_at,
-            };
-            if (newPost.author_id) {
-              insertPayload.author_id = newPost.author_id;
-            }
-            supabase
-              .from('freedom_posts')
-              .insert(insertPayload)
-              .then(({ error }) => {
-                if (error && error.message?.includes('author_id')) {
-                  delete insertPayload.author_id;
-                  supabase?.from('freedom_posts').insert(insertPayload).then(() => {}, () => {});
-                }
-              }, () => {});
-          } catch (e) {}
-        }
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+              localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedMyPostIds));
+            } catch (e) {}
+          }
 
-        const updatedMyPostIds = [newPost.id, ...get().myPostIds];
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedMyPostIds));
-          } catch (e) {}
-        }
+          if (broadcastChannel) {
+            try {
+              broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+            } catch (e) {}
+          }
 
-        set({
-          freedomPosts: updated,
-          myPostIds: updatedMyPostIds,
-          actionToast: {
-            type: 'announcement',
-            message: postData.is_admin
-              ? '✨ Admin post published to Freedom Wall!'
-              : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.',
-          },
-        });
-        return true;
+          set({
+            freedomPosts: updated,
+            myPostIds: updatedMyPostIds,
+            actionToast: {
+              type: 'announcement',
+              message: postData.is_admin
+                ? '✨ Admin post published to Freedom Wall!'
+                : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.',
+            },
+          });
+          return true;
+        } catch (e: any) {
+          console.error('Error posting note:', e);
+          set({
+            actionToast: {
+              type: 'error',
+              message: e?.message || 'Network error while posting.',
+            },
+          });
+          return false;
+        }
       },
 
       approveFreedomPost: (postId: string) => {

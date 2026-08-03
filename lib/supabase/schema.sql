@@ -81,10 +81,9 @@ CREATE TABLE IF NOT EXISTS public.reports (
 -- 8. User Blocks Table
 CREATE TABLE IF NOT EXISTS public.blocks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  blocker_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  blocked_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(blocker_id, blocked_id)
+  blocker_id TEXT NOT NULL,
+  blocked_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ==========================================
@@ -104,7 +103,8 @@ CREATE POLICY "Public Queue Access" ON public.queue FOR ALL USING (true);
 CREATE POLICY "Public Rooms Access" ON public.chat_rooms FOR ALL USING (true);
 CREATE POLICY "Public Messages Access" ON public.messages FOR ALL USING (true);
 CREATE POLICY "Public Reports Access" ON public.reports FOR ALL USING (true);
-CREATE POLICY "Public Blocks Access" ON public.blocks FOR ALL USING (true);
+DROP POLICY IF EXISTS "Public Blocks Access" ON public.blocks;
+CREATE POLICY "Public Blocks Access" ON public.blocks FOR ALL USING (true) WITH CHECK (true);
 
 -- Enable Supabase Realtime for Messages, Rooms, Queue, and Broadcasts
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
@@ -141,6 +141,11 @@ CREATE TABLE IF NOT EXISTS public.freedom_posts (
   author_alias TEXT DEFAULT 'Anon Student',
   department TEXT NOT NULL,
   message TEXT NOT NULL,
+  song_title TEXT,
+  song_artist TEXT,
+  song_image_url TEXT,
+  song_preview_url TEXT,
+  song_link TEXT,
   color TEXT DEFAULT '#ffc900',
   likes_count INT DEFAULT 0,
   liked_by_users JSONB DEFAULT '[]'::jsonb,
@@ -150,7 +155,14 @@ CREATE TABLE IF NOT EXISTS public.freedom_posts (
 );
 
 ALTER TABLE public.freedom_posts 
-ADD COLUMN IF NOT EXISTS author_id TEXT;
+ADD COLUMN IF NOT EXISTS author_id TEXT,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved',
+ADD COLUMN IF NOT EXISTS song_title TEXT,
+ADD COLUMN IF NOT EXISTS song_artist TEXT,
+ADD COLUMN IF NOT EXISTS song_image_url TEXT,
+ADD COLUMN IF NOT EXISTS song_preview_url TEXT,
+ADD COLUMN IF NOT EXISTS song_link TEXT,
+ADD COLUMN IF NOT EXISTS dedicated_to TEXT;
 
 ALTER TABLE public.freedom_posts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Freedom Posts Access" ON public.freedom_posts FOR ALL USING (true);
@@ -174,3 +186,44 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Notifications Access" ON public.notifications FOR ALL USING (true);
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+
+-- 12. Banned Users & Fingerprints Table (Server-side ban enforcement across devices & IPs)
+CREATE TABLE IF NOT EXISTS public.banned_users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id TEXT UNIQUE,
+  device_id TEXT UNIQUE,
+  ip_address TEXT,
+  reason TEXT,
+  banned_by TEXT DEFAULT 'admin',
+  banned_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Banned Users Access" ON public.banned_users FOR ALL USING (true);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'banned_users'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.banned_users;
+  END IF;
+END $$;
+
+-- 13. Device Sessions Table (Anti-Bot & Rate Limiting)
+CREATE TABLE IF NOT EXISTS public.device_sessions (
+  device_id TEXT PRIMARY KEY,
+  ip_address TEXT,
+  post_count INT DEFAULT 1,
+  risk_score INT DEFAULT 0,
+  is_banned BOOLEAN DEFAULT FALSE,
+  last_post_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.device_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Device Sessions Access" ON public.device_sessions FOR ALL USING (true);

@@ -9,6 +9,7 @@ import { MatchmakingScreen } from '../components/MatchmakingScreen';
 import { ChatRoom } from '../components/ChatRoom';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
+import { MusicWall } from '../components/MusicWall';
 import {
   Sparkles,
   ShieldCheck,
@@ -105,6 +106,7 @@ export default function Home() {
         {viewState === 'admin' && <AdminDashboard />}
 
         {viewState === 'freedom_wall' && <FreedomWall />}
+        {viewState === 'music_wall' && <MusicWall />}
 
         {viewState === 'landing' && (
           <div className="w-full">

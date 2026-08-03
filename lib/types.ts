@@ -83,6 +83,12 @@ export interface FreedomPost {
   is_admin?: boolean;
   is_pinned?: boolean;
   status?: 'pending' | 'approved' | 'rejected';
+  song_title?: string;
+  song_artist?: string;
+  song_image_url?: string;
+  song_preview_url?: string;
+  song_link?: string;
+  dedicated_to?: string;
   created_at: string;
 }
 

@@ -53,6 +53,15 @@ function tryMatchInQueue() {
       const a = entries[i];
       const b = entries[j];
 
+      // Check bidirectional blocked lists
+      const aBlockedB = Array.isArray(a.blockedUserIds) && a.blockedUserIds.includes(b.user.id);
+      const bBlockedA = Array.isArray(b.blockedUserIds) && b.blockedUserIds.includes(a.user.id);
+
+      if (aBlockedB || bBlockedA) {
+        console.log(`[Queue] Skipped match between ${a.user.username} and ${b.user.username} due to active block.`);
+        continue;
+      }
+
       const aMatchesB = filterMatches(a.filter, a.user, b.user);
       const bMatchesA = filterMatches(b.filter, b.user, a.user);
 
@@ -140,14 +149,20 @@ wss.on('connection', (ws) => {
     const { type } = msg;
 
     if (type === 'QUEUE_JOIN') {
-      const { user, filter } = msg;
+      const { user, filter, blockedUserIds } = msg;
       clientUserId = user.id;
 
       // Remove any stale presence for this user
       removeUserFromAll(user.id);
 
-      queue.set(user.id, { ws, user, filter, joinedAt: Date.now() });
-      console.log(`[Queue] ${user.username} (${user.department}) joined | filter: ${filter} | queue size: ${queue.size}`);
+      queue.set(user.id, {
+        ws,
+        user,
+        filter,
+        blockedUserIds: Array.isArray(blockedUserIds) ? blockedUserIds : [],
+        joinedAt: Date.now(),
+      });
+      console.log(`[Queue] ${user.username} (${user.department}) joined | filter: ${filter} | blocked: ${(blockedUserIds || []).length} | queue size: ${queue.size}`);
 
       send(ws, { type: 'QUEUE_ACK', queueSize: queue.size });
       tryMatchInQueue();

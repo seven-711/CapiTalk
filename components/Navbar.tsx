@@ -156,6 +156,36 @@ export const Navbar: React.FC = () => {
             </button>
           )}
 
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setViewState('freedom_wall')}
+              className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${
+                viewState === 'freedom_wall'
+                  ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                  : 'bg-white text-black hover:bg-[#fff1f3]'
+              }`}
+              title="Campus Freedom Wall"
+            >
+              <span className="sm:hidden">Wall</span>
+              <span className="hidden sm:inline">📜 Freedom Wall</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewState('music_wall')}
+              className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${
+                viewState === 'music_wall'
+                  ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                  : 'bg-[#fff1f3] text-black hover:bg-[#ffe3e8]'
+              }`}
+              title="Campus Music Dedications"
+            >
+              <span className="sm:hidden">Tunes</span>
+              <span className="hidden sm:inline">🎵 Music Wall</span>
+            </button>
+          </div>
+
           {currentUser ? (
             <div className="flex items-center gap-1 sm:gap-2">
               <div className="hidden sm:flex items-center gap-2 border border-[#d1d5dc] bg-white rounded-full px-3 py-1 text-xs font-medium">
@@ -166,20 +196,6 @@ export const Navbar: React.FC = () => {
             </div>
           ) : (
             <div className="flex items-center gap-1 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => setViewState('freedom_wall')}
-                className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full border-2 transition-all ${
-                  viewState === 'freedom_wall'
-                    ? 'bg-[#701a31] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                    : 'bg-white text-black border-black hover:bg-[#fff1f3]'
-                }`}
-                title="Campus Freedom Wall"
-              >
-                <span className="sm:hidden">📜 Wall</span>
-                <span className="hidden sm:inline">📜 Freedom Wall</span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => setViewState('register')}
