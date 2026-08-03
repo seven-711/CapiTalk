@@ -1721,7 +1721,9 @@ export const useChatStore = create<ChatStoreState>()(
 
       likeFreedomPost: (postId: string) => {
         const { freedomPosts, currentUser } = get();
-        const userId = currentUser ? currentUser.id : 'guest_' + Date.now();
+        const userId = currentUser
+          ? currentUser.id
+          : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'guest_anon');
         const targetPost = freedomPosts.find((p) => p.id === postId);
 
         const updated = freedomPosts.map((post) => {
@@ -1793,10 +1795,16 @@ export const useChatStore = create<ChatStoreState>()(
                 .update({
                   likes_count: targetPost.likes_count,
                   liked_by_users: targetPost.liked_by_users,
+                  liked_by_profiles: targetPost.liked_by_profiles || {},
                   color: encodedColor,
                 })
                 .eq('id', postId)
-                .then(() => {}, () => {});
+                .then(
+                  ({ error }) => {
+                    if (error) console.error('Error updating post like in Supabase:', error);
+                  },
+                  (err) => console.error('Supabase update error:', err)
+                );
 
               if (isNewLike) {
                 const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');

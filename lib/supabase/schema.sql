@@ -134,7 +134,7 @@ ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Broadcasts Access" ON public.broadcasts FOR ALL USING (true);
 ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcasts;
 
--- 10. Freedom Wall Posts Table
+-- 10. Freedom Wall & Music Wall Posts Table
 CREATE TABLE IF NOT EXISTS public.freedom_posts (
   id TEXT PRIMARY KEY,
   author_id TEXT,
@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS public.freedom_posts (
   color TEXT DEFAULT '#ffc900',
   likes_count INT DEFAULT 0,
   liked_by_users JSONB DEFAULT '[]'::jsonb,
+  liked_by_profiles JSONB DEFAULT '{}'::jsonb,
   is_admin BOOLEAN DEFAULT FALSE,
   is_pinned BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -162,11 +163,26 @@ ADD COLUMN IF NOT EXISTS song_artist TEXT,
 ADD COLUMN IF NOT EXISTS song_image_url TEXT,
 ADD COLUMN IF NOT EXISTS song_preview_url TEXT,
 ADD COLUMN IF NOT EXISTS song_link TEXT,
-ADD COLUMN IF NOT EXISTS dedicated_to TEXT;
+ADD COLUMN IF NOT EXISTS dedicated_to TEXT,
+ADD COLUMN IF NOT EXISTS likes_count INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS liked_by_users JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS liked_by_profiles JSONB DEFAULT '{}'::jsonb;
 
 ALTER TABLE public.freedom_posts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Freedom Posts Access" ON public.freedom_posts FOR ALL USING (true);
-ALTER PUBLICATION supabase_realtime ADD TABLE public.freedom_posts;
+DROP POLICY IF EXISTS "Public Freedom Posts Access" ON public.freedom_posts;
+CREATE POLICY "Public Freedom Posts Access" ON public.freedom_posts FOR ALL USING (true) WITH CHECK (true);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'freedom_posts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.freedom_posts;
+  END IF;
+END $$;
 
 -- 11. Wall Notifications Table (for offline notification persistence & target delivery)
 CREATE TABLE IF NOT EXISTS public.notifications (
@@ -184,8 +200,20 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Notifications Access" ON public.notifications FOR ALL USING (true);
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+DROP POLICY IF EXISTS "Public Notifications Access" ON public.notifications;
+CREATE POLICY "Public Notifications Access" ON public.notifications FOR ALL USING (true) WITH CHECK (true);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'notifications'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  END IF;
+END $$;
 
 -- 12. Banned Users & Fingerprints Table (Server-side ban enforcement across devices & IPs)
 CREATE TABLE IF NOT EXISTS public.banned_users (

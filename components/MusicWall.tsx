@@ -321,7 +321,10 @@ export const MusicWall: React.FC = () => {
     });
 
   const renderPostCard = (post: FreedomPost) => {
-    const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
+    const currentUserId = currentUser
+      ? currentUser.id
+      : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
+    const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = !!post.is_pinned;
 
@@ -477,14 +480,17 @@ export const MusicWall: React.FC = () => {
                 heartPressTriggered.current = false;
               }}
               onTouchStart={() => handleHeartPressStart(post)}
-              onTouchEnd={() => handleHeartPressEnd(post)}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                handleHeartPressEnd(post);
+              }}
               className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border-2 transition-all shadow-xs active:scale-95 ${
                 hasLiked
                   ? 'bg-black text-rose-500 border-black'
                   : 'bg-white text-black border-black hover:bg-[#fff1f3] hover:text-rose-600'
               }`}
             >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasLiked ? 'fill-rose-500' : ''}`} />
+              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
               <span className="text-[10px] sm:text-xs font-black">{post.likes_count || 0}</span>
             </button>
           </div>
