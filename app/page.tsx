@@ -12,6 +12,7 @@ import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
 import { CampusMap } from '../components/CampusMap';
 import { MusicWallFeatureModal } from '../components/MusicWallFeatureModal';
+import { SilipFeatureBanner } from '../components/SilipFeatureBanner';
 import {
   Sparkles,
   ShieldCheck,
@@ -41,12 +42,18 @@ export default function Home() {
   } = useChatStore();
 
   const [showFeatureModal, setShowFeatureModal] = React.useState(false);
+  const [showSilipBanner, setShowSilipBanner] = React.useState(false);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      const seen = localStorage.getItem('capitalk_music_wall_feature_v1');
-      if (!seen) {
+      const seenMusic = localStorage.getItem('capitalk_music_wall_feature_v1');
+      if (!seenMusic) {
         setShowFeatureModal(true);
+      }
+      const seenSilip = localStorage.getItem('capitalk_silip_banner_v1');
+      if (!seenSilip) {
+        // Slight delay so the page settles before showing banner
+        setTimeout(() => setShowSilipBanner(true), 800);
       }
     }
 
@@ -60,6 +67,21 @@ export default function Home() {
       localStorage.setItem('capitalk_music_wall_feature_v1', 'true');
     }
     setShowFeatureModal(false);
+  };
+
+  const handleCloseSilipBanner = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('capitalk_silip_banner_v1', 'true');
+    }
+    setShowSilipBanner(false);
+  };
+
+  const handleExploreSilip = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('capitalk_silip_banner_v1', 'true');
+    }
+    setShowSilipBanner(false);
+    setViewState('campus_map');
   };
 
   const handleExploreMusicWall = () => {
@@ -105,6 +127,13 @@ export default function Home() {
         isOpen={showFeatureModal}
         onClose={handleCloseFeatureModal}
         onExplore={handleExploreMusicWall}
+      />
+
+      {/* Silip Campus Map Feature Banner (Shows Once on First Visit) */}
+      <SilipFeatureBanner
+        isOpen={showSilipBanner}
+        onClose={handleCloseSilipBanner}
+        onExplore={handleExploreSilip}
       />
 
       {/* Floating Action Toast Notification */}
