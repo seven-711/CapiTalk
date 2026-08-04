@@ -149,7 +149,6 @@ export const CampusMap: React.FC = () => {
   const [commentsList, setCommentsList] = useState<MapComment[]>([]);
   const [commentsCountMap, setCommentsCountMap] = useState<Record<string, number>>({});
   const [newCommentText, setNewCommentText] = useState('');
-  const [commentAlias, setCommentAlias] = useState(currentUser ? currentUser.username : '');
   const [isFetchingComments, setIsFetchingComments] = useState(false);
 
   // Reactors state
@@ -355,7 +354,7 @@ export const CampusMap: React.FC = () => {
     const newComment: MapComment = {
       id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       post_id: activePinForComments.id,
-      author_alias: commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student'),
+      author_alias: currentUser ? currentUser.username : 'Anon Student',
       department: currentUser ? currentUser.department : 'General',
       message: newCommentText.trim(),
       created_at: new Date().toISOString(),
@@ -928,11 +927,11 @@ export const CampusMap: React.FC = () => {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={commentAlias}
-                  onChange={(e) => setCommentAlias(e.target.value)}
-                  placeholder="Your Comment here"
-                  className="gumroad-input text-xs font-bold w-1/3"
-                  maxLength={20}
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  placeholder="Write a comment..."
+                  className="gumroad-input text-xs flex-1"
+                  required
                 />
                 <button
                   type="submit"
