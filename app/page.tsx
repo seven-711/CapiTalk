@@ -10,6 +10,7 @@ import { ChatRoom } from '../components/ChatRoom';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
+import { CampusMap } from '../components/CampusMap';
 import { MusicWallFeatureModal } from '../components/MusicWallFeatureModal';
 import {
   Sparkles,
@@ -141,6 +142,7 @@ export default function Home() {
 
         {viewState === 'freedom_wall' && <FreedomWall />}
         {viewState === 'music_wall' && <MusicWall />}
+        {viewState === 'campus_map' && <CampusMap />}
 
         {viewState === 'landing' && (
           <div className="w-full">
@@ -388,8 +390,8 @@ export default function Home() {
         )}
       </main>
 
-      {/* FOOTER — hidden during active chat to save screen space */}
-      {viewState !== 'chat' && (
+      {/* FOOTER — hidden during active chat & full screen campus map */}
+      {viewState !== 'chat' && viewState !== 'campus_map' && (
         <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] py-8 px-4 sm:px-8 mt-auto">
           <div className="max-w-[1200px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">

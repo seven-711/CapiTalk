@@ -115,3 +115,20 @@ export interface WallNotification {
   created_at: string;
   read: boolean;
 }
+
+export interface CampusMapPin {
+  id: string;
+  author_id?: string;
+  author_alias: string;
+  department: string;
+  spot_name: string;
+  message: string;
+  lat: number;
+  lng: number;
+  color?: string;
+  likes_count: number;
+  liked_by_users?: string[];
+  liked_by_profiles?: Record<string, { username: string; department: string }>;
+  status?: 'pending' | 'approved';
+  created_at: string;
+}

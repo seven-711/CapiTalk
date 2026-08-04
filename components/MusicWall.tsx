@@ -24,6 +24,8 @@ import {
   RefreshCw,
   Flame,
   AlertCircle,
+  MessageSquare,
+  Users,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -60,6 +62,103 @@ export const MusicWall: React.FC = () => {
   const [selectedPostForReport, setSelectedPostForReport] = useState<FreedomPost | null>(null);
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reactorsPost, setReactorsPost] = useState<FreedomPost | null>(null);
+
+  // Comments state for Music Wall
+  const [selectedPostForComments, setSelectedPostForComments] = useState<FreedomPost | null>(null);
+  const [commentsList, setCommentsList] = useState<any[]>([]);
+  const [commentsCountMap, setCommentsCountMap] = useState<Record<string, number>>({});
+  const [newCommentText, setNewCommentText] = useState('');
+  const [commentAlias, setCommentAlias] = useState(currentUser ? currentUser.username : '');
+  const [isFetchingComments, setIsFetchingComments] = useState(false);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data } = await supabase.from('freedom_comments').select('post_id');
+          if (data) {
+            const counts: Record<string, number> = {};
+            data.forEach((row: { post_id: string }) => {
+              counts[row.post_id] = (counts[row.post_id] || 0) + 1;
+            });
+            setCommentsCountMap(counts);
+          }
+        } catch (e) {}
+      }
+    };
+    fetchCounts();
+  }, [freedomPosts.length]);
+
+  const openCommentsModal = async (post: FreedomPost) => {
+    setSelectedPostForComments(post);
+    setIsFetchingComments(true);
+    setCommentsList([]);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data } = await supabase
+          .from('freedom_comments')
+          .select('*')
+          .eq('post_id', post.id)
+          .order('created_at', { ascending: true });
+
+        if (data) {
+          setCommentsList(data);
+          setIsFetchingComments(false);
+          return;
+        }
+      } catch (e) {}
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`capitalk_comments_${post.id}`);
+        if (raw) setCommentsList(JSON.parse(raw));
+      } catch (e) {}
+    }
+    setIsFetchingComments(false);
+  };
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCommentText.trim() || !selectedPostForComments) return;
+
+    const newComment = {
+      id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      post_id: selectedPostForComments.id,
+      author_alias: commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student'),
+      department: currentUser ? currentUser.department : 'General',
+      message: newCommentText.trim(),
+      created_at: new Date().toISOString(),
+    };
+
+    const updated = [...commentsList, newComment];
+    setCommentsList(updated);
+    setCommentsCountMap((prev) => ({
+      ...prev,
+      [selectedPostForComments.id]: (prev[selectedPostForComments.id] || 0) + 1,
+    }));
+    setNewCommentText('');
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`capitalk_comments_${selectedPostForComments.id}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('freedom_comments').insert({
+          id: newComment.id,
+          post_id: newComment.post_id,
+          author_alias: newComment.author_alias,
+          department: newComment.department,
+          message: newComment.message,
+          created_at: newComment.created_at,
+        });
+      } catch (e) {}
+    }
+  };
 
   // Long-press heart (mobile) → show reactors
   const heartPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -223,7 +322,7 @@ export const MusicWall: React.FC = () => {
     if (!postAsAdmin && !isAdminUser) {
       if (cooldownRemaining > 0) {
         const timeStr = getAvailableTimeStr(cooldownRemaining);
-        const errMsg = `⏳ Cooldown Active: Please wait ${cooldownRemaining}s before publishing (Available at ${timeStr}).`;
+        const errMsg = `Cooldown Active: Please wait ${cooldownRemaining}s before publishing (Available at ${timeStr}).`;
         setModerationError(errMsg);
         useChatStore.setState({
           actionToast: {
@@ -235,7 +334,7 @@ export const MusicWall: React.FC = () => {
       }
       if (dailyPostCount >= DAILY_MAX_POSTS) {
         const resetTimeStr = getDailyResetTimeStr();
-        const errMsg = `🚫 Daily Limit Reached (10/10 posts): You can post again at ${resetTimeStr}.`;
+        const errMsg = `Daily Limit Reached (10/10 posts): You can post again at ${resetTimeStr}.`;
         setModerationError(errMsg);
         useChatStore.setState({
           actionToast: {
@@ -508,6 +607,27 @@ export const MusicWall: React.FC = () => {
               <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
               <span className="text-[10px] sm:text-xs font-black">{post.likes_count || 0}</span>
             </button>
+
+            {(post.likes_count || 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setReactorsPost(post)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-[#ffc900] transition-all shadow-xs"
+                title="See who liked this song dedication"
+              >
+                <Users className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => openCommentsModal(post)}
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border-2 border-black bg-white text-black hover:bg-[#fff1f3] transition-all shadow-xs active:scale-95 text-[10px] sm:text-xs font-black"
+              title="View Comments"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>{commentsCountMap[post.id] || 0}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -772,7 +892,7 @@ export const MusicWall: React.FC = () => {
                 <div className="p-3 bg-amber-50 border-2 border-amber-400 rounded-xl text-black shadow-xs">
                   <div className="flex items-center gap-2 text-xs font-black text-amber-900">
                     <Clock className="w-4 h-4 shrink-0 animate-spin text-amber-700" />
-                    <span>⏳ Cooldown Active ({cooldownRemaining}s remaining)</span>
+                    <span>Cooldown Active ({cooldownRemaining}s remaining)</span>
                   </div>
                   <p className="text-[11px] font-bold text-amber-900 mt-1">
                     You can post your next song dedication at <strong>{new Date(Date.now() + cooldownRemaining * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>.
@@ -784,7 +904,7 @@ export const MusicWall: React.FC = () => {
                 <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-black shadow-xs">
                   <div className="flex items-center gap-2 text-xs font-black text-rose-900">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-700" />
-                    <span>🚫 Daily Limit Reached (10/10 posts)</span>
+                    <span>Daily Limit Reached (10/10 posts)</span>
                   </div>
                   <p className="text-[11px] font-bold text-rose-900 mt-1">
                     You have published 10 notes today. You can post again at <strong>{(() => {
@@ -844,6 +964,140 @@ export const MusicWall: React.FC = () => {
           }}
           onClose={() => setSelectedPostForDelete(null)}
         />
+      )}
+
+      {/* Comments Modal */}
+      {selectedPostForComments && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white border-2 sm:border-4 border-black rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl relative flex flex-col max-h-[85vh]">
+            <button
+              type="button"
+              onClick={() => setSelectedPostForComments(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b-2 border-black shrink-0 pr-8">
+              <span className="p-2 bg-[#ffc900] border-2 border-black rounded-xl text-black">
+                <MessageSquare className="w-5 h-5 stroke-[2.5]" />
+              </span>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-black truncate max-w-[280px]">
+                  Comments on "{selectedPostForComments.song_title || 'Dedication'}"
+                </h3>
+                <p className="text-xs text-[#242423] font-medium">
+                  {commentsList.length} student comments
+                </p>
+              </div>
+            </div>
+
+            {/* Comments List */}
+            <div className="flex-1 overflow-y-auto space-y-3 py-2 pr-1 scrollbar-thin">
+              {isFetchingComments ? (
+                <div className="text-center py-8 text-xs font-bold text-gray-500">
+                  Loading comments...
+                </div>
+              ) : commentsList.length === 0 ? (
+                <div className="text-center py-8 text-xs font-extrabold text-gray-500">
+                  No comments yet. Be the first student to leave a comment!
+                </div>
+              ) : (
+                commentsList.map((c) => (
+                  <div key={c.id} className="p-3 bg-[#f4f4f0] border-2 border-black rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-black text-xs text-black">{c.author_alias}</span>
+                      <span className="text-[10px] font-bold text-gray-500">
+                        {c.department?.replace('College of ', '')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-black font-medium leading-relaxed">{c.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add Comment Form */}
+            <form onSubmit={handleAddComment} className="pt-3 border-t-2 border-black shrink-0 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={commentAlias}
+                  onChange={(e) => setCommentAlias(e.target.value)}
+                  placeholder="Your Alias"
+                  className="gumroad-input text-xs font-bold w-1/3"
+                  maxLength={20}
+                />
+                <input
+                  type="text"
+                  required
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  placeholder="Write a comment..."
+                  className="gumroad-input text-xs font-medium flex-1"
+                />
+                <button
+                  type="submit"
+                  className="btn-gumroad-primary text-xs px-3 py-2 flex items-center justify-center shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reactors List Modal */}
+      {reactorsPost && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white border-2 sm:border-4 border-black rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl relative">
+            <button
+              type="button"
+              onClick={() => setReactorsPost(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-black">
+              <span className="p-2 bg-rose-500 text-white border-2 border-black rounded-xl">
+                <Heart className="w-5 h-5 fill-white" />
+              </span>
+              <div>
+                <h3 className="text-base font-extrabold text-black">
+                  People who liked
+                </h3>
+                <p className="text-xs text-gray-600 font-bold">
+                  {reactorsPost.likes_count || 0} reactions
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              {reactorsPost.liked_by_profiles && Object.keys(reactorsPost.liked_by_profiles).length > 0 ? (
+                Object.entries(reactorsPost.liked_by_profiles).map(([uid, prof]) => (
+                  <div key={uid} className="p-2.5 bg-[#f4f4f0] border-2 border-black rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-full bg-[#ffc900] border border-black flex items-center justify-center font-black text-xs">
+                        {prof.username.charAt(0).toUpperCase()}
+                      </span>
+                      <div>
+                        <div className="text-xs font-black text-black">{prof.username}</div>
+                        <div className="text-[10px] font-semibold text-gray-600">{prof.department.replace('College of ', '')}</div>
+                      </div>
+                    </div>
+                    <span className="text-xs text-rose-500">❤️</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-xs font-bold text-gray-500">
+                  {reactorsPost.likes_count || 0} anonymous reactions registered.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

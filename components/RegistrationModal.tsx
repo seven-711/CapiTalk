@@ -146,13 +146,13 @@ export const RegistrationModal: React.FC = () => {
             />
             {isCheckingUsername ? (
               <p className="text-xs text-amber-700 font-semibold mt-1.5 flex items-center gap-1 animate-pulse">
-                <span>⏳</span> Checking username availability...
+                Checking username availability...
               </p>
             ) : usernameStatus ? (
               <p className={`text-xs font-semibold mt-1.5 flex items-center gap-1.5 ${
                 usernameStatus.isAvailable ? 'text-emerald-600' : 'text-red-600 font-bold'
               }`}>
-                <span>{usernameStatus.isAvailable ? '✅' : '🚫'}</span> {usernameStatus.message}
+                <span>{usernameStatus.isAvailable ? '' : ''}</span> {usernameStatus.message}
               </p>
             ) : (
               <p className="text-xs text-[#242423] mt-1">

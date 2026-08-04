@@ -767,7 +767,7 @@ export const FreedomWall: React.FC = () => {
                 : 'bg-white text-black border-[#d1d5dc] hover:border-black'
             }`}
           >
-            <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#ffc900]" />
+            <span>Your notes</span>
           </button>
         </div>
 
