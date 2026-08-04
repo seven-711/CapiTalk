@@ -17,64 +17,8 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   } catch (e) {}
 }
 
-export const DEMO_MAP_PINS: CampusMapPin[] = [
-  {
-    id: 'pin_demo_1',
-    author_id: 'user_engr_01',
-    author_alias: 'Engr Student',
-    department: 'College of Engineering',
-    spot_name: 'Engineering Quadrangle',
-    message: 'Met my study group here in 1st year! Still our favorite spot for coffee, laughter, and cramming group projects.',
-    lat: 8.4862,
-    lng: 124.6565,
-    color: '#701a31',
-    likes_count: 14,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'pin_demo_2',
-    author_id: 'user_ccs_02',
-    author_alias: 'MatchaLover',
-    department: 'College of Computer Studies',
-    spot_name: 'CU Main Library 3rd Floor',
-    message: 'Best aircon and quietest study nook on campus. Passed my thesis & board prep exams right here! 📚',
-    lat: 8.4858,
-    lng: 124.6568,
-    color: '#ffc900',
-    likes_count: 22,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'pin_demo_3',
-    author_id: 'user_nursing_03',
-    author_alias: 'Nursing_Mwa',
-    department: 'College of Nursing',
-    spot_name: 'Student Canteen Tree Bench',
-    message: 'Where we confessed after midterm exams! Best siomai, fruit shake, and late afternoon talks.',
-    lat: 8.4864,
-    lng: 124.6561,
-    color: '#ff90e8',
-    likes_count: 19,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'pin_demo_4',
-    author_id: 'user_cba_04',
-    author_alias: 'CU_Bulls_Fan',
-    department: 'College of Business Administration',
-    spot_name: 'Business Admin Grounds',
-    message: 'Annual intramurals basketball & cheering squad memories! Proud CU Bulls forever! 🏆',
-    lat: 8.4855,
-    lng: 124.6562,
-    color: '#00e599',
-    likes_count: 11,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-  },
-];
+export const DEMO_MAP_PINS: CampusMapPin[] = [];
+
 
 interface ChatStoreState {
   currentUser: UserProfile | null;
@@ -152,68 +96,7 @@ interface ChatStoreState {
   dismissAnnouncement: () => void;
 }
 
-const DEMO_FREEDOM_POSTS: FreedomPost[] = [
-  {
-    id: 'post_1',
-    author_alias: 'Secret Admirer 🤫',
-    department: 'Nursing',
-    message: 'To the guy wearing a black hoodie in the 3rd floor library studying Anatomy yesterday... you are super cute! Hope we match here! 💛',
-    color: '#ffc900',
-    likes_count: 14,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: 'post_medtech_1',
-    author_alias: 'Microbiology Whiz 🔬',
-    department: 'College of Medical Technology',
-    message: 'Finished 4 hours of hematology lab duty and Gram staining! Shoutout to all fellow MedTech students surviving practical exams this week! 🧫🧪',
-    color: '#00e599',
-    likes_count: 18,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
-  },
-  {
-    id: 'post_2',
-    author_alias: 'Stressed Senior ☕',
-    department: 'Engineering',
-    message: 'Thesis defense tomorrow! Praying to all the gods of CapiTalk that our system doesn’t crash in front of the panelists. Wish us luck! 🚀',
-    color: '#00e599',
-    likes_count: 23,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: 'post_3',
-    author_alias: 'Night Owl 🦉',
-    department: 'Information Technology',
-    message: 'Who else is awake grinding code at 2 AM? CapiTalk is keeping me sane while debugging promises! Hmu if you want to chat!',
-    color: '#ff90e8',
-    likes_count: 9,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-  },
-  {
-    id: 'post_4',
-    author_alias: 'Foodie Student 🍕',
-    department: 'Business & Accountancy',
-    message: 'Pro tip: The new sisig spot near the main gate is actually 10/10. Perfect budget lunch before 1 PM accounting lecture!',
-    color: '#c4b5fd',
-    likes_count: 19,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-  },
-  {
-    id: 'post_5',
-    author_alias: 'Anon Freshie 🎒',
-    department: 'Arts & Sciences',
-    message: 'First semester in college has been crazy but meeting people through CapiTalk has made it so much better! Thanks everyone 🫶',
-    color: '#7dd3fc',
-    likes_count: 31,
-    liked_by_users: [],
-    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
-  },
-];
+const DEMO_FREEDOM_POSTS: FreedomPost[] = [];
 
 const DEMO_WALL_NOTIFICATIONS: WallNotification[] = [];
 
@@ -223,6 +106,21 @@ let unsubscribeMatch: (() => void) | null = null;
 export const useChatStore = create<ChatStoreState>()(
   persist(
     (set, get) => ({
+      // existing state fields ...
+      // ... (no change to previous lines up to here)
+      // Add new method
+      clearAllMapPins: () => {
+        // Clear map pins from state
+        set({ mapPins: [] });
+        // Remove from localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('capitalk_map_pins_v1');
+          } catch (e) {}
+        }
+      },
+      // Continue with existing methods
+
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 

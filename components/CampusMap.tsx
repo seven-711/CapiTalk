@@ -890,7 +890,7 @@ export const CampusMap: React.FC = () => {
               </span>
               <div>
                 <h3 className="text-base sm:text-lg font-black text-black truncate max-w-[280px]">
-                  Comments on "{activePinForComments.spot_name}"
+                  Comments
                 </h3>
                 <p className="text-xs text-[#242423] font-medium">
                   {commentsList.length} student comments
@@ -930,17 +930,9 @@ export const CampusMap: React.FC = () => {
                   type="text"
                   value={commentAlias}
                   onChange={(e) => setCommentAlias(e.target.value)}
-                  placeholder="Your Alias"
+                  placeholder="Your Comment here"
                   className="gumroad-input text-xs font-bold w-1/3"
                   maxLength={20}
-                />
-                <input
-                  type="text"
-                  required
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  placeholder="Write a comment..."
-                  className="gumroad-input text-xs font-medium flex-1"
                 />
                 <button
                   type="submit"
@@ -975,7 +967,7 @@ export const CampusMap: React.FC = () => {
               </span>
               <div>
                 <h3 className="text-base font-extrabold text-black">
-                  Students Who Liked This Note
+                  Loved by
                 </h3>
                 <p className="text-xs text-gray-600 font-bold">
                   {activePinForReactors.likes_count} reactions
