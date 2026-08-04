@@ -165,7 +165,7 @@ export const CampusMap: React.FC = () => {
   const [department, setDepartment] = useState<DepartmentType>(currentUser ? currentUser.department : 'College of Computer Studies');
   const [formError, setFormError] = useState<string | null>(null);
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyBXJyX_gTwte-mL2vz9McGp2oGQO8BPy2U';
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const currentUserId = currentUser
     ? currentUser.id
