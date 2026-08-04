@@ -1647,12 +1647,14 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       deleteFreedomPost: (postId: string) => {
-        const { freedomPosts } = get();
+        const { freedomPosts, myPostIds } = get();
         const updated = freedomPosts.filter((p) => p.id !== postId);
+        const updatedMyPostIds = (myPostIds || []).filter((id) => id !== postId);
 
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+            localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedMyPostIds));
           } catch (e) {}
         }
 
@@ -1670,6 +1672,7 @@ export const useChatStore = create<ChatStoreState>()(
 
         set({
           freedomPosts: updated,
+          myPostIds: updatedMyPostIds,
           actionToast: {
             type: 'announcement',
             message: '🗑️ Freedom Wall note deleted successfully.',

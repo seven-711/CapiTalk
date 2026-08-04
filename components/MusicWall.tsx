@@ -50,6 +50,7 @@ export const MusicWall: React.FC = () => {
     approveFreedomPost,
     likeFreedomPost,
     togglePinFreedomPost,
+    myPostIds,
   } = useChatStore();
 
   const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
@@ -327,6 +328,7 @@ export const MusicWall: React.FC = () => {
     const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = !!post.is_pinned;
+    const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
 
     return (
       <div
@@ -449,26 +451,27 @@ export const MusicWall: React.FC = () => {
             </button>
 
             {isAdminUser && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => togglePinFreedomPost(post.id)}
-                  className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
-                    post.is_pinned ? 'bg-[#ffc900] text-black' : 'bg-white text-black hover:bg-[#f4f4f0]'
-                  }`}
-                  title={post.is_pinned ? 'Unpin' : 'Pin'}
-                >
-                  <Pin className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedPostForDelete(post)}
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-red-50 hover:text-red-600 transition-all shadow-xs"
-                  title="Delete"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => togglePinFreedomPost(post.id)}
+                className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
+                  post.is_pinned ? 'bg-[#ffc900] text-black' : 'bg-white text-black hover:bg-[#f4f4f0]'
+                }`}
+                title={post.is_pinned ? 'Unpin' : 'Pin'}
+              >
+                <Pin className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {(isAdminUser || isMyPost) && (
+              <button
+                type="button"
+                onClick={() => setSelectedPostForDelete(post)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
+                title={isMyPost && !isAdminUser ? "Delete your note" : "Delete"}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             )}
 
             <button

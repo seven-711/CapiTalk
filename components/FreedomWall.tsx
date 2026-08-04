@@ -30,6 +30,8 @@ import {
   Users,
   CheckCircle,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -110,10 +112,9 @@ export const FreedomWall: React.FC = () => {
     }
   };
 
-  // Encapsulated Archives State
-  const [encapsulatePastDays, setEncapsulatePastDays] = useState(true);
-  const [selectedCapsuleDate, setSelectedCapsuleDate] = useState<string | null>(null);
-  const [selectedCapsulePosts, setSelectedCapsulePosts] = useState<FreedomPost[]>([]);
+  // Pagination & Active Pinning State
+  const NOTES_PER_PAGE = 20;
+  const [currentPage, setCurrentPage] = useState(1);
   const [alias, setAlias] = useState(currentUser ? currentUser.username : 'Anon Student');
   const [department, setDepartment] = useState<string>(currentUser ? currentUser.department : 'General');
   const [message, setMessage] = useState('');
@@ -188,7 +189,7 @@ export const FreedomWall: React.FC = () => {
     }
   }, [showCreateModal]);
 
-  const [activeTab, setActiveTab] = useState<'trending' | 'latest'>('latest');
+  const [activeTab, setActiveTab] = useState<'trending' | 'latest' | 'my_notes'>('latest');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -437,19 +438,38 @@ export const FreedomWall: React.FC = () => {
     }
   };
 
+  // Check if a pinned note is still active (within 24 hours / 1 day)
+  const isPinnedActive = React.useCallback((post: FreedomPost) => {
+    if (!post.is_pinned) return false;
+    const postAgeMs = Date.now() - new Date(post.created_at).getTime();
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    return postAgeMs <= ONE_DAY_MS;
+  }, []);
+
   // Filter & Sort Posts
   const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+
+  const myPostsCount = React.useMemo(() => {
+    return (freedomPosts || []).filter((p) => {
+      if (p.song_title) return false;
+      return (myPostIds || []).includes(p.id) || (p.author_id && p.author_id === currentUserId);
+    }).length;
+  }, [freedomPosts, myPostIds, currentUserId]);
 
   const filteredPosts = (freedomPosts || [])
     .filter((post) => {
       // Filter out song dedications (they belong on the Music Wall)
       if (post.song_title) return false;
 
+      const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
+
       // Pending approval filter: pending notes are only visible to the author or admins
       if (post.status === 'pending') {
-        const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
         if (!isMyPost && !isAdminUser) return false;
       }
+
+      // My Notes tab filter
+      if (activeTab === 'my_notes' && !isMyPost) return false;
 
       const matchDept = departmentFilter === 'all' || post.department === departmentFilter;
       const matchQuery =
@@ -460,51 +480,60 @@ export const FreedomWall: React.FC = () => {
       return matchDept && matchQuery;
     })
     .sort((a, b) => {
+      // Pinned notes that are active (created within 1 day) ALWAYS stay at the top
+      const aPinned = isPinnedActive(a);
+      const bPinned = isPinnedActive(b);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+
       if (activeTab === 'trending') return b.likes_count - a.likes_count;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const isToday = (dateString: string) => {
-    const postDate = new Date(dateString);
-    const today = new Date();
-    return (
-      postDate.getFullYear() === today.getFullYear() &&
-      postDate.getMonth() === today.getMonth() &&
-      postDate.getDate() === today.getDate()
-    );
+  // Reset to page 1 whenever active filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, departmentFilter, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / NOTES_PER_PAGE));
+
+  const visiblePageNumbers = React.useMemo(() => {
+    const maxPage = Math.max(3, totalPages);
+    let start = Math.max(1, currentPage - 1);
+    let end = start + 2;
+
+    if (end > maxPage) {
+      end = maxPage;
+      start = Math.max(1, end - 2);
+    }
+
+    const pages = [];
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }, [currentPage, totalPages]);
+
+  const paginatedPosts = React.useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages);
+    const start = (safePage - 1) * NOTES_PER_PAGE;
+    return filteredPosts.slice(start, start + NOTES_PER_PAGE);
+  }, [filteredPosts, currentPage, totalPages]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+    const el = document.getElementById('posts-feed-container');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
-
-  const todayPosts = React.useMemo(() => {
-    const todayOnly = filteredPosts.filter((post) => isToday(post.created_at));
-    return [...todayOnly].sort((a, b) => {
-      if (a.is_pinned && !b.is_pinned) return -1;
-      if (!a.is_pinned && b.is_pinned) return 1;
-      return 0;
-    });
-  }, [filteredPosts]);
-
-  const pastPosts = React.useMemo(() => {
-    return filteredPosts.filter((post) => !isToday(post.created_at));
-  }, [filteredPosts]);
-
-  const pastGroupedByDate = React.useMemo(() => {
-    const groups: { [dateStr: string]: FreedomPost[] } = {};
-    pastPosts.forEach((post) => {
-      const dateStr = new Date(post.created_at).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-      if (!groups[dateStr]) groups[dateStr] = [];
-      groups[dateStr].push(post);
-    });
-    return groups;
-  }, [pastPosts]);
 
   const renderPostCard = (post: FreedomPost) => {
     const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
-    const isPinned = !!post.is_pinned;
+    const isPinned = isPinnedActive(post);
+    const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
 
     return (
       <div
@@ -540,13 +569,18 @@ export const FreedomWall: React.FC = () => {
                   {post.department.replace('College of ', '')}
                 </span>
               )}
+              {isMyPost && !isPinned && !isPostAdmin && (
+                <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs" title="Created by you">
+                  YOU
+                </span>
+              )}
             </div>
             <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
               {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
 
-          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-black'}`}>
+          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-[#242423]'}`}>
             "{post.message}"
           </p>
         </div>
@@ -579,29 +613,29 @@ export const FreedomWall: React.FC = () => {
             </button>
 
             {isAdminUser && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => togglePinFreedomPost(post.id)}
-                  className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
-                    isPinned
-                      ? 'bg-[#ffc900] text-black border-black shadow-md scale-105'
-                      : 'bg-white text-black hover:bg-amber-100'
-                  }`}
-                  title={isPinned ? "Admin: Unpin Note" : "Admin: Pin Note to top"}
-                >
-                  <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-black' : ''}`} />
-                </button>
+              <button
+                type="button"
+                onClick={() => togglePinFreedomPost(post.id)}
+                className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
+                  isPinned
+                    ? 'bg-[#ffc900] text-black border-black shadow-md scale-105'
+                    : 'bg-white text-black hover:bg-amber-100'
+                }`}
+                title={isPinned ? "Admin: Unpin Note" : "Admin: Pin Note to top"}
+              >
+                <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-black' : ''}`} />
+              </button>
+            )}
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedPostForDelete(post)}
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
-                  title="Admin: Delete Note"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </>
+            {(isAdminUser || isMyPost) && (
+              <button
+                type="button"
+                onClick={() => setSelectedPostForDelete(post)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
+                title={isMyPost && !isAdminUser ? "Delete your note" : "Admin: Delete Note"}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             )}
 
             <button
@@ -723,16 +757,14 @@ export const FreedomWall: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setEncapsulatePastDays(!encapsulatePastDays)}
+            onClick={() => setActiveTab('my_notes')}
             className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border ${
-              encapsulatePastDays
-                ? 'bg-[#701a31] text-white border-black shadow-sm'
+              activeTab === 'my_notes'
+                ? 'bg-black text-white border-black shadow-sm'
                 : 'bg-white text-black border-[#d1d5dc] hover:border-black'
             }`}
-            title="Encapsulate notes from past days into daily archive capsules"
           >
-            <Archive className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#ffc900]" />
-            <span>{encapsulatePastDays ? 'Encapsulated 📦' : 'Unfolded 🔓'}</span>
+            <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#ffc900]" />
           </button>
         </div>
 
@@ -771,9 +803,13 @@ export const FreedomWall: React.FC = () => {
           <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto mb-3 text-xl sm:text-2xl">
             📜
           </div>
-          <h3 className="text-lg sm:text-xl font-extrabold text-black">No Freedom Wall Posts Found</h3>
+          <h3 className="text-lg sm:text-xl font-extrabold text-black">
+            {activeTab === 'my_notes' ? 'No Created Notes Yet' : 'No Freedom Wall Posts Found'}
+          </h3>
           <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
-            {searchQuery || departmentFilter !== 'all'
+            {activeTab === 'my_notes'
+              ? "You haven't created any notes on the Freedom Wall yet. Click below to share your first thought or confession!"
+              : searchQuery || departmentFilter !== 'all'
               ? 'No posts match your active search filter. Try clearing filters!'
               : 'Be the very first CU student to post an anonymous confession or thought on the wall!'}
           </p>
@@ -782,111 +818,67 @@ export const FreedomWall: React.FC = () => {
             onClick={() => setShowCreateModal(true)}
             className="mt-4 btn-gumroad-primary text-xs px-5 py-2.5"
           >
-            <span>Write First Post</span>
+            <span>{activeTab === 'my_notes' ? 'Post a Note' : 'Write First Post'}</span>
           </button>
         </div>
-      ) : encapsulatePastDays && !searchQuery.trim() ? (
-        <div className="space-y-6 sm:space-y-10">
-          {/* Today's Live Notes Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5 sm:mb-4 pb-1.5 sm:pb-2 border-b-2 border-black">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] border-2 border-black rounded-full text-[10px] sm:text-xs font-black text-black uppercase tracking-wider shadow-xs flex items-center gap-1">
-                  <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 animate-bounce" />
-                  Today's Live Notes ({todayPosts.length})
-                </span>
-              </div>
-              <span className="text-[11px] sm:text-xs font-extrabold text-black">
-                {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-              </span>
-            </div>
-
-            {todayPosts.length === 0 ? (
-              <div className="p-5 sm:p-8 text-center bg-white border-2 border-black rounded-2xl sm:rounded-3xl shadow-sm text-xs font-bold text-gray-600">
-                ✨ No notes published yet today! Be the first student to share a thought on the wall today.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-                {todayPosts.map((post) => renderPostCard(post))}
-              </div>
-            )}
+      ) : (
+        <div id="posts-feed-container" className="scroll-mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            {paginatedPosts.map((post) => renderPostCard(post))}
           </div>
 
-          {/* Past Days Encapsulated Archives Section */}
-          {Object.keys(pastGroupedByDate).length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2.5 sm:mb-4 pb-1.5 sm:pb-2 border-b-2 border-black">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#701a31] border-2 border-black text-white text-[10px] sm:text-xs font-black rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1">
-                    <Archive className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#ffc900]" />
-                    Encapsulated Past Archives ({Object.keys(pastGroupedByDate).length} Capsules)
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEncapsulatePastDays(false)}
-                  className="text-[11px] sm:text-xs font-extrabold text-black hover:text-[#701a31] transition-colors"
-                >
-                  Unfold Days 🔓
-                </button>
-              </div>
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#f4f4f0] border-2 border-black rounded-2xl p-3 sm:p-4 shadow-xs">
+            <span className="text-xs font-bold text-black text-center sm:text-left">
+              Showing <span className="font-extrabold">{((currentPage - 1) * NOTES_PER_PAGE) + 1}</span> - <span className="font-extrabold">{Math.min(currentPage * NOTES_PER_PAGE, filteredPosts.length)}</span> of <span className="font-extrabold">{filteredPosts.length}</span> notes
+            </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-                {Object.entries(pastGroupedByDate).map(([dateStr, posts]) => {
-                  const sampleAliases = Array.from(new Set(posts.map((p) => p.author_alias || 'Anon Student'))).slice(0, 3).join(', ');
-                  const totalLikes = posts.reduce((sum, p) => sum + (p.likes_count || 0), 0);
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1">
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl border-2 border-black font-black text-sm sm:text-base flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-black hover:text-white text-black active:scale-95 shadow-xs shrink-0"
+                title="Previous Page (<)"
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
+              </button>
 
+              <div className="flex items-center gap-1">
+                {visiblePageNumbers.map((pageNum) => {
+                  const isDisabled = pageNum > totalPages;
+                  const isCurrent = pageNum === currentPage;
                   return (
-                    <div
-                      key={dateStr}
-                      onClick={() => {
-                        setSelectedCapsuleDate(dateStr);
-                        setSelectedCapsulePosts(posts);
-                      }}
-                      className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-black bg-white hover:bg-[#f4f4f0] transition-all flex flex-col justify-between cursor-pointer group shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]"
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => !isDisabled && handlePageChange(pageNum)}
+                      disabled={isDisabled}
+                      className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl text-xs sm:text-sm font-extrabold transition-all border-2 border-black flex items-center justify-center shadow-xs ${
+                        isCurrent
+                          ? 'bg-black text-white border-black scale-105 shadow-sm'
+                          : isDisabled
+                          ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-40'
+                          : 'bg-white text-black hover:bg-[#ffc900] active:scale-95'
+                      }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
-                          <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider flex items-center gap-1 border border-black shadow-xs">
-                            <Archive className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#ffc900]" />
-                            Daily Capsule
-                          </span>
-                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-600">
-                            {dateStr}
-                          </span>
-                        </div>
-
-                        <h4 className="text-base sm:text-lg font-black text-black mb-1">
-                          {dateStr} Archive 📦
-                        </h4>
-                        <p className="text-[11px] sm:text-xs text-gray-600 font-semibold mb-2.5 sm:mb-4 line-clamp-2">
-                          Includes confessions by <span className="text-black font-extrabold">{sampleAliases}</span> and others.
-                        </p>
-                      </div>
-
-                      <div className="pt-2 sm:pt-3 border-t border-black/15 flex items-center justify-between text-xs font-bold text-black">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                          <span className="px-2 py-0.5 bg-[#ffc900] border border-black rounded-full text-[10px] sm:text-[11px] font-black text-black shadow-xs">
-                            📜 {posts.length} Notes
-                          </span>
-                          <span className="text-[10px] sm:text-[11px] font-bold text-gray-600">
-                            ❤️ {totalLikes}
-                          </span>
-                        </div>
-                        <span className="text-[11px] sm:text-xs font-black text-[#701a31] group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                          Unfold Capsule 🔓
-                        </span>
-                      </div>
-                    </div>
+                      {pageNum}
+                    </button>
                   );
                 })}
               </div>
+
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl border-2 border-black font-black text-sm sm:text-base flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-black hover:text-white text-black active:scale-95 shadow-xs shrink-0"
+                title="Next Page (>)"
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
+              </button>
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-          {filteredPosts.map((post) => renderPostCard(post))}
+          </div>
         </div>
       )}
 
@@ -1218,66 +1210,9 @@ export const FreedomWall: React.FC = () => {
           post={selectedPostForDelete}
           onConfirm={() => {
             deleteFreedomPost(selectedPostForDelete.id);
-            setSelectedCapsulePosts((prev) => prev.filter((p) => p.id !== selectedPostForDelete.id));
           }}
           onClose={() => setSelectedPostForDelete(null)}
         />
-      )}
-
-      {/* Encapsulated Capsule Viewer Modal */}
-      {selectedCapsuleDate && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-black rounded-[32px] max-w-4xl w-full p-6 relative shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCapsuleDate(null);
-                setSelectedCapsulePosts([]);
-              }}
-              className="absolute top-5 right-5 p-1.5 hover:bg-black/10 rounded-full text-black transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6 pb-3 border-b-2 border-black">
-              <div className="p-3 bg-[#701a31] border-2 border-black rounded-2xl text-white shadow-xs">
-                <Archive className="w-6 h-6 text-[#ffc900]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 bg-[#ffc900] border border-black text-black text-[10px] font-black rounded-full uppercase">
-                    Encapsulated Archive
-                  </span>
-                  <span className="text-xs font-bold text-gray-500">
-                    {selectedCapsulePosts.length} Notes Total
-                  </span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-black">
-                  {selectedCapsuleDate} Daily Capsule 📦
-                </h3>
-              </div>
-            </div>
-
-            <div className="overflow-y-auto flex-1 pr-1 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {selectedCapsulePosts.map((post) => renderPostCard(post))}
-              </div>
-            </div>
-
-            <div className="pt-4 mt-4 border-t border-black/15 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCapsuleDate(null);
-                  setSelectedCapsulePosts([]);
-                }}
-                className="btn-gumroad-ghost text-xs px-5 py-2"
-              >
-                Close Capsule
-              </button>
-            </div>
-          </div>
-        </div>
       )}
       {/* Reactors Overlay — who liked this note */}
       {reactorsPost && (
