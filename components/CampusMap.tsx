@@ -482,7 +482,7 @@ export const CampusMap: React.FC = () => {
           </span>
           <div className="min-w-0">
             <h1 className="text-xs sm:text-base font-extrabold text-black truncate leading-snug">
-              Capitol University Memory Map
+              Memory Map
             </h1>
             <p className="text-[10px] sm:text-xs text-[#242423] font-semibold truncate hidden sm:block">
               {mapPins.length} pinpoint notes dropped
