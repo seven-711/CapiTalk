@@ -438,12 +438,15 @@ export const FreedomWall: React.FC = () => {
     }
   };
 
-  // Check if a pinned note is still active (within 24 hours / 1 day)
+  // Check if a pinned note is still active (within 24 hours of being pinned)
   const isPinnedActive = React.useCallback((post: FreedomPost) => {
     if (!post.is_pinned) return false;
-    const postAgeMs = Date.now() - new Date(post.created_at).getTime();
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-    return postAgeMs <= ONE_DAY_MS;
+    if (post.pinned_at) {
+      const pinAgeMs = Date.now() - new Date(post.pinned_at).getTime();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      return pinAgeMs <= ONE_DAY_MS;
+    }
+    return true;
   }, []);
 
   // Filter & Sort Posts

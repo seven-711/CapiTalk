@@ -300,6 +300,16 @@ export const MusicWall: React.FC = () => {
 
   const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
 
+  const isPinnedActive = React.useCallback((post: FreedomPost) => {
+    if (!post.is_pinned) return false;
+    if (post.pinned_at) {
+      const pinAgeMs = Date.now() - new Date(post.pinned_at).getTime();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      return pinAgeMs <= ONE_DAY_MS;
+    }
+    return true;
+  }, []);
+
   // Filter ONLY posts that have a song title
   const filteredPosts = (freedomPosts || [])
     .filter((post) => {
@@ -310,8 +320,10 @@ export const MusicWall: React.FC = () => {
       return true;
     })
     .sort((a, b) => {
-      if (a.is_pinned !== b.is_pinned) {
-        return a.is_pinned ? -1 : 1;
+      const aPinned = isPinnedActive(a);
+      const bPinned = isPinnedActive(b);
+      if (aPinned !== bPinned) {
+        return aPinned ? -1 : 1;
       }
       if (activeTab === 'trending') {
         const scoreA = (a.likes_count * 2) + (a.comments_count || 0);
@@ -327,7 +339,7 @@ export const MusicWall: React.FC = () => {
       : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
     const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
-    const isPinned = !!post.is_pinned;
+    const isPinned = isPinnedActive(post);
     const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
 
     return (

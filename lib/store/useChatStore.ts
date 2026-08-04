@@ -874,15 +874,45 @@ export const useChatStore = create<ChatStoreState>()(
 
       registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => {
         const persistentId = getOrCreatePersistentUUID();
+        const trimmedUsername = username.trim();
         const newUser: UserProfile = {
           id: persistentId,
-          username: username.trim(),
+          username: trimmedUsername,
           department,
-          avatar_url: avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
+          avatar_url: avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${trimmedUsername}`,
           bio: bio?.trim() || '',
           status: 'online',
           created_at: new Date().toISOString(),
         };
+
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('capitalk_taken_usernames_v1');
+            const takenMap: Record<string, string> = raw ? JSON.parse(raw) : {};
+            takenMap[trimmedUsername.toLowerCase()] = persistentId;
+            localStorage.setItem('capitalk_taken_usernames_v1', JSON.stringify(takenMap));
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('users')
+              .upsert(
+                {
+                  id: persistentId,
+                  username: trimmedUsername,
+                  department,
+                  avatar_url: newUser.avatar_url,
+                  bio: newUser.bio,
+                  status: 'online',
+                },
+                { onConflict: 'id' }
+              )
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
         set({ currentUser: newUser, viewState: 'queue' });
       },
 
@@ -1686,9 +1716,12 @@ export const useChatStore = create<ChatStoreState>()(
         if (!target) return;
 
         const isNowPinned = !target.is_pinned;
+        const nowIso = new Date().toISOString();
 
         const updated = freedomPosts.map((post) =>
-          post.id === postId ? { ...post, is_pinned: isNowPinned } : post
+          post.id === postId
+            ? { ...post, is_pinned: isNowPinned, pinned_at: isNowPinned ? nowIso : undefined }
+            : post
         );
 
         if (typeof window !== 'undefined') {
@@ -1707,7 +1740,7 @@ export const useChatStore = create<ChatStoreState>()(
           try {
             supabase
               .from('freedom_posts')
-              .update({ is_pinned: isNowPinned })
+              .update({ is_pinned: isNowPinned, pinned_at: isNowPinned ? nowIso : null })
               .eq('id', postId)
               .then(() => {}, () => {});
           } catch (e) {}

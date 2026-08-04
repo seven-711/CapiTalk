@@ -1,29 +1,62 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CU_DEPARTMENTS, DEFAULT_AVATARS, DepartmentType } from '../lib/constants';
-import { validateUsername } from '../lib/utils/safety';
+import { validateUsername, checkUsernameAvailability } from '../lib/utils/safety';
 import { CoinMascot } from './CoinMascot';
 import { Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export const RegistrationModal: React.FC = () => {
-  const { registerUser, setViewState } = useChatStore();
+  const { currentUser, registerUser, setViewState } = useChatStore();
 
-  const [username, setUsername] = useState('');
-  const [department, setDepartment] = useState<DepartmentType>('College of Computer Studies');
-  const [selectedAvatar, setSelectedAvatar] = useState(DEFAULT_AVATARS[0]);
-  const [bio, setBio] = useState('');
+  const [username, setUsername] = useState(currentUser ? currentUser.username : '');
+  const [department, setDepartment] = useState<DepartmentType>(currentUser ? currentUser.department : 'College of Computer Studies');
+  const [selectedAvatar, setSelectedAvatar] = useState(currentUser?.avatar_url || DEFAULT_AVATARS[0]);
+  const [bio, setBio] = useState(currentUser?.bio || '');
   const [agreed, setAgreed] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<{ isAvailable: boolean; message?: string } | null>(null);
+
+  useEffect(() => {
+    if (!username.trim()) {
+      setUsernameStatus(null);
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingUsername(true);
+      const res = await checkUsernameAvailability(username, currentUser?.id);
+      setIsCheckingUsername(false);
+      if (!res.isAvailable) {
+        setUsernameStatus({ isAvailable: false, message: res.error });
+      } else {
+        setUsernameStatus({ isAvailable: true, message: `Username @${username.trim()} is available!` });
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [username, currentUser?.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const validation = validateUsername(username);
     if (!validation.isValid) {
       setError(validation.error || 'Invalid username');
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    const availability = await checkUsernameAvailability(username, currentUser?.id);
+    setIsCheckingUsername(false);
+
+    if (!availability.isAvailable) {
+      setError(availability.error || 'Username is already taken by another user.');
       return;
     }
 
@@ -45,10 +78,10 @@ export const RegistrationModal: React.FC = () => {
 
         <div className="mb-4 sm:mb-6">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-black">
-            Create Your CapiTalk Profile
+            {currentUser ? 'Edit Your CapiTalk Profile' : 'Create Your CapiTalk Profile'}
           </h2>
           <p className="text-sm text-[#242423] mt-1.5">
-            Keep your real identity private. Pick a username and your college department.
+            Keep your real identity private. Pick a unique username and your college department.
           </p>
         </div>
 
@@ -102,12 +135,30 @@ export const RegistrationModal: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. engr_masarap, nursing_mwa , poging_marino"
-              className="gumroad-input w-full"
+              className={`gumroad-input w-full ${
+                usernameStatus
+                  ? usernameStatus.isAvailable
+                    ? 'border-emerald-600 focus:ring-emerald-600'
+                    : 'border-red-600 focus:ring-red-600'
+                  : ''
+              }`}
               maxLength={20}
             />
-            <p className="text-xs text-[#242423] mt-1">
-              3–20 characters. Letters, numbers, and underscores only. No student IDs or real names.
-            </p>
+            {isCheckingUsername ? (
+              <p className="text-xs text-amber-700 font-semibold mt-1.5 flex items-center gap-1 animate-pulse">
+                <span>⏳</span> Checking username availability...
+              </p>
+            ) : usernameStatus ? (
+              <p className={`text-xs font-semibold mt-1.5 flex items-center gap-1.5 ${
+                usernameStatus.isAvailable ? 'text-emerald-600' : 'text-red-600 font-bold'
+              }`}>
+                <span>{usernameStatus.isAvailable ? '✅' : '🚫'}</span> {usernameStatus.message}
+              </p>
+            ) : (
+              <p className="text-xs text-[#242423] mt-1">
+                3–20 characters. Letters, numbers, and underscores only. Must be unique to prevent impersonation.
+              </p>
+            )}
           </div>
 
           {/* Department Select */}
@@ -165,9 +216,10 @@ export const RegistrationModal: React.FC = () => {
           <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
-              className="btn-gumroad-primary w-full py-3.5 text-base"
+              disabled={isCheckingUsername || (usernameStatus !== null && !usernameStatus.isAvailable)}
+              className="btn-gumroad-primary w-full py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span>Start Chatting</span>
+              <span>{isCheckingUsername ? 'Checking...' : currentUser ? 'Save Profile' : 'Start Chatting'}</span>
             </button>
           </div>
         </form>

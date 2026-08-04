@@ -82,6 +82,7 @@ export interface FreedomPost {
   comments_count?: number;
   is_admin?: boolean;
   is_pinned?: boolean;
+  pinned_at?: string;
   status?: 'pending' | 'approved' | 'rejected';
   song_title?: string;
   song_artist?: string;
