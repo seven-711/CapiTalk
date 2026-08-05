@@ -64,11 +64,9 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Live Status Badge — desktop only */}
-        <div className="hidden lg:flex items-center gap-1.5 stat-badge">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[11px] font-semibold whitespace-nowrap">
-            {onlineCount > 0 ? `${onlineCount} Online` : 'Connecting...'}
-          </span>
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#dc341e] text-white font-extrabold text-[11px] rounded-full border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+          <span>Offline — Service Ceased</span>
         </div>
 
         {/* Navigation Links & Action Buttons */}
@@ -298,12 +296,12 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setViewState('landing');
+                  setViewState('ceased');
                   setShowMenuDrawer(false);
                 }}
                 className="w-full py-2.5 rounded-xl border-2 border-black bg-white hover:bg-black hover:text-white text-black font-extrabold text-xs transition-all shadow-xs"
               >
-                Return to Landing Page
+                Sunset Notice &amp; Info
               </button>
               <p className="text-[10px] text-center text-gray-500 font-bold">
                 CapiTalk — Capitol University Student Network

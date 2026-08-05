@@ -13,6 +13,7 @@ import { MusicWall } from '../components/MusicWall';
 import { CampusMap } from '../components/CampusMap';
 import { MusicWallFeatureModal } from '../components/MusicWallFeatureModal';
 import { SilipFeatureBanner } from '../components/SilipFeatureBanner';
+import { CeasedPage } from '../components/CeasedPage';
 import {
   Sparkles,
   ShieldCheck,
@@ -45,7 +46,7 @@ export default function Home() {
   const [showSilipBanner, setShowSilipBanner] = React.useState(false);
 
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && viewState !== 'ceased') {
       const seenMusic = localStorage.getItem('capitalk_music_wall_feature_v1');
       if (!seenMusic) {
         setShowFeatureModal(true);
@@ -57,10 +58,14 @@ export default function Home() {
       }
     }
 
-    const handleOpenModal = () => setShowFeatureModal(true);
+    const handleOpenModal = () => {
+      if (viewState !== 'ceased') {
+        setShowFeatureModal(true);
+      }
+    };
     window.addEventListener('capitalk_open_feature_modal', handleOpenModal);
     return () => window.removeEventListener('capitalk_open_feature_modal', handleOpenModal);
-  }, []);
+  }, [viewState]);
 
   const handleCloseFeatureModal = () => {
     if (typeof window !== 'undefined') {
@@ -161,6 +166,8 @@ export default function Home() {
 
       {/* Main Content View Switcher */}
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {viewState === 'ceased' && <CeasedPage />}
+
         {viewState === 'register' && <RegistrationModal />}
 
         {viewState === 'queue' && <MatchmakingScreen />}
@@ -234,7 +241,7 @@ export default function Home() {
 
                 {/* Micro Guarantee Label */}
                 <p className="mt-4 text-xs font-medium text-[#242423]">
-                  🔒 No real names or student IDs are ever shared inside chats.
+                  No real names or student IDs are ever shared inside chats.
                 </p>
               </div>
             </section>

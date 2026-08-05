@@ -24,8 +24,8 @@ interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map';
-  setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map') => void;
+  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map';
+  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map') => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -130,8 +130,20 @@ export const useChatStore = create<ChatStoreState>()(
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
-      viewState: 'landing',
-      setViewState: (view: 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map') => set({ viewState: view }),
+      viewState: 'ceased',
+      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map') => {
+        if (view !== 'ceased' && view !== 'admin') {
+          set({
+            viewState: 'ceased',
+            actionToast: {
+              type: 'ban',
+              message: 'CapiTalk services have ceased operations. Access to active features is disabled.',
+            },
+          });
+        } else {
+          set({ viewState: view });
+        }
+      },
 
       wallNotifications: typeof window !== 'undefined'
         ? (() => {
