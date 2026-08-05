@@ -108,18 +108,24 @@ export const useChatStore = create<ChatStoreState>()(
     (set, get) => ({
       // existing state fields ...
       // ... (no change to previous lines up to here)
-      // Add new method
-      clearAllMapPins: () => {
-        // Clear map pins from state
-        set({ mapPins: [] });
+      // Clear all demo data (freedom posts, map pins, localStorage)
+      clearAllDemoData: () => {
+        // Reset state arrays
+        set({ freedomPosts: [], mapPins: [] });
         // Remove from localStorage
         if (typeof window !== 'undefined') {
           try {
+            localStorage.removeItem('capitalk_freedom_wall_v1');
             localStorage.removeItem('capitalk_map_pins_v1');
+            // Remove any comment entries
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith('capitalk_comments_')) {
+                localStorage.removeItem(key);
+              }
+            });
           } catch (e) {}
         }
       },
-      // Continue with existing methods
 
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
