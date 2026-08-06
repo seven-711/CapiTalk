@@ -510,6 +510,22 @@ export const MusicWall: React.FC = () => {
             {post.song_artist || 'Unknown Artist'}
           </p>
 
+          {/* Admin Approve Button — shown on card when pending */}
+          {isAdminUser && post.status === 'pending' && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                approveFreedomPost(post.id);
+              }}
+              className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-black bg-emerald-500 text-white font-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] shadow-xs active:scale-95 hover:bg-emerald-600 transition-all"
+              title="Admin: Approve & Publish to Music Wall"
+            >
+              <CheckCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              <span>Approve</span>
+            </button>
+          )}
+
           {/* Bottom Indicators */}
           <div className="mt-1.5 flex items-center justify-center gap-1 text-[8px] xs:text-[9px] sm:text-[10px] font-black">
             <button
@@ -1010,6 +1026,21 @@ export const MusicWall: React.FC = () => {
                   >
                     <Flag className="w-4 h-4" />
                   </button>
+
+                  {isAdminUser && post.status === 'pending' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        approveFreedomPost(post.id);
+                        setSelectedPostForDetail(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-black bg-emerald-500 text-white font-black text-xs hover:bg-emerald-600 transition-all shadow-xs active:scale-95"
+                      title="Admin: Approve & Publish to Music Wall"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Approve</span>
+                    </button>
+                  )}
 
                   {isAdminUser && (
                     <button
