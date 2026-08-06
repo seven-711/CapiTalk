@@ -622,10 +622,10 @@ export const AdminDashboard: React.FC = () => {
           <div className="gumroad-card p-6">
             <h3 className="text-lg font-extrabold text-black mb-2 flex items-center gap-2">
               <UserX className="w-5 h-5 text-red-600" />
-              Manual Student Ban Control
+              Manual Real-Time Student &amp; IP Ban Control
             </h3>
             <p className="text-xs text-[#242423] mb-4">
-              Enter a student User ID or Username to restrict them from entering matchmaking queue.
+              Enter a student <strong>User ID</strong>, <strong>Username (e.g. BadUser123)</strong>, or <strong>IP Address</strong> to instantly evict them and restrict access across all devices in real-time.
             </p>
 
             <form onSubmit={handleManualBan} className="flex flex-col sm:flex-row gap-3">
@@ -633,12 +633,12 @@ export const AdminDashboard: React.FC = () => {
                 type="text"
                 value={manualBanInput}
                 onChange={(e) => setManualBanInput(e.target.value)}
-                placeholder="Enter User ID or Username (e.g. usr_99a8x or BadUser123)..."
+                placeholder="Enter User ID, Username, or IP Address (e.g. BadUser123 or 192.168.1.1)..."
                 className="gumroad-input flex-1 text-sm py-2.5"
                 required
               />
               <button type="submit" className="btn-gumroad-primary text-xs px-6 py-2.5 bg-[#dc341e]">
-                Ban Student ID
+                Ban Account &amp; IP
               </button>
             </form>
           </div>
@@ -646,37 +646,49 @@ export const AdminDashboard: React.FC = () => {
           {/* Active Banned Users List */}
           <div className="gumroad-card overflow-hidden">
             <div className="p-4 bg-[#f4f4f0] border-b border-[#d1d5dc] font-bold text-sm text-black flex items-center justify-between">
-              <span>Restricted Student Accounts</span>
-              <span className="text-xs font-bold text-[#242423]">{bannedUserIds.length} Banned</span>
+              <span>Restricted Student Accounts &amp; Network IPs</span>
+              <span className="text-xs font-bold text-[#242423]">{bannedUserIds.length} Restricted</span>
             </div>
 
             {bannedUserIds.length === 0 ? (
               <div className="p-8 text-center text-xs text-[#242423]">
-                No user accounts are currently restricted.
+                No user accounts or IP addresses are currently restricted.
               </div>
             ) : (
               <div className="divide-y divide-[#d1d5dc]">
-                {bannedUserIds.map((id) => (
-                  <div key={id} className="p-4 flex items-center justify-between bg-white hover:bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-red-100 border border-red-300 text-red-600 flex items-center justify-center font-bold text-xs">
-                        <Slash className="w-4 h-4" />
+                {bannedUserIds.map((id) => {
+                  const isIp = id.includes('.') || id.includes(':');
+                  return (
+                    <div key={id} className="p-4 flex items-center justify-between bg-white hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-red-100 border border-red-300 text-red-600 flex items-center justify-center font-bold text-xs">
+                          <Slash className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-extrabold text-black">{id}</p>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              isIp
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-red-100 text-red-800 border-red-300'
+                            }`}>
+                              {isIp ? '🌐 IP Address Ban' : '👤 Username / ID Ban'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-red-600 font-medium mt-0.5">Status: Access Ceased &amp; Evicted</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-extrabold text-black">{id}</p>
-                        <p className="text-[11px] text-red-600 font-medium">Status: Suspended</p>
-                      </div>
-                    </div>
 
-                    <button
-                      onClick={() => toggleBanUser(id)}
-                      className="btn-gumroad-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
-                    >
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Unban Account</span>
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        onClick={() => toggleBanUser(id)}
+                        className="btn-gumroad-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Unban Access</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

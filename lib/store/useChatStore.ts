@@ -63,6 +63,11 @@ interface ChatStoreState {
   showFeedbackModal: boolean;
   setShowFeedbackModal: (show: boolean) => void;
 
+  clientIp: string | null;
+  banReason: string | null;
+  checkBanStatus: () => Promise<boolean>;
+  banUserWithIP: (targetIdentifier: string, targetIp?: string, reason?: string) => Promise<void>;
+
   initSession: () => void;
   registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => void;
   startSearch: () => void;
@@ -267,8 +272,45 @@ export const useChatStore = create<ChatStoreState>()(
       showFeedbackModal: false,
       setShowFeedbackModal: (show: boolean) => set({ showFeedbackModal: show }),
 
+      clientIp: null,
+      banReason: null,
+
+      checkBanStatus: async () => {
+        if (typeof window === 'undefined') return false;
+        const { currentUser } = get();
+        const deviceId = getOrCreatePersistentUUID();
+        try {
+          const queryParams = new URLSearchParams({
+            userId: currentUser?.id || '',
+            username: currentUser?.username || '',
+            deviceId: deviceId || '',
+          });
+          const res = await fetch(`/api/auth/ban-check?${queryParams.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ip) {
+              set({ clientIp: data.ip });
+            }
+            if (data.isBanned) {
+              try { get().cancelSearch(); } catch (e) {}
+              try { roomManager.leaveRoom(); } catch (e) {}
+              set({
+                viewState: 'ceased',
+                banReason: data.banReason || 'Account or IP address restricted by CapiTalk Administrator.',
+              });
+              localStorage.setItem('capitalk_is_banned', 'true');
+              return true;
+            }
+          }
+        } catch (e) {}
+        return false;
+      },
+
       initSession: () => {
         const { activeRoom, currentUser, isSearching } = get();
+        
+        // Initial real-time ban check via API
+        get().checkBanStatus();
 
         // 1. Sync reports & bans across browser tabs & sessions via shared localStorage
         if (typeof window !== 'undefined') {
@@ -373,10 +415,10 @@ export const useChatStore = create<ChatStoreState>()(
               try {
                 supabase
                   .from('banned_users')
-                  .select('user_id, device_id')
+                  .select('user_id, device_id, ip_address, username')
                   .then(({ data, error }) => {
                     if (data && data.length > 0 && !error) {
-                      const dbBans = data.flatMap((b: any) => [b.user_id, b.device_id]).filter(Boolean);
+                      const dbBans = data.flatMap((b: any) => [b.user_id, b.device_id, b.ip_address, b.username]).filter(Boolean);
                       const currentBans = get().bannedUserIds;
                       const mergedBans = [...new Set([...currentBans, ...dbBans])];
                       set({ bannedUserIds: mergedBans });
@@ -385,6 +427,44 @@ export const useChatStore = create<ChatStoreState>()(
                       }
                     }
                   }, () => {});
+
+                // Supabase Realtime subscription to banned_users table for instant eviction
+                const bannedChannel = supabase
+                  .channel('public:banned_users')
+                  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'banned_users' }, (payload: any) => {
+                    const newBan = payload.new;
+                    if (newBan) {
+                      const store = get();
+                      const myUserId = store.currentUser?.id?.toLowerCase();
+                      const myUsername = store.currentUser?.username?.toLowerCase();
+                      const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('capitalk_anon_user_id') : null;
+                      const myIp = store.clientIp;
+
+                      const targetUser = newBan.user_id?.toLowerCase();
+                      const targetName = newBan.username?.toLowerCase();
+                      const targetDevice = newBan.device_id;
+                      const targetIp = newBan.ip_address;
+
+                      const isBanned =
+                        (targetUser && (targetUser === myUserId || targetUser === myUsername)) ||
+                        (targetName && (targetName === myUsername || targetName === myUserId)) ||
+                        (targetDevice && targetDevice === myDeviceId) ||
+                        (targetIp && targetIp === myIp);
+
+                      if (isBanned) {
+                        try { get().cancelSearch(); } catch (e) {}
+                        try { roomManager.leaveRoom(); } catch (e) {}
+                        set({
+                          viewState: 'ceased',
+                          banReason: newBan.reason || 'Account or IP address restricted by CapiTalk Administrator.',
+                        });
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('capitalk_is_banned', 'true');
+                        }
+                      }
+                    }
+                  })
+                  .subscribe();
               } catch (e) {}
             }
 
@@ -465,6 +545,32 @@ export const useChatStore = create<ChatStoreState>()(
                   set({ freedomPosts: event.data.posts });
                 } else if (event.data?.type === 'WALL_NOTIFICATIONS_UPDATE') {
                   set({ wallNotifications: event.data.notifications });
+                } else if (event.data?.type === 'USER_BANNED') {
+                  const { bannedTarget, bannedIp, banReason } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id?.toLowerCase();
+                  const myUsername = store.currentUser?.username?.toLowerCase();
+                  const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('capitalk_anon_user_id') : null;
+                  const myIp = store.clientIp;
+
+                  const targetStr = (bannedTarget || '').toLowerCase();
+                  const isMatch =
+                    targetStr === myUserId ||
+                    targetStr === myUsername ||
+                    bannedTarget === myDeviceId ||
+                    (bannedIp && bannedIp === myIp);
+
+                  if (isMatch) {
+                    try { get().cancelSearch(); } catch (e) {}
+                    try { roomManager.leaveRoom(); } catch (e) {}
+                    set({
+                      viewState: 'ceased',
+                      banReason: banReason || 'Account or IP address restricted by CapiTalk Administrator.',
+                    });
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('capitalk_is_banned', 'true');
+                    }
+                  }
                 } else if (event.data?.type === 'FREEDOM_WALL_LIKE') {
                   const { postId, actorAlias, actorDept, messageSnippet, likerId } = event.data;
                   const { myPostIds, currentUser } = get();
@@ -1502,10 +1608,21 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       toggleBanUser: (userId: string) => {
-        const { bannedUserIds } = get();
-        const updatedBans = bannedUserIds.includes(userId)
-          ? bannedUserIds.filter((id) => id !== userId)
-          : [...bannedUserIds, userId];
+        get().banUserWithIP(userId);
+      },
+
+      banUserWithIP: async (targetIdentifier: string, targetIp?: string, reason?: string) => {
+        const cleanTarget = targetIdentifier.trim();
+        if (!cleanTarget) return;
+
+        const { bannedUserIds, clientIp } = get();
+        const effectiveIp = targetIp || (cleanTarget.includes('.') || cleanTarget.includes(':') ? cleanTarget : clientIp);
+        const banReason = reason || 'Restricted by CapiTalk Administrator.';
+
+        const isCurrentlyBanned = bannedUserIds.includes(cleanTarget);
+        const updatedBans = isCurrentlyBanned
+          ? bannedUserIds.filter((id) => id !== cleanTarget)
+          : [...bannedUserIds, cleanTarget];
 
         if (typeof window !== 'undefined') {
           try {
@@ -1513,12 +1630,41 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
+        // HTML5 BroadcastChannel multi-tab real-time notify
+        if (broadcastChannel && !isCurrentlyBanned) {
+          try {
+            broadcastChannel.postMessage({
+              type: 'USER_BANNED',
+              bannedTarget: cleanTarget,
+              bannedIp: effectiveIp,
+              banReason,
+            });
+          } catch (e) {}
+        }
+
         if (supabase && isSupabaseConfigured) {
           try {
-            if (bannedUserIds.includes(userId)) {
-              supabase.from('banned_users').delete().eq('user_id', userId).then(() => {}, () => {});
+            if (isCurrentlyBanned) {
+              supabase
+                .from('banned_users')
+                .delete()
+                .or(`user_id.eq.${cleanTarget},username.ilike.${cleanTarget},ip_address.eq.${cleanTarget}`)
+                .then(() => {}, () => {});
             } else {
-              supabase.from('banned_users').upsert({ user_id: userId }).then(() => {}, () => {});
+              const isIpFormat = cleanTarget.includes('.') || cleanTarget.includes(':');
+              const payload: any = {
+                reason: banReason,
+                banned_at: new Date().toISOString(),
+              };
+              if (isIpFormat) {
+                payload.ip_address = cleanTarget;
+              } else {
+                payload.user_id = cleanTarget;
+                payload.username = cleanTarget;
+                if (effectiveIp) payload.ip_address = effectiveIp;
+              }
+
+              supabase.from('banned_users').upsert(payload).then(() => {}, () => {});
             }
           } catch (e) {}
         }
@@ -1526,8 +1672,10 @@ export const useChatStore = create<ChatStoreState>()(
         set({
           bannedUserIds: updatedBans,
           actionToast: {
-            type: bannedUserIds.includes(userId) ? 'announcement' : 'ban',
-            message: bannedUserIds.includes(userId) ? 'User unbanned successfully.' : 'User added to ban list.',
+            type: isCurrentlyBanned ? 'announcement' : 'ban',
+            message: isCurrentlyBanned
+              ? `User/IP "${cleanTarget}" unbanned successfully.`
+              : `🚫 User/IP "${cleanTarget}" banned in real-time.`,
           },
         });
       },

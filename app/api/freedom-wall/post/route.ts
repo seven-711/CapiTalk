@@ -68,11 +68,15 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // LAYER 3: Check Supabase banned_users table
+    // LAYER 3: Check Supabase banned_users table (IP, Device, User ID, Username)
     try {
       const authorId = postData.author_id;
+      const authorAlias = postData.author_alias;
       let queryFilter = `device_id.eq.${deviceId}`;
+      if (ip && ip !== 'unknown') queryFilter += `,ip_address.eq.${ip}`;
       if (authorId) queryFilter += `,user_id.eq.${authorId}`;
+      if (authorAlias) queryFilter += `,username.ilike.${authorAlias}`;
+
       const { data: bannedData } = await supabase
         .from('banned_users')
         .select('id')
@@ -80,7 +84,7 @@ export async function POST(req: Request) {
         .limit(1);
 
       if (bannedData && bannedData.length > 0) {
-        console.warn(`[SHADOW BAN] Blocked post from banned user/device ${deviceId}`);
+        console.warn(`[SHADOW BAN] Blocked post from banned user/device/IP ${ip} (${deviceId})`);
         return NextResponse.json({ success: true, message: 'Post created successfully.' }, { status: 200 });
       }
     } catch (e) {}

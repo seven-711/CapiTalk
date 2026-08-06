@@ -238,14 +238,15 @@ export const CampusMap: React.FC = () => {
 
       googleMapInstance.current = map;
 
-      // Click on map to add a pin
+      // Click on map to open the Add Pin modal at those coordinates
       map.addListener('click', (e: any) => {
         if (e.latLng) {
           const lat = e.latLng.lat();
           const lng = e.latLng.lng();
           setClickCoords({ lat, lng });
-          setShowAddModal(true);
+          setMessage('');
           setSelectedPin(null);
+          setShowAddModal(true);
         }
       });
     } catch (err) {
@@ -399,20 +400,15 @@ export const CampusMap: React.FC = () => {
     e.preventDefault();
     setFormError(null);
 
-    if (!spotName.trim()) {
-      setFormError('Please provide a name/label for this spot.');
-      return;
-    }
-
     if (!message.trim()) {
-      setFormError('Please share why this spot is special to you.');
+      setFormError('Please write a memory note before dropping your pinpoint.');
       return;
     }
 
     const coords = clickCoords || CAPITOL_UNIV_CENTER;
 
     addMapPin({
-      spot_name: spotName.trim(),
+      spot_name: '  Landmark Spot',
       message: message.trim(),
       lat: coords.lat,
       lng: coords.lng,
@@ -421,7 +417,6 @@ export const CampusMap: React.FC = () => {
       department: department || (currentUser ? currentUser.department : 'College of Engineering'),
     });
 
-    setSpotName('');
     setMessage('');
     setShowAddModal(false);
     setClickCoords(null);
@@ -747,10 +742,15 @@ export const CampusMap: React.FC = () => {
                 <MapPin className="w-5 h-5 stroke-[3]" />
               </span>
               <div>
-                <h3 className="text-xl font-extrabold text-black">Drop Campus Pinpoint</h3>
+                <h3 className="text-xl font-extrabold text-black">Add a Memory Note</h3>
                 <p className="text-xs text-[#242423]">
-                  Share why this location is special to you.
+                  Write a note about this spot — what makes it special to you?
                 </p>
+                {clickCoords && (
+                  <p className="text-[10px] text-[#242423] font-mono mt-0.5 opacity-70">
+                    📍 {clickCoords.lat.toFixed(5)}, {clickCoords.lng.toFixed(5)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -763,25 +763,11 @@ export const CampusMap: React.FC = () => {
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-black uppercase mb-1">
-                  Spot Name / Campus Landmark <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={spotName}
-                  onChange={(e) => setSpotName(e.target.value)}
-                  placeholder="e.g. Engineering Quad, Library 3rd Floor, Canteen Bench"
-                  className="gumroad-input w-full text-sm font-bold"
-                  maxLength={50}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-black uppercase mb-1">
-                  Why is this place special? <span className="text-red-500">*</span>
+                  Memory Note <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
+                  autoFocus
                   rows={3}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}

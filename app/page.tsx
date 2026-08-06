@@ -11,6 +11,7 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
 import { CampusMap } from '../components/CampusMap';
+import { BannedScreen } from '../components/BannedScreen';
 import {
   Sparkles,
   ShieldCheck,
@@ -67,6 +68,10 @@ export default function Home() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [isSearching, activeRoom, partnerLeft]);
+
+  if (viewState === 'ceased') {
+    return <BannedScreen />;
+  }
 
   return (
     <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
