@@ -11,9 +11,6 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
 import { CampusMap } from '../components/CampusMap';
-import { MusicWallFeatureModal } from '../components/MusicWallFeatureModal';
-import { SilipFeatureBanner } from '../components/SilipFeatureBanner';
-import { CeasedPage } from '../components/CeasedPage';
 import {
   Sparkles,
   ShieldCheck,
@@ -41,57 +38,6 @@ export default function Home() {
     systemAnnouncement,
     dismissAnnouncement,
   } = useChatStore();
-
-  const [showFeatureModal, setShowFeatureModal] = React.useState(false);
-  const [showSilipBanner, setShowSilipBanner] = React.useState(false);
-
-  React.useEffect(() => {
-    if (typeof window !== 'undefined' && viewState !== 'ceased') {
-      const seenMusic = localStorage.getItem('capitalk_music_wall_feature_v1');
-      if (!seenMusic) {
-        setShowFeatureModal(true);
-      }
-      const seenSilip = localStorage.getItem('capitalk_silip_banner_v1');
-      if (!seenSilip) {
-        // Slight delay so the page settles before showing banner
-        setTimeout(() => setShowSilipBanner(true), 800);
-      }
-    }
-
-    const handleOpenModal = () => {
-      if (viewState !== 'ceased') {
-        setShowFeatureModal(true);
-      }
-    };
-    window.addEventListener('capitalk_open_feature_modal', handleOpenModal);
-    return () => window.removeEventListener('capitalk_open_feature_modal', handleOpenModal);
-  }, [viewState]);
-
-  const handleCloseFeatureModal = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('capitalk_music_wall_feature_v1', 'true');
-    }
-    setShowFeatureModal(false);
-  };
-
-  const handleCloseSilipBanner = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('capitalk_silip_banner_v1', 'true');
-    }
-    setShowSilipBanner(false);
-  };
-
-  const handleExploreSilip = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('capitalk_silip_banner_v1', 'true');
-    }
-    setShowSilipBanner(false);
-    setViewState('campus_map');
-  };
-
-  const handleExploreMusicWall = () => {
-    setViewState('music_wall');
-  };
 
   React.useEffect(() => {
     if (actionToast) {
@@ -127,20 +73,6 @@ export default function Home() {
       viewState === 'chat' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
     }`}>
 
-      {/* Feature Announcement Modal (Shows Once) */}
-      <MusicWallFeatureModal
-        isOpen={showFeatureModal}
-        onClose={handleCloseFeatureModal}
-        onExplore={handleExploreMusicWall}
-      />
-
-      {/* Silip Campus Map Feature Banner (Shows Once on First Visit) */}
-      <SilipFeatureBanner
-        isOpen={showSilipBanner}
-        onClose={handleCloseSilipBanner}
-        onExplore={handleExploreSilip}
-      />
-
       {/* Floating Action Toast Notification */}
       {actionToast && (
         <div className="fixed top-4 right-4 z-50 max-w-sm w-[calc(100%-2rem)] animate-in fade-in slide-in-from-top-3 duration-300">
@@ -166,7 +98,6 @@ export default function Home() {
 
       {/* Main Content View Switcher */}
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {viewState === 'ceased' && <CeasedPage />}
 
         {viewState === 'register' && <RegistrationModal />}
 

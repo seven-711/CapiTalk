@@ -62,6 +62,7 @@ export const MusicWall: React.FC = () => {
   const [selectedPostForReport, setSelectedPostForReport] = useState<FreedomPost | null>(null);
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reactorsPost, setReactorsPost] = useState<FreedomPost | null>(null);
+  const [selectedPostForDetail, setSelectedPostForDetail] = useState<FreedomPost | null>(null);
 
   // Comments state for Music Wall
   const [selectedPostForComments, setSelectedPostForComments] = useState<FreedomPost | null>(null);
@@ -439,195 +440,88 @@ export const MusicWall: React.FC = () => {
     const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = isPinnedActive(post);
-    const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
 
     return (
       <div
         key={post.id}
         id={`post-${post.id}`}
+        onClick={() => setSelectedPostForDetail(post)}
         style={{ backgroundColor: isPostAdmin ? '#701a31' : (post.color || '#fff1f3') }}
-        className={`p-3 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-black transition-all flex flex-col justify-between group relative overflow-hidden ${
+        className={`p-2 sm:p-3.5 border-2 rounded-[0.5rem] sm:border-3 transition-all flex flex-col items-center justify-between group relative cursor-pointer select-none aspect-[3/4.4] sm:aspect-[3/4.1] text-center overflow-hidden ${
           isPinned
-            ? 'border-4 border-black ring-4 ring-[#ffc900] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
+            ? 'border-3 sm:border-4 border-black ring-3 ring-[#ffc900] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
             : isPostAdmin
-            ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/80 shadow-[0_0_30px_rgba(112,26,49,0.85)] animate-pulse text-white'
-            : 'text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
+            ? 'border-3 sm:border-4 border-[#ffc900] ring-3 ring-[#701a31]/80 shadow-[0_0_15px_rgba(112,26,49,0.7)] text-white'
+            : 'border-black text-black shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1'
         }`}
       >
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
-            <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-              {post.status === 'pending' && (
-                <span className="px-2 py-0.5 sm:px-2.5 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1 animate-pulse" title="Awaiting Admin Review before public display">
-                  ⏳ PENDING REVIEW
-                </span>
-              )}
-              {isPinned ? (
-                <span className="px-2 py-0.5 sm:px-2.5 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                  📌 PINNED
-                </span>
-              ) : isPostAdmin ? (
-                <span className="px-2 py-0.5 sm:px-2.5 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                  👑 ADMIN
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 sm:px-2.5 bg-black text-white text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0">
-                  {post.department.replace('College of ', '')}
-                </span>
-              )}
-            </div>
-            <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
-              {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {/* Top Badges */}
+        <div className="w-full flex items-center justify-center gap-1 min-h-[20px] sm:min-h-[24px] px-1 pt-0.5">
+          {post.status === 'pending' ? (
+            <span className="px-1.5 py-0.5 bg-[#ffc900] text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full uppercase border border-black shadow-2xs truncate">
+              PENDING
             </span>
-          </div>
-
-          {/* Dedicated To Recipient Badge */}
-          {post.dedicated_to && (
-            <div className="mb-2 sm:mb-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#ffc900] text-black text-[10px] sm:text-xs font-black rounded-lg border-2 border-black shadow-xs max-w-full truncate">
-              <span className="shrink-0">To:</span>
-              <span className="truncate">{post.dedicated_to}</span>
-            </div>
+          ) : isPinned ? (
+            <span className="px-1.5 py-0.5 bg-[#ffc900] text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full uppercase border border-black shadow-2xs truncate">
+              PINNED
+            </span>
+          ) : post.dedicated_to ? (
+            <span className="px-1.5 py-0.5 text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full shadow-2xs truncate max-w-full">
+              To: {post.dedicated_to}
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 bg-black/10 text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full uppercase truncate">
+              {post.department.replace('College of ', '')}
+            </span>
           )}
+        </div>
 
-          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2 sm:mb-3 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-black'}`}>
-            "{post.message}"
-          </p>
-
-          <div className="flex items-center gap-2.5 sm:gap-3 mb-2 sm:mb-3 bg-[#f4f4f0] border-2 border-black p-2 sm:p-2.5 rounded-xl sm:rounded-2xl text-black shadow-xs">
+        {/* Center Oval/Circular Artwork Cover */}
+        <div className="relative my-auto flex items-center justify-center">
+          <div className="w-14 h-14 xs:w-16 xs:h-16 sm:w-22 sm:h-22 rounded-full border-2 sm:border-3 border-black overflow-hidden shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white shrink-0 group-hover:scale-105 group-hover:rotate-3 transition-transform duration-300 relative flex items-center justify-center">
             {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
               <img
                 src={post.song_image_url}
-                alt=""
+                alt={post.song_title}
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0 border-2 border-black object-cover"
+                className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-white border-2 border-black flex items-center justify-center shrink-0 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <Music className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+              <div className="w-full h-full flex items-center justify-center bg-[#fff1f3]">
+                <Music className="w-6 h-6 sm:w-8 sm:h-8 text-black/70" />
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <div className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none mb-0.5 sm:mb-1">Dedicated Song</div>
-              <div className="text-xs sm:text-sm font-black truncate leading-tight">{post.song_title}</div>
-              <div className="text-[11px] sm:text-xs font-bold text-gray-600 truncate">{post.song_artist}</div>
+            {/* Play Overlay on Hover */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white backdrop-blur-[1px]">
+              <PlayCircle className="w-6 h-6 sm:w-8 sm:h-8 text-[#ffc900] fill-black" />
             </div>
           </div>
-          
-          {post.song_preview_url && (
-            <div className="mb-2 sm:mb-3 w-full">
-              <CustomAudioPlayer src={post.song_preview_url} />
-            </div>
-          )}
-
-          {post.song_link && (
-             <a
-              href={post.song_link}
-              target="_blank"
-              rel="noreferrer"
-              className="mb-2 sm:mb-3 w-full block text-center py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg sm:rounded-xl border-2 border-black bg-[#dc341e] text-white font-black text-[11px] sm:text-xs hover:bg-[#b02213] active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-             >
-               Play full song on Last.fm
-             </a>
-          )}
         </div>
 
-        <div className={`pt-2 sm:pt-3 border-t flex items-center justify-between gap-2 ${isPostAdmin && !isPinned ? 'border-white/30' : 'border-black/20'}`}>
-          <span className={`text-[11px] sm:text-xs font-extrabold italic truncate ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/80'}`}>
-            ~ {post.author_alias || 'Anon Student'}
-          </span>
+        {/* Music Title and Artist */}
+        <div className="w-full flex flex-col items-center mt-1">
+          <h3 className={`text-[10.5px] xs:text-xs sm:text-sm font-black truncate w-full tracking-tight leading-tight ${isPostAdmin && !isPinned ? 'text-white' : 'text-black'}`}>
+            {post.song_title || 'Untitled Track'}
+          </h3>
+          <p className={`text-[8.5px] xs:text-[9.5px] sm:text-xs font-bold truncate w-full mt-0.5 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
+            {post.song_artist || 'Unknown Artist'}
+          </p>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {isAdminUser && post.status === 'pending' && (
-              <button
-                type="button"
-                onClick={() => approveFreedomPost(post.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2 border-black bg-emerald-500 text-white font-black text-[10px] sm:text-xs hover:bg-emerald-600 transition-all shadow-xs active:scale-95"
-                title="Approve Note"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>Approve</span>
-              </button>
+          {/* Bottom Indicators */}
+          <div className="mt-1.5 flex items-center justify-center gap-1 text-[8px] xs:text-[9px] sm:text-[10px] font-black">
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/80 border border-black shadow-2xs text-black">
+              <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? 'fill-rose-500 text-rose-500' : 'text-black'}`} />
+              {post.likes_count || 0}
+            </span>
+            {(commentsCountMap[post.id] || 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/80 border border-black shadow-2xs text-black">
+                <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-black" />
+                {commentsCountMap[post.id]}
+              </span>
             )}
-
-            <button
-              type="button"
-              onClick={() => setSelectedPostForReport(post)}
-              className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs"
-              title="Report"
-            >
-              <Flag className="w-3.5 h-3.5" />
-            </button>
-
-            {isAdminUser && (
-              <button
-                type="button"
-                onClick={() => togglePinFreedomPost(post.id)}
-                className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
-                  post.is_pinned ? 'bg-[#ffc900] text-black' : 'bg-white text-black hover:bg-[#f4f4f0]'
-                }`}
-                title={post.is_pinned ? 'Unpin' : 'Pin'}
-              >
-                <Pin className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {(isAdminUser || isMyPost) && (
-              <button
-                type="button"
-                onClick={() => setSelectedPostForDelete(post)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
-                title={isMyPost && !isAdminUser ? "Delete your note" : "Delete"}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onMouseDown={() => handleHeartPressStart(post)}
-              onMouseUp={() => handleHeartPressEnd(post)}
-              onMouseLeave={() => {
-                if (heartPressTimer.current) clearTimeout(heartPressTimer.current);
-                heartPressTriggered.current = false;
-              }}
-              onTouchStart={() => handleHeartPressStart(post)}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleHeartPressEnd(post);
-              }}
-              className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border-2 transition-all shadow-xs active:scale-95 ${
-                hasLiked
-                  ? 'bg-black text-rose-500 border-black'
-                  : 'bg-white text-black border-black hover:bg-[#fff1f3] hover:text-rose-600'
-              }`}
-            >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-              <span className="text-[10px] sm:text-xs font-black">{post.likes_count || 0}</span>
-            </button>
-
-            {(post.likes_count || 0) > 0 && (
-              <button
-                type="button"
-                onClick={() => setReactorsPost(post)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-[#ffc900] transition-all shadow-xs"
-                title="See who liked this song dedication"
-              >
-                <Users className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => openCommentsModal(post)}
-              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border-2 border-black bg-white text-black hover:bg-[#fff1f3] transition-all shadow-xs active:scale-95 text-[10px] sm:text-xs font-black"
-              title="View Comments"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>{commentsCountMap[post.id] || 0}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -677,8 +571,8 @@ export const MusicWall: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 max-w-[1200px] w-full mx-auto px-3 sm:px-8 py-6 sm:py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+      <div className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-10">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-4 md:gap-5">
           {filteredPosts.map((post) => renderPostCard(post))}
         </div>
         {filteredPosts.length === 0 && (
@@ -949,6 +843,203 @@ export const MusicWall: React.FC = () => {
         </div>
       )}
       
+      {/* Full Music Dedication Detail Modal */}
+      {selectedPostForDetail && (() => {
+        const post = selectedPostForDetail;
+        const currentUserId = currentUser
+          ? currentUser.id
+          : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
+        const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
+        const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
+        const isPinned = isPinnedActive(post);
+        const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+            <div
+              style={{ backgroundColor: isPostAdmin ? '#701a31' : (post.color || '#fff1f3') }}
+              className="border-3 sm:border-4 border-black rounded-3xl w-full max-w-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] sm:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] relative my-auto max-h-[92vh] flex flex-col text-black animate-in zoom-in-95 duration-200 overflow-hidden"
+            >
+              {/* Header Bar */}
+              <div className="p-3.5 sm:p-4 border-b-3 border-black flex justify-between items-center bg-white/90 shrink-0">
+                <div className="flex items-center gap-2 truncate">
+                  <span className="px-2.5 py-1 bg-[#701a31] text-white text-[10px] sm:text-xs font-black rounded-full uppercase border border-black shadow-xs">
+                    Music Dedication
+                  </span>
+                  {isPinned && (
+                    <span className="px-2 py-0.5 bg-[#ffc900] text-black text-[10px] font-black rounded-full border border-black">
+                      📌 Pinned
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPostForDetail(null)}
+                  className="p-1.5 bg-white hover:bg-black hover:text-white border-2 border-black rounded-full transition-all text-black shadow-xs active:scale-95 shrink-0"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
+
+              {/* Scrollable Content Body */}
+              <div className="p-3.5 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-3.5">
+                {/* Side-by-Side: Music Cover (Left) + Dedication Note (Right) */}
+                <div className="flex flex-row items-stretch gap-3 sm:gap-4">
+                  {/* Left Column: Music Cover Artwork & Song Details */}
+                  <div className="w-28 sm:w-36 shrink-0 flex flex-col items-center justify-center text-center p-2 sm:p-3">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)] overflow-hidden shrink-0 mb-1.5 relative">
+                      {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
+                        <img
+                          src={post.song_image_url}
+                          alt={post.song_title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-[#fff1f3]">
+                          <Music className="w-8 h-8 text-black/70" />
+                        </div>
+                      )}
+                    </div>
+
+                    <h2 className={`text-xs sm:text-sm font-black tracking-tight leading-tight px-1 truncate w-full ${isPostAdmin && !isPinned ? 'text-white' : 'text-black'}`} title={post.song_title}>
+                      {post.song_title}
+                    </h2>
+                    <p className={`text-[10px] sm:text-xs font-bold truncate w-full mt-0.5 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`} title={post.song_artist}>
+                      {post.song_artist}
+                    </p>
+                  </div>
+
+                  {/* Right Column: Dedication Note Message */}
+                  <div className="bg-white/95 border-2 border-black p-3 sm:p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex-1 min-w-0 flex flex-col justify-between">
+                    <div className="overflow-y-auto max-h-[140px] sm:max-h-[160px] custom-scrollbar pr-1">
+                      <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-black whitespace-pre-wrap break-words">
+                        "{post.message}"
+                      </p>
+                    </div>
+
+                    <div className="mt-2 pt-2 border-t-2 border-black/10 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] font-bold text-gray-700 shrink-0">
+                      <span className="font-extrabold italic text-black truncate max-w-[100px] sm:max-w-[120px]">
+                        ~ {post.author_alias || 'Anon Student'}
+                      </span>
+                      <span className="bg-black text-white px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] font-black uppercase shrink-0">
+                        {post.department.replace('College of ', '')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Audio Preview Player */}
+                {post.song_preview_url && (
+                  <div className="w-full">
+                    <CustomAudioPlayer src={post.song_preview_url} />
+                  </div>
+                )}
+
+                {/* Play full song on Last.fm link */}
+                {post.song_link && (
+                  <a
+                    href={post.song_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full block text-center py-1.5 sm:py-2 px-3 sm:px-4 rounded-xl border-2 border-black bg-[#dc341e] text-white font-black text-xs hover:bg-[#b02213] active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  >
+                    Play full song on Last.fm ↗
+                  </a>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-3 sm:p-4 border-t-3 border-black bg-white/90 shrink-0 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onMouseDown={() => handleHeartPressStart(post)}
+                    onMouseUp={() => handleHeartPressEnd(post)}
+                    onMouseLeave={() => {
+                      if (heartPressTimer.current) clearTimeout(heartPressTimer.current);
+                      heartPressTriggered.current = false;
+                    }}
+                    onTouchStart={() => handleHeartPressStart(post)}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      handleHeartPressEnd(post);
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 transition-all shadow-xs active:scale-95 ${
+                      hasLiked
+                        ? 'bg-black text-rose-500 border-black'
+                        : 'bg-white text-black border-black hover:bg-[#fff1f3] hover:text-rose-600'
+                    }`}
+                  >
+                    <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                    <span className="text-xs font-black">{post.likes_count || 0}</span>
+                  </button>
+
+                  {(post.likes_count || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setReactorsPost(post)}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-white text-black hover:bg-[#ffc900] transition-all shadow-xs"
+                      title="See who liked this song dedication"
+                    >
+                      <Users className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => openCommentsModal(post)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border-2 border-black bg-white text-black hover:bg-[#fff1f3] transition-all shadow-xs active:scale-95 text-xs font-black"
+                    title="View Comments"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>{commentsCountMap[post.id] || 0}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPostForReport(post)}
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs"
+                    title="Report"
+                  >
+                    <Flag className="w-4 h-4" />
+                  </button>
+
+                  {isAdminUser && (
+                    <button
+                      type="button"
+                      onClick={() => togglePinFreedomPost(post.id)}
+                      className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black transition-all shadow-xs ${
+                        post.is_pinned ? 'bg-[#ffc900] text-black' : 'bg-white text-black hover:bg-[#f4f4f0]'
+                      }`}
+                      title={post.is_pinned ? 'Unpin' : 'Pin'}
+                    >
+                      <Pin className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {(isAdminUser || isMyPost) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPostForDetail(null);
+                        setSelectedPostForDelete(post);
+                      }}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
+                      title={isMyPost && !isAdminUser ? "Delete your note" : "Delete"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {selectedPostForReport && (
         <ReportNoteModal
           post={selectedPostForReport}

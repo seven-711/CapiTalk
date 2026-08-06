@@ -63,10 +63,10 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Status Badge — desktop only */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#dc341e] text-white font-extrabold text-[11px] rounded-full border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase tracking-wider">
-          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-          <span>Offline — Service Ceased</span>
+        {/* Live Status Badge */}
+        <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 bg-[#00e599] text-black font-extrabold text-[10px] sm:text-[11px] rounded-full border border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] sm:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase tracking-wider shrink-0">
+          <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-black animate-ping" />
+          <span>{onlineCount} <span className="hidden xs:inline">Active </span>Online</span>
         </div>
 
         {/* Navigation Links & Action Buttons */}
@@ -166,7 +166,11 @@ export const Navbar: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <CoinMascot size={28} tiltAngle={-6} />
                   <div>
-                    <h3 className="text-xl font-extrabold text-black">CapiTalk Navigation</h3>
+                    <h3 className="text-xl font-extrabold text-black leading-tight">CapiTalk Navigation</h3>
+                    <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-0.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                      {onlineCount} Students Online Now
+                    </p>
                   </div>
                 </div>
                 <button
@@ -293,16 +297,6 @@ export const Navbar: React.FC = () => {
             </div>
 
             <div className="pt-4 border-t-2 border-black/20 space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setViewState('ceased');
-                  setShowMenuDrawer(false);
-                }}
-                className="w-full py-2.5 rounded-xl border-2 border-black bg-white hover:bg-black hover:text-white text-black font-extrabold text-xs transition-all shadow-xs"
-              >
-                Sunset Notice &amp; Info
-              </button>
               <p className="text-[10px] text-center text-gray-500 font-bold">
                 CapiTalk — Capitol University Student Network
               </p>

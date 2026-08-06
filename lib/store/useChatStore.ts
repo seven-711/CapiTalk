@@ -130,19 +130,9 @@ export const useChatStore = create<ChatStoreState>()(
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
-      viewState: 'ceased',
+      viewState: 'landing',
       setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map') => {
-        if (view !== 'ceased' && view !== 'admin') {
-          set({
-            viewState: 'ceased',
-            actionToast: {
-              type: 'ban',
-              message: 'CapiTalk services have ceased operations. Access to active features is disabled.',
-            },
-          });
-        } else {
-          set({ viewState: view });
-        }
+        set({ viewState: view });
       },
 
       wallNotifications: typeof window !== 'undefined'
