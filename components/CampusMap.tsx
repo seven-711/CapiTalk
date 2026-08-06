@@ -469,7 +469,7 @@ export const CampusMap: React.FC = () => {
       </div>
 
       {/* 2. Floating Top Left Controls Header */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 max-w-[calc(100vw-120px)] sm:max-w-md">
+      <div className="absolute top-10 left-4 z-20 flex items-center gap-2 max-w-[calc(100vw-120px)] sm:max-w-md">
         <div className="bg-white/95 backdrop-blur-md border-2 border-black rounded-2xl p-2.5 sm:p-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2.5 shrink-0">
           <span className="p-1.5 bg-[#ffc900] border-2 border-black rounded-xl text-black shrink-0 shadow-xs">
             <MapPin className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
@@ -486,7 +486,7 @@ export const CampusMap: React.FC = () => {
       </div>
 
       {/* 3. Floating Top Right Tools */}
-      <div className="absolute top-7 right-4 z-20 flex items-center gap-2">
+      <div className="absolute top-13 right-4 z-20 flex items-center gap-2">
         <button
           type="button"
           onClick={() => setShowPinDrawer(!showPinDrawer)}
@@ -530,7 +530,7 @@ export const CampusMap: React.FC = () => {
 
       {/* 5. Floating Selected Pinpoint Notes Card Overlay */}
       {activeSelectedPin && (
-        <div className="absolute top-22 left-4 right-4 md:top-25 md:left-4 sm:left-6 sm:right-auto z-30 max-w-sm bg-white border-2 sm:border-4 border-black rounded-2xl p-4 sm:p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95">
+        <div className="absolute top-28 left-4 right-4 md:top-30 md:left-4 sm:top-35 sm:left-6 sm:right-auto z-30 max-w-sm bg-white border-2 sm:border-4 border-black rounded-2xl p-4 sm:p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95">
           <button
             type="button"
             onClick={() => setSelectedPin(null)}
@@ -635,7 +635,7 @@ export const CampusMap: React.FC = () => {
 
       {/* 6. Collapsible Side Drawer of All Pinpoints */}
       {showPinDrawer && (
-        <div className="absolute top-22 w-75 right-4 bottom-20 z-30 w-80 sm:w-96 bg-white/95 backdrop-blur-md border-2 sm:border-4 border-black rounded-3xl p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col animate-in slide-in-from-right duration-200">
+        <div className="absolute top-27 w-75 right-4 bottom-20 z-30 w-84 sm:w-96 bg-white/95 backdrop-blur-md border-2 sm:border-4 border-black rounded-3xl p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col animate-in slide-in-from-right duration-200">
           <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-[#ffc900] border-2 border-black rounded-xl text-black">

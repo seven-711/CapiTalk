@@ -181,22 +181,6 @@ export const RegistrationModal: React.FC = () => {
               This will be visible to students you get paired with.
             </p>
           </div>
-
-          {/* Bio Input (Optional) */}
-          <div>
-            <label className="block text-sm font-semibold text-black mb-1">
-              Bio <span className="text-xs font-normal text-gray-500">(Optional - max 80 chars)</span>
-            </label>
-            <input
-              type="text"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="e.g. matcha_lover, opaw_nga_marino"
-              className="gumroad-input w-full"
-              maxLength={80}
-            />
-          </div>
-
           {/* Community Guidelines Checkbox */}
           <div className="p-4 bg-[#f4f4f0] border border-[#d1d5dc] rounded-md">
             <label className="flex items-start gap-3 cursor-pointer">
