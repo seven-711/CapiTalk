@@ -512,10 +512,20 @@ export const MusicWall: React.FC = () => {
 
           {/* Bottom Indicators */}
           <div className="mt-1.5 flex items-center justify-center gap-1 text-[8px] xs:text-[9px] sm:text-[10px] font-black">
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/80 border border-black shadow-2xs text-black">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                likeFreedomPost(post.id);
+              }}
+              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-black shadow-2xs transition-all active:scale-95 ${
+                hasLiked ? 'bg-rose-100 text-rose-600 font-extrabold' : 'bg-white/80 text-black hover:bg-white'
+              }`}
+              title={hasLiked ? "Unlike song dedication" : "Like song dedication"}
+            >
               <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? 'fill-rose-500 text-rose-500' : 'text-black'}`} />
-              {post.likes_count || 0}
-            </span>
+              <span>{post.likes_count || 0}</span>
+            </button>
             {(commentsCountMap[post.id] || 0) > 0 && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/80 border border-black shadow-2xs text-black">
                 <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-black" />
@@ -845,7 +855,7 @@ export const MusicWall: React.FC = () => {
       
       {/* Full Music Dedication Detail Modal */}
       {selectedPostForDetail && (() => {
-        const post = selectedPostForDetail;
+        const post = freedomPosts.find((p) => p.id === selectedPostForDetail.id) || selectedPostForDetail;
         const currentUserId = currentUser
           ? currentUser.id
           : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
@@ -954,22 +964,16 @@ export const MusicWall: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onMouseDown={() => handleHeartPressStart(post)}
-                    onMouseUp={() => handleHeartPressEnd(post)}
-                    onMouseLeave={() => {
-                      if (heartPressTimer.current) clearTimeout(heartPressTimer.current);
-                      heartPressTriggered.current = false;
-                    }}
-                    onTouchStart={() => handleHeartPressStart(post)}
-                    onTouchEnd={(e) => {
-                      e.preventDefault();
-                      handleHeartPressEnd(post);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      likeFreedomPost(post.id);
                     }}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 transition-all shadow-xs active:scale-95 ${
                       hasLiked
                         ? 'bg-black text-rose-500 border-black'
                         : 'bg-white text-black border-black hover:bg-[#fff1f3] hover:text-rose-600'
                     }`}
+                    title={hasLiked ? "Unlike song dedication" : "Like song dedication"}
                   >
                     <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
                     <span className="text-xs font-black">{post.likes_count || 0}</span>
@@ -1140,30 +1144,32 @@ export const MusicWall: React.FC = () => {
       )}
 
       {/* Reactors List Modal */}
-      {reactorsPost && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white border-2 sm:border-4 border-black rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setReactorsPost(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
+      {reactorsPost && (() => {
+        const post = freedomPosts.find((p) => p.id === reactorsPost.id) || reactorsPost;
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+            <div className="bg-white border-2 sm:border-4 border-black rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl relative">
+              <button
+                type="button"
+                onClick={() => setReactorsPost(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
 
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-black">
-              <span className="p-2 bg-rose-500 text-white border-2 border-black rounded-xl">
-                <Heart className="w-5 h-5 fill-white" />
-              </span>
-              <div>
-                <h3 className="text-base font-extrabold text-black">
-                  People who liked
-                </h3>
-                <p className="text-xs text-gray-600 font-bold">
-                  {reactorsPost.likes_count || 0} reactions
-                </p>
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-black">
+                <span className="p-2 bg-rose-500 text-white border-2 border-black rounded-xl">
+                  <Heart className="w-5 h-5 fill-white" />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-black">
+                    People who liked
+                  </h3>
+                  <p className="text-xs text-gray-600 font-bold">
+                    {post.likes_count || 0} reactions
+                  </p>
+                </div>
               </div>
-            </div>
 
             <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
               {reactorsPost.liked_by_profiles && Object.keys(reactorsPost.liked_by_profiles).length > 0 ? (
@@ -1189,7 +1195,8 @@ export const MusicWall: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
