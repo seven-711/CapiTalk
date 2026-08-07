@@ -890,14 +890,14 @@ export const ChatRoom: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowMobileExtras((v) => !v)}
-              className={`sm:hidden p-2 rounded-full border transition-all duration-200 shrink-0 ${
+              className={`sm:hidden p-2 transition-all duration-200 shrink-0 ${
                 showMobileExtras
-                  ? 'bg-black text-white border-black rotate-45'
-                  : 'text-[#242423] border-[#d1d5dc] hover:bg-gray-100'
+                  ? 'bg-black text-white border-black rounded-full rotate-45'
+                  : 'text-[#242423] border-[#d1d5dc]'
               }`}
               title="More options"
             >
-              <span className="text-lg leading-none font-bold">+</span>
+              <span className="text-xl leading-none font-bold">+</span>
             </button>
 
             {/* Extra action buttons — always visible on desktop (sm+), hidden on mobile unless toggled */}
