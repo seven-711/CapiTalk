@@ -59,11 +59,19 @@ export const ChatRoom: React.FC = () => {
   } = useChatStore();
 
   const [text, setText] = useState('');
+  const [showMobileExtras, setShowMobileExtras] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setText(val);
+
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
 
     if (val.trim()) {
       sendTypingSignal(true);
@@ -245,10 +253,7 @@ export const ChatRoom: React.FC = () => {
 
   const prevTypingRef = useRef(partnerTyping);
   useEffect(() => {
-    // Only scroll when new messages arrive or when partner STARTS typing (not when stopping typing)
-    if (messages.length > 0 || (partnerTyping && !prevTypingRef.current)) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    // Track typing state changes only — no auto-scroll so users can freely browse history
     prevTypingRef.current = partnerTyping;
   }, [messages, partnerTyping]);
 
@@ -303,6 +308,10 @@ export const ChatRoom: React.FC = () => {
     setText('');
     setReplyTo(null);
     setShowEmojiPicker(false);
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -867,60 +876,90 @@ export const ChatRoom: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSend} className="flex items-center gap-2">
-            {/* Exit / Leave Chat Button */}
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+            accept="image/png, image/jpeg, image/webp"
+            className="hidden"
+          />
+
+          <form onSubmit={handleSend} className="flex items-end gap-2">
+            {/* Mobile: toggle button to show/hide extra actions */}
             <button
               type="button"
-              onClick={leaveRoom}
-              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors shrink-0"
-              title="Exit Chat"
+              onClick={() => setShowMobileExtras((v) => !v)}
+              className={`sm:hidden p-2 rounded-full border transition-all duration-200 shrink-0 ${
+                showMobileExtras
+                  ? 'bg-black text-white border-black rotate-45'
+                  : 'text-[#242423] border-[#d1d5dc] hover:bg-gray-100'
+              }`}
+              title="More options"
             >
-              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-xs font-bold hidden md:inline">Exit</span>
+              <span className="text-lg leading-none font-bold">+</span>
             </button>
 
-            {/* File Upload Button */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/png, image/jpeg, image/webp"
-              className="hidden"
-            />
-            <button
-              type="button"
-              disabled={isUploading}
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded"
-              title="Upload Image (Max 10MB)"
-            >
-              {isUploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
-            </button>
+            {/* Extra action buttons — always visible on desktop (sm+), hidden on mobile unless toggled */}
+            <div className={`flex items-center gap-1 sm:gap-2 shrink-0 overflow-hidden transition-all duration-200 ${
+              showMobileExtras ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 sm:max-w-none sm:opacity-100'
+            }`}>
+              {/* Exit / Leave Chat Button */}
+              <button
+                type="button"
+                onClick={leaveRoom}
+                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors shrink-0"
+                title="Exit Chat"
+              >
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-xs font-bold hidden md:inline">Exit</span>
+              </button>
 
-            {/* Emoji Picker Toggle */}
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded"
-              title="Add Emoji"
-            >
-              <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
+              {/* File Upload Button */}
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded shrink-0"
+                title="Upload Image (Max 10MB)"
+              >
+                {isUploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
+              </button>
 
-            {/* Text Input */}
-            <input
-              type="text"
+              {/* Emoji Picker Toggle */}
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded shrink-0"
+                title="Add Emoji"
+              >
+                <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+
+            {/* Textarea — auto-grows, wraps text */}
+            <textarea
+              ref={textareaRef}
               value={text}
               onChange={handleTextChange}
+              onFocus={() => setShowMobileExtras(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder="Type a message to fellow CU student..."
-              className="gumroad-input flex-1 py-2 text-sm"
+              rows={1}
+              className="gumroad-input flex-1 py-2 text-sm resize-none overflow-hidden leading-relaxed"
+              style={{ minHeight: '38px', maxHeight: '120px' }}
             />
 
             {/* Send Button */}
             <button
               type="submit"
               disabled={!text.trim() && !replyTo}
-              className="btn-gumroad-primary py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-gumroad-primary py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               <Send className="w-4 h-4" />
               <span className="hidden sm:inline">Send</span>

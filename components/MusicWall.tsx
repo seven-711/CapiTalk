@@ -69,7 +69,7 @@ export const MusicWall: React.FC = () => {
   const [commentsList, setCommentsList] = useState<any[]>([]);
   const [commentsCountMap, setCommentsCountMap] = useState<Record<string, number>>({});
   const [newCommentText, setNewCommentText] = useState('');
-  const [commentAlias, setCommentAlias] = useState(currentUser ? currentUser.username : '');
+  // commentAlias is derived directly from currentUser — no manual input needed
   const [isFetchingComments, setIsFetchingComments] = useState(false);
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export const MusicWall: React.FC = () => {
     const newComment = {
       id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       post_id: selectedPostForComments.id,
-      author_alias: commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student'),
+      author_alias: currentUser ? currentUser.username : 'Anon Student',
       department: currentUser ? currentUser.department : 'General',
       message: newCommentText.trim(),
       created_at: new Date().toISOString(),
@@ -945,11 +945,8 @@ export const MusicWall: React.FC = () => {
                     </div>
 
                     <div className="mt-2 pt-2 border-t-2 border-black/10 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] font-bold text-gray-700 shrink-0">
-                      <span className="font-extrabold italic text-black truncate max-w-[100px] sm:max-w-[120px]">
+                      <span className="font-extrabold italic text-black min-w-0 flex-1">
                         ~ {post.author_alias || 'Anon Student'}
-                      </span>
-                      <span className="bg-black text-white px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] font-black uppercase shrink-0">
-                        {post.department.replace('College of ', '')}
                       </span>
                     </div>
                   </div>
@@ -1110,7 +1107,7 @@ export const MusicWall: React.FC = () => {
               </span>
               <div>
                 <h3 className="text-base sm:text-lg font-black text-black truncate max-w-[280px]">
-                  Comments on "{selectedPostForComments.song_title || 'Dedication'}"
+                  Comments
                 </h3>
                 <p className="text-xs text-[#242423] font-medium">
                   {commentsList.length} student comments
@@ -1146,14 +1143,6 @@ export const MusicWall: React.FC = () => {
             {/* Add Comment Form */}
             <form onSubmit={handleAddComment} className="pt-3 border-t-2 border-black shrink-0 space-y-2">
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={commentAlias}
-                  onChange={(e) => setCommentAlias(e.target.value)}
-                  placeholder="Your Alias"
-                  className="gumroad-input text-xs font-bold w-1/3"
-                  maxLength={20}
-                />
                 <input
                   type="text"
                   required
