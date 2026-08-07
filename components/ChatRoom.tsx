@@ -622,7 +622,7 @@ export const ChatRoom: React.FC = () => {
                       : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
                   }`}
                 >
-                  {msg.message && <p className="leading-relaxed whitespace-pre-wrap">{msg.message}</p>}
+                  {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.message}</p>}
 
                   {msg.image_url && (
                     <div className="mt-2 rounded overflow-hidden border border-[#d1d5dc]">
@@ -860,7 +860,7 @@ export const ChatRoom: React.FC = () => {
         <div className="bg-white border-t border-[#d1d5dc] p-2 sm:p-2.5 relative shrink-0 z-20">
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
-            <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-lg flex items-center gap-2 flex-wrap shadow-lg z-30">
+            <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-full flex items-center gap-2 flex-wrap shadow-lg z-30">
               {EMOJI_PRESETS.map((emoji) => (
                 <button
                   key={emoji}
@@ -949,7 +949,7 @@ export const ChatRoom: React.FC = () => {
                   handleSend();
                 }
               }}
-              placeholder="Type a message to fellow CU student..."
+              placeholder="Type a message here..."
               rows={1}
               className="gumroad-input flex-1 py-2 text-sm resize-none overflow-hidden leading-relaxed"
               style={{ minHeight: '38px', maxHeight: '120px' }}
