@@ -355,10 +355,13 @@ class RoomManager {
     }
 
     if (this.supabaseChannel) {
-      try {
-        this.supabaseChannel.unsubscribe();
-      } catch (e) {}
+      const channelToClean = this.supabaseChannel;
       this.supabaseChannel = null;
+      setTimeout(() => {
+        try {
+          channelToClean.unsubscribe();
+        } catch (e) {}
+      }, 1000);
     }
 
     this.messageCallbacks.clear();
