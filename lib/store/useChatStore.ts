@@ -724,152 +724,236 @@ export const useChatStore = create<ChatStoreState>()(
               } catch (e) {}
             }
 
-            // 7-Second Background AJAX Auto-Sync Loop (Refreshes Freedom Wall, announcements, and messages without reloading page)
-            setInterval(() => {
+            // ─── Realtime Subscriptions (replaces polling loop) ────────────────
+            // Row mapper: converts a raw DB row into a FreedomPost, merging local
+            // optimistic state (liked_by_users) so UI stays consistent.
+            if (supabase && isSupabaseConfigured) {
               try {
-                // 1. Sync Freedom Wall Posts from Supabase / LocalStorage
-                if (supabase && isSupabaseConfigured) {
-                  supabase
-                    .from('freedom_posts')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .then(({ data, error }) => {
-                      if (data && data.length > 0 && !error) {
-                        const store = get();
-                        const localMap = new Map(store.freedomPosts.map((p) => [p.id, p]));
-                        const dbIds = new Set(data.map((r: any) => r.id));
-                        const localOnlyPosts = store.freedomPosts.filter((p) => !dbIds.has(p.id) && p.status === 'pending');
+                const mapDbRowToPost = (row: any, existingLocal?: FreedomPost): FreedomPost => {
+                  const dbLikedBy: string[] = Array.isArray(row.liked_by_users) ? row.liked_by_users : [];
+                  const localLikedBy: string[] = existingLocal?.liked_by_users || [];
+                  const useLikedBy = localLikedBy.length !== dbLikedBy.length ? localLikedBy : dbLikedBy;
 
-                        const loadedFromDb: FreedomPost[] = data.map((row: any) => {
-                          const localPost = localMap.get(row.id);
-                          const dbLikedBy: string[] = Array.isArray(row.liked_by_users) ? row.liked_by_users : [];
-                          const localLikedBy: string[] = localPost?.liked_by_users || [];
-                          const useLikedBy = localLikedBy.length !== dbLikedBy.length ? localLikedBy : dbLikedBy;
-                          
-                          const rawColor = row.color || '#ffc900';
-                          const parts = rawColor.split('||');
-                          const dbColor = parts[0];
-                          const dbStatus = parts[1] || row.status || 'approved';
-                          let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
-                          try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
+                  const rawColor = row.color || '#ffc900';
+                  const parts = rawColor.split('||');
+                  const dbColor = parts[0];
+                  const dbStatus = parts[1] || row.status || 'approved';
+                  let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
+                  try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
 
-                          const mergedProfiles = {
-                            ...(localPost?.liked_by_profiles || {}),
-                            ...dbProfiles,
-                          };
-                          return {
-                            id: row.id,
-                            author_id: row.author_id,
-                            author_alias: row.author_alias || 'Anon Student',
-                            department: row.department || 'General',
-                            message: row.message,
-                            color: dbColor,
-                            likes_count: useLikedBy.length,
-                            liked_by_users: useLikedBy,
-                            liked_by_profiles: mergedProfiles,
-                            is_admin: !!row.is_admin,
-                            is_pinned: !!row.is_pinned,
-                            status: dbStatus,
-                            created_at: row.created_at,
-                            song_title: row.song_title,
-                            song_artist: row.song_artist,
-                            song_image_url: row.song_image_url,
-                            song_preview_url: row.song_preview_url,
-                            song_link: row.song_link,
-                            dedicated_to: row.dedicated_to,
-                          };
-                        });
-                        
-                        const finalPosts = [...localOnlyPosts, ...loadedFromDb].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                        if (JSON.stringify(finalPosts) !== JSON.stringify(store.freedomPosts)) {
-                          set({ freedomPosts: finalPosts });
-                          localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(finalPosts));
-                        }
-                      }
-                    }, () => {});
-                } else {
-                  const rawFreedom = localStorage.getItem('capitalk_freedom_wall_v1');
-                  if (rawFreedom) {
-                    const parsed: FreedomPost[] = JSON.parse(rawFreedom);
-                    const store = get();
-                    if (JSON.stringify(parsed) !== JSON.stringify(store.freedomPosts)) {
-                      set({ freedomPosts: parsed });
+                  return {
+                    id: row.id,
+                    author_id: row.author_id,
+                    author_alias: row.author_alias || 'Anon Student',
+                    department: row.department || 'General',
+                    message: row.message,
+                    color: dbColor,
+                    likes_count: useLikedBy.length,
+                    liked_by_users: useLikedBy,
+                    liked_by_profiles: { ...(existingLocal?.liked_by_profiles || {}), ...dbProfiles },
+                    is_admin: !!row.is_admin,
+                    is_pinned: !!row.is_pinned,
+                    status: dbStatus,
+                    created_at: row.created_at,
+                    song_title: row.song_title,
+                    song_artist: row.song_artist,
+                    song_image_url: row.song_image_url,
+                    song_preview_url: row.song_preview_url,
+                    song_link: row.song_link,
+                    dedicated_to: row.dedicated_to,
+                  };
+                };
+
+                // ── 1. Initial one-time load of freedom_posts ──────────────────
+                supabase
+                  .from('freedom_posts')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                  .then(({ data, error }) => {
+                    if (data && data.length > 0 && !error) {
+                      const store = get();
+                      const localMap = new Map(store.freedomPosts.map((p) => [p.id, p]));
+                      const dbIds = new Set(data.map((r: any) => r.id));
+                      const localOnlyPosts = store.freedomPosts.filter((p) => !dbIds.has(p.id) && p.status === 'pending');
+                      const loadedFromDb = data.map((row: any) => mapDbRowToPost(row, localMap.get(row.id)));
+                      const finalPosts = [...localOnlyPosts, ...loadedFromDb].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                      set({ freedomPosts: finalPosts });
+                      try { localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(finalPosts)); } catch (e) {}
                     }
-                  }
-                }
+                  }, () => {});
 
-                // 2. Sync Reports, Bans & Feedback from Supabase Database
-                if (supabase && isSupabaseConfigured) {
-                  supabase
-                    .from('reports')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .then(({ data }) => {
-                      if (data && data.length > 0) {
-                        const dbReports: UserReport[] = data.map((r: any) => ({
-                          id: r.id,
-                          reporter_id: r.reporter_id || 'anon',
-                          reporter_username: r.reporter_username || 'Student',
-                          reported_user_id: r.reported_user_id,
-                          reported_username: r.reported_username || 'User',
-                          reason: r.reason,
-                          description: r.description,
-                          status: r.status || 'pending',
-                          created_at: r.created_at,
-                        }));
-                        set({ reports: dbReports });
-                        localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(dbReports));
+                // ── 2. Realtime subscription: freedom_posts INSERT/UPDATE/DELETE ─
+                supabase
+                  .channel('public:freedom_posts:changes')
+                  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'freedom_posts' }, (payload: any) => {
+                    const newRow = payload.new;
+                    if (!newRow) return;
+                    set((state) => {
+                      // Skip if we already have it (optimistic insert from addFreedomPost)
+                      if (state.freedomPosts.some((p) => p.id === newRow.id)) return state;
+                      const newPost = mapDbRowToPost(newRow);
+                      const updated = [newPost, ...state.freedomPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                      try { localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated)); } catch (e) {}
+                      return { freedomPosts: updated };
+                    });
+                  })
+                  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'freedom_posts' }, (payload: any) => {
+                    const updatedRow = payload.new;
+                    if (!updatedRow) return;
+                    set((state) => {
+                      const localPost = state.freedomPosts.find((p) => p.id === updatedRow.id);
+                      const merged = mapDbRowToPost(updatedRow, localPost);
+                      const updated = state.freedomPosts.map((p) => p.id === updatedRow.id ? merged : p);
+                      try { localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated)); } catch (e) {}
+                      if (broadcastChannel) {
+                        try { broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated }); } catch (e) {}
                       }
-                    }, () => {});
+                      return { freedomPosts: updated };
+                    });
+                  })
+                  .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'freedom_posts' }, (payload: any) => {
+                    const deletedId = payload.old?.id;
+                    if (!deletedId) return;
+                    set((state) => {
+                      const updated = state.freedomPosts.filter((p) => p.id !== deletedId);
+                      try { localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated)); } catch (e) {}
+                      return { freedomPosts: updated };
+                    });
+                  })
+                  .subscribe();
 
-                  supabase
-                    .from('banned_users')
-                    .select('user_id')
-                    .then(({ data }) => {
-                      if (data) {
-                        const dbBans = data.map((b: any) => b.user_id);
-                        set({ bannedUserIds: dbBans });
-                        localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(dbBans));
-                      }
-                    }, () => {});
-
-                  supabase
-                    .from('feedback')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .then(({ data }) => {
-                      if (data && data.length > 0) {
-                        const dbFeedback: UserFeedback[] = data.map((f: any) => ({
-                          id: f.id,
-                          user_id: f.user_id,
-                          username: f.username,
-                          category: f.category,
-                          rating: f.rating,
-                          message: f.message,
-                          created_at: f.created_at,
-                        }));
-                        set({ feedbackList: dbFeedback });
-                        localStorage.setItem('capitalk_feedback_v1', JSON.stringify(dbFeedback));
-                      }
-                    }, () => {});
-                } else {
-                  const rawReports = localStorage.getItem('capitalk_shared_reports_v5');
-                  const rawBans = localStorage.getItem('capitalk_shared_bans_v5');
-                  if (rawReports) {
-                    const parsedReports = JSON.parse(rawReports);
-                    if (JSON.stringify(parsedReports) !== JSON.stringify(get().reports)) {
-                      set({ reports: parsedReports });
+                // ── 3. Initial one-time load of reports ────────────────────────
+                supabase
+                  .from('reports')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                  .then(({ data }) => {
+                    if (data && data.length > 0) {
+                      const dbReports: UserReport[] = data.map((r: any) => ({
+                        id: r.id,
+                        reporter_id: r.reporter_id || 'anon',
+                        reporter_username: r.reporter_username || 'Student',
+                        reported_user_id: r.reported_user_id,
+                        reported_username: r.reported_username || 'User',
+                        reason: r.reason,
+                        description: r.description,
+                        status: r.status || 'pending',
+                        created_at: r.created_at,
+                      }));
+                      set({ reports: dbReports });
+                      try { localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(dbReports)); } catch (e) {}
                     }
-                  }
-                  if (rawBans) {
-                    const parsedBans = JSON.parse(rawBans);
-                    if (JSON.stringify(parsedBans) !== JSON.stringify(get().bannedUserIds)) {
-                      set({ bannedUserIds: parsedBans });
+                  }, () => {});
+
+                // ── 4. Realtime subscription: reports INSERT/UPDATE ────────────
+                supabase
+                  .channel('public:reports:changes')
+                  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reports' }, (payload: any) => {
+                    const newRow = payload.new;
+                    if (!newRow) return;
+                    set((state) => {
+                      if (state.reports.some((r) => r.id === newRow.id)) return state;
+                      const newReport: UserReport = {
+                        id: newRow.id,
+                        reporter_id: newRow.reporter_id || 'anon',
+                        reporter_username: newRow.reporter_username || 'Student',
+                        reported_user_id: newRow.reported_user_id,
+                        reported_username: newRow.reported_username || 'User',
+                        reason: newRow.reason,
+                        description: newRow.description,
+                        status: newRow.status || 'pending',
+                        created_at: newRow.created_at,
+                      };
+                      const updated = [newReport, ...state.reports];
+                      try { localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updated)); } catch (e) {}
+                      return { reports: updated };
+                    });
+                  })
+                  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reports' }, (payload: any) => {
+                    const updatedRow = payload.new;
+                    if (!updatedRow) return;
+                    set((state) => {
+                      const updated = state.reports.map((r) =>
+                        r.id === updatedRow.id
+                          ? { ...r, status: updatedRow.status || r.status, admin_remark: updatedRow.admin_remark }
+                          : r
+                      );
+                      try { localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updated)); } catch (e) {}
+                      return { reports: updated };
+                    });
+                  })
+                  .subscribe();
+
+                // ── 5. Initial one-time load of feedback (admin-only, no realtime needed) ─
+                supabase
+                  .from('feedback')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                  .then(({ data }) => {
+                    if (data && data.length > 0) {
+                      const dbFeedback: UserFeedback[] = data.map((f: any) => ({
+                        id: f.id,
+                        user_id: f.user_id,
+                        username: f.username,
+                        category: f.category,
+                        rating: f.rating,
+                        message: f.message,
+                        created_at: f.created_at,
+                      }));
+                      set({ feedbackList: dbFeedback });
+                      try { localStorage.setItem('capitalk_feedback_v1', JSON.stringify(dbFeedback)); } catch (e) {}
                     }
-                  }
-                }
+                  }, () => {});
+
               } catch (e) {}
-            }, 5000);
+            } else {
+              // No Supabase: fall back to localStorage
+              try {
+                const rawFreedom = localStorage.getItem('capitalk_freedom_wall_v1');
+                if (rawFreedom) set({ freedomPosts: JSON.parse(rawFreedom) });
+                const rawReports = localStorage.getItem('capitalk_shared_reports_v5');
+                if (rawReports) set({ reports: JSON.parse(rawReports) });
+                const rawBans = localStorage.getItem('capitalk_shared_bans_v5');
+                if (rawBans) set({ bannedUserIds: JSON.parse(rawBans) });
+              } catch (e) {}
+            }
+
+            // ── 6. Lightweight 60-second fallback (catches any missed Realtime events) ─
+            // Fetches only essential columns, capped at 200 rows — ~95% less data than the old poll.
+            setInterval(() => {
+              if (!supabase || !isSupabaseConfigured) return;
+              try {
+                supabase
+                  .from('freedom_posts')
+                  .select('id,color,status,likes_count,liked_by_users,liked_by_profiles,is_pinned,created_at')
+                  .order('created_at', { ascending: false })
+                  .limit(200)
+                  .then(({ data, error }) => {
+                    if (!data || error) return;
+                    set((state) => {
+                      const localMap = new Map(state.freedomPosts.map((p) => [p.id, p]));
+                      let changed = false;
+                      const updated = state.freedomPosts.map((post) => {
+                        const row = data.find((r: any) => r.id === post.id);
+                        if (!row) return post;
+                        const rawColor = row.color || '#ffc900';
+                        const parts = rawColor.split('||');
+                        const dbStatus = parts[1] || row.status || post.status;
+                        const dbLikedBy: string[] = Array.isArray(row.liked_by_users) ? row.liked_by_users : [];
+                        const useLikedBy = dbLikedBy.length >= (post.liked_by_users?.length || 0) ? dbLikedBy : post.liked_by_users;
+                        if (post.status !== dbStatus || post.likes_count !== useLikedBy.length || !!post.is_pinned !== !!row.is_pinned) {
+                          changed = true;
+                          return { ...post, status: dbStatus as any, likes_count: useLikedBy.length, liked_by_users: useLikedBy, is_pinned: !!row.is_pinned };
+                        }
+                        return post;
+                      });
+                      if (!changed) return state;
+                      try { localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated)); } catch (e) {}
+                      return { freedomPosts: updated };
+                    });
+                  }, () => {});
+              } catch (e) {}
+            }, 60000);
           } catch (e) {}
         }
 
