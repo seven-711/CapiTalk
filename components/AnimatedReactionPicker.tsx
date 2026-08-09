@@ -63,9 +63,32 @@ const ReactionItemButton: React.FC<{
 };
 
 export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelectReaction, onClose }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        if (onClose) onClose();
+      }
+    };
+
+    // Use setTimeout so the touch/click event that opened the picker does not immediately close it
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [onClose]);
+
   return (
     <div
-      className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-md border-0.5 border-black rounded-full shadow-xl animate-in zoom-in-95 fade-in duration-150 z-40 shrink-0 select-none"
+      ref={containerRef}
+      className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-md border-2 border-black rounded-full shadow-xl animate-in zoom-in-95 fade-in duration-150 z-50 shrink-0 select-none"
       onClick={(e) => e.stopPropagation()}
     >
       {REACTION_KEYS.map((item) => (

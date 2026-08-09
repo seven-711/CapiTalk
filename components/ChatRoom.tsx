@@ -59,7 +59,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasVibratedRef = useRef(false);
 
-  const SWIPE_THRESHOLD = 50;
+  const SWIPE_THRESHOLD = 35;
 
   const handleStart = (clientX: number, clientY: number) => {
     touchStartRef.current = { x: clientX, y: clientY };
@@ -84,8 +84,8 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
     const deltaY = clientY - touchStartRef.current.y;
 
     if (isHorizontalSwipeRef.current === null) {
-      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
-        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
         if (isHorizontalSwipeRef.current && longPressTimerRef.current) {
           clearTimeout(longPressTimerRef.current);
           longPressTimerRef.current = null;
@@ -96,14 +96,13 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
     if (isHorizontalSwipeRef.current) {
       // Partner text (isMe=false): Swipe Left to Right (deltaX > 0)
       // Own text (isMe=true): Swipe Right to Left (deltaX < 0)
-      const isValidDirection = isMe ? deltaX < 0 : deltaX > 0;
+      const directionalDelta = isMe ? -deltaX : deltaX;
 
-      if (isValidDirection) {
-        const rawOffset = Math.abs(deltaX);
-        const clampedOffset = Math.min(rawOffset, 85);
+      if (directionalDelta > 0) {
+        const clampedOffset = Math.min(directionalDelta, 75);
         const elasticOffset =
           clampedOffset > SWIPE_THRESHOLD
-            ? SWIPE_THRESHOLD + (clampedOffset - SWIPE_THRESHOLD) * 0.4
+            ? SWIPE_THRESHOLD + (clampedOffset - SWIPE_THRESHOLD) * 0.35
             : clampedOffset;
 
         setDragOffset(elasticOffset);
@@ -112,12 +111,11 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         if (elasticOffset >= SWIPE_THRESHOLD && !hasVibratedRef.current) {
           hasVibratedRef.current = true;
           if (typeof window !== 'undefined' && window.navigator?.vibrate) {
-            window.navigator.vibrate(30);
+            window.navigator.vibrate(25);
           }
         }
       } else {
         setDragOffset(0);
-        setIsSwiping(false);
       }
     }
   };
@@ -144,22 +142,24 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   const translateXVal = isMe ? -dragOffset : dragOffset;
 
   return (
-    <div className="relative w-full overflow-visible touch-pan-y">
+    <div className="relative w-full overflow-visible touch-pan-y select-none">
       {/* Swipe Reply Icon Indicator */}
       <div
         className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-0 ${
-          isMe ? 'right-0 pr-1' : 'left-0 pl-1'
+          isMe ? 'right-2' : 'left-2'
         }`}
         style={{
           opacity: progress,
-          transform: `translateY(-50%) scale(${0.5 + progress * 0.6})`,
+          transform: `translateY(-50%) scale(${0.4 + progress * 0.6}) rotate(${
+            isMe ? (1 - progress) * -20 : (1 - progress) * 20
+          }deg)`,
         }}
       >
         <div
           className={`p-2 rounded-full border-2 border-black transition-all ${
             isTriggered
               ? 'bg-[#ffc900] text-black shadow-md scale-110'
-              : 'bg-white text-black shadow-xs'
+              : 'bg-white text-black shadow-2xs'
           }`}
         >
           {isMe ? (
@@ -184,10 +184,10 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
         }}
         onMouseUp={handleEnd}
         onMouseLeave={handleEnd}
-        className="relative z-10 transition-transform select-none"
+        className="relative z-10 select-none touch-pan-y"
         style={{
           transform: `translateX(${translateXVal}px)`,
-          transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          transition: isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         }}
       >
         {children}
@@ -625,9 +625,12 @@ export const ChatRoom: React.FC = () => {
       </div>
 
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
-      <div className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain ${
-        isAdminRoom ? 'bg-transparent text-white' : 'bg-[#fbf9f5]'
-      }`}>
+      <div
+        onClick={() => activePickerMsgId && setActivePickerMsgId(null)}
+        className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain ${
+          isAdminRoom ? 'bg-transparent text-white' : 'bg-[#fbf9f5]'
+        }`}
+      >
         <div className="space-y-3 sm:space-y-4">
           {messages.map((msg) => {
           if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
