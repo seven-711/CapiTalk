@@ -673,7 +673,7 @@ export const FreedomWall: React.FC = () => {
                       <span className="truncate">{post.poll_question || 'Campus Poll'}</span>
                     </span>
                     <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-black text-white rounded-full shrink-0">
-                      {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+                      {hasUserVoted ? `${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}` : 'Tap option to vote'}
                     </span>
                   </div>
 
@@ -691,33 +691,48 @@ export const FreedomWall: React.FC = () => {
                           className={`w-full relative text-left p-1.5 sm:p-2 rounded-lg border-2 border-black transition-all overflow-hidden ${
                             isMySelection
                               ? 'bg-amber-200 border-black ring-2 ring-black font-black'
-                              : 'bg-gray-50 hover:bg-amber-50'
+                              : 'bg-gray-50 hover:bg-amber-100 hover:border-black'
                           }`}
                         >
-                          <div
-                            className={`absolute top-0 bottom-0 left-0 transition-all duration-500 ${
-                              isMySelection ? 'bg-[#ffc900] opacity-60' : 'bg-gray-300 opacity-40'
-                            }`}
-                            style={{ width: `${percentage}%` }}
-                          />
+                          {/* Progress bar background — ONLY show if user has voted */}
+                          {hasUserVoted && (
+                            <div
+                              className={`absolute top-0 bottom-0 left-0 transition-all duration-500 ${
+                                isMySelection ? 'bg-[#ffc900] opacity-60' : 'bg-gray-300 opacity-40'
+                              }`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          )}
 
                           <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] sm:text-xs font-bold">
                             <div className="flex items-center gap-1.5 truncate">
                               {isMySelection && <CheckCircle className="w-3.5 h-3.5 text-black shrink-0 fill-black/20" />}
                               <span className="truncate">{opt.text}</span>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px] font-extrabold">
-                              <span>{percentage}%</span>
-                              <span className="text-gray-600 text-[9px] sm:text-[10px]">({optVotes})</span>
-                            </div>
+
+                            {/* Option percentages and vote counts — ONLY show if user has voted */}
+                            {hasUserVoted ? (
+                              <div className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px] font-extrabold">
+                                <span>{percentage}%</span>
+                                <span className="text-gray-600 text-[9px] sm:text-[10px]">({optVotes})</span>
+                              </div>
+                            ) : (
+                              <div className="shrink-0 text-[9px] sm:text-[10px] font-extrabold text-gray-500 uppercase">
+                                Vote
+                              </div>
+                            )}
                           </div>
                         </button>
                       );
                     })}
                   </div>
-                  {hasUserVoted && (
+                  {hasUserVoted ? (
                     <p className="text-[9px] sm:text-[10px] font-extrabold text-[#701a31] text-center mt-1.5">
                       ✓ You voted in this poll
+                    </p>
+                  ) : (
+                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-500 text-center mt-1.5 italic">
+                      Vote to reveal result
                     </p>
                   )}
                 </div>
