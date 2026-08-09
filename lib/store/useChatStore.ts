@@ -89,6 +89,7 @@ interface ChatStoreState {
   deleteFreedomPost: (postId: string) => void;
   approveFreedomPost: (postId: string) => void;
   likeFreedomPost: (postId: string) => void;
+  voteFreedomPoll: (postId: string, optionId: string) => void;
   togglePinFreedomPost: (postId: string) => void;
   submitFeedback: (input: { category: UserFeedback['category']; rating: number; message: string }) => void;
 
@@ -364,6 +365,16 @@ export const useChatStore = create<ChatStoreState>()(
                         let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
                         try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
 
+                        let dbPollOptions = row.poll_options;
+                        let dbPollQuestion = row.poll_question;
+                        try {
+                          if (parts[3]) {
+                            const parsedPoll = JSON.parse(parts[3]);
+                            if (parsedPoll.options) dbPollOptions = parsedPoll.options;
+                            if (parsedPoll.question) dbPollQuestion = parsedPoll.question;
+                          }
+                        } catch (e) {}
+
                         return {
                           id: row.id,
                           author_id: row.author_id,
@@ -384,6 +395,8 @@ export const useChatStore = create<ChatStoreState>()(
                           song_preview_url: row.song_preview_url,
                           song_link: row.song_link,
                           dedicated_to: row.dedicated_to,
+                          poll_question: dbPollQuestion,
+                          poll_options: dbPollOptions,
                         };
                       });
                       set({ freedomPosts: loadedFromDb });
@@ -741,6 +754,16 @@ export const useChatStore = create<ChatStoreState>()(
                   let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
                   try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
 
+                  let dbPollOptions = existingLocal?.poll_options || row.poll_options;
+                  let dbPollQuestion = existingLocal?.poll_question || row.poll_question;
+                  try {
+                    if (parts[3]) {
+                      const parsedPoll = JSON.parse(parts[3]);
+                      if (parsedPoll.options) dbPollOptions = parsedPoll.options;
+                      if (parsedPoll.question) dbPollQuestion = parsedPoll.question;
+                    }
+                  } catch (e) {}
+
                   return {
                     id: row.id,
                     author_id: row.author_id,
@@ -761,6 +784,8 @@ export const useChatStore = create<ChatStoreState>()(
                     song_preview_url: row.song_preview_url,
                     song_link: row.song_link,
                     dedicated_to: row.dedicated_to,
+                    poll_question: dbPollQuestion,
+                    poll_options: dbPollOptions,
                   };
                 };
 
@@ -1780,6 +1805,8 @@ export const useChatStore = create<ChatStoreState>()(
           song_preview_url: postData.song_preview_url,
           song_link: postData.song_link,
           dedicated_to: postData.dedicated_to,
+          poll_question: postData.poll_question,
+          poll_options: postData.poll_options,
           likes_count: 0,
           liked_by_users: [],
           is_admin: !!postData.is_admin,
@@ -2034,7 +2061,10 @@ export const useChatStore = create<ChatStoreState>()(
           try {
             const targetPost = updated.find((p) => p.id === postId);
             if (targetPost) {
-              const encodedColor = `${targetPost.color}||${targetPost.status}||${JSON.stringify(targetPost.liked_by_profiles || {})}`;
+              const pollMeta = (targetPost.poll_options && targetPost.poll_options.length > 0)
+                ? JSON.stringify({ question: targetPost.poll_question || '', options: targetPost.poll_options })
+                : '';
+              const encodedColor = `${targetPost.color}||${targetPost.status}||${JSON.stringify(targetPost.liked_by_profiles || {})}||${pollMeta}`;
               supabase
                 .from('freedom_posts')
                 .update({
@@ -2081,6 +2111,83 @@ export const useChatStore = create<ChatStoreState>()(
                   read: false,
                 }).then(() => {}, () => {});
               }
+            }
+          } catch (e) {}
+        }
+
+        set({ freedomPosts: updated });
+      },
+
+      voteFreedomPoll: (postId: string, optionId: string) => {
+        const { freedomPosts, currentUser } = get();
+        const userId = currentUser
+          ? currentUser.id
+          : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'guest_anon');
+
+        const targetPost = freedomPosts.find((p) => p.id === postId);
+        if (!targetPost || !targetPost.poll_options || targetPost.poll_options.length === 0) return;
+
+        const alreadyVotedOption = targetPost.poll_options.find((opt) => opt.voted_users?.includes(userId));
+        if (alreadyVotedOption && alreadyVotedOption.id === optionId) return;
+
+        const updatedOptions = targetPost.poll_options.map((opt) => {
+          const votedUsers = opt.voted_users || [];
+          const isTargetOpt = opt.id === optionId;
+          const isPrevOpt = alreadyVotedOption && opt.id === alreadyVotedOption.id;
+
+          let newVotedUsers = votedUsers;
+          if (isPrevOpt) {
+            newVotedUsers = votedUsers.filter((id) => id !== userId);
+          }
+          if (isTargetOpt) {
+            newVotedUsers = [...newVotedUsers.filter((id) => id !== userId), userId];
+          }
+
+          return {
+            ...opt,
+            voted_users: newVotedUsers,
+            votes_count: newVotedUsers.length,
+          };
+        });
+
+        const updated = freedomPosts.map((post) => {
+          if (post.id !== postId) return post;
+          return {
+            ...post,
+            poll_options: updatedOptions,
+          };
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
+          } catch (e) {}
+        }
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const updatedPost = updated.find((p) => p.id === postId);
+            if (updatedPost) {
+              const pollMeta = JSON.stringify({ question: updatedPost.poll_question || '', options: updatedPost.poll_options });
+              const encodedColor = `${updatedPost.color}||${updatedPost.status || 'approved'}||${JSON.stringify(updatedPost.liked_by_profiles || {})}||${pollMeta}`;
+              supabase
+                .from('freedom_posts')
+                .update({
+                  color: encodedColor,
+                  poll_question: updatedPost.poll_question || null,
+                  poll_options: updatedPost.poll_options || [],
+                })
+                .eq('id', postId)
+                .then(
+                  () => {},
+                  () => {}
+                );
             }
           } catch (e) {}
         }

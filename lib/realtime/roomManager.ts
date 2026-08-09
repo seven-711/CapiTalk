@@ -111,7 +111,8 @@ class RoomManager {
           .select('*')
           .eq('room_id', roomId)
           .order('created_at', { ascending: true })
-          .then(({ data }) => {
+          .then(({ data, error }) => {
+            if (error) return;
             if (data && data.length > 0) {
               data.forEach((row: any) => {
                 const msg: ChatMessage = {
@@ -317,7 +318,11 @@ class RoomManager {
             image_url: msg.image_url || null,
             created_at: msg.created_at,
           })
-          .then(() => {}, () => {});
+          .then(({ error }) => {
+            if (error) {
+              console.warn('[DB Messages Insert Notice]', error.message);
+            }
+          }, () => {});
       } catch (e) {}
     }
   }

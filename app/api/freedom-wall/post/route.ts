@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ success: false, error: 'Supabase configuration error.' }, { status: 500 });
@@ -181,7 +181,10 @@ export async function POST(req: Request) {
     // LAYER 10 cont: Override client-provided privileged fields
     const finalStatus = isAdminMode ? 'approved' : 'pending';
     const finalColor = isAdminMode ? '#701a31' : (postData.color || '#ffc900');
-    const encodedColor = `${finalColor}||${finalStatus}||{}`;
+    const pollMeta = (postData.poll_options && postData.poll_options.length > 0)
+      ? JSON.stringify({ question: postData.poll_question || '', options: postData.poll_options })
+      : '';
+    const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}`;
 
     const insertPayload: any = {
       id: postData.id,
@@ -196,6 +199,8 @@ export async function POST(req: Request) {
     
     if (postData.author_id) insertPayload.author_id = postData.author_id;
     if (postData.dedicated_to) insertPayload.dedicated_to = postData.dedicated_to;
+    if (postData.poll_question) insertPayload.poll_question = postData.poll_question;
+    if (postData.poll_options && postData.poll_options.length > 0) insertPayload.poll_options = postData.poll_options;
     if (postData.song_title) {
       insertPayload.song_title = postData.song_title;
       insertPayload.song_artist = postData.song_artist;

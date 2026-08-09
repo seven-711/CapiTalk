@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CU_DEPARTMENTS } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
-import { FreedomComment, FreedomPost } from '../lib/types';
+import { FreedomComment, FreedomPost, FreedomPollOption } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import {
   MessageSquare,
@@ -20,22 +20,18 @@ import {
   MessageCircle,
   Flag,
   Trash2,
-  ShieldAlert,
-  RefreshCw,
-  Archive,
-  Calendar,
-  Layers,
-  Unlock,
   Pin,
-  Users,
   CheckCircle,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  BarChart2,
+  RefreshCw,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
+import Silk from './Silk';
 
 const POST_COLORS = [
   { name: 'Maroon', hex: '#701a31' },
@@ -54,6 +50,7 @@ export const FreedomWall: React.FC = () => {
     deleteFreedomPost,
     approveFreedomPost,
     likeFreedomPost,
+    voteFreedomPoll,
     togglePinFreedomPost,
     myPostIds,
     addWallNotification,
@@ -120,6 +117,26 @@ export const FreedomWall: React.FC = () => {
   const [message, setMessage] = useState('');
   const [selectedColor, setSelectedColor] = useState('#ffc900');
   const [moderationError, setModerationError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Campus Poll Creation State (max 4 options)
+  const [showPollForm, setShowPollForm] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOption1, setPollOption1] = useState('');
+  const [pollOption2, setPollOption2] = useState('');
+  const [pollOption3, setPollOption3] = useState('');
+  const [pollOption4, setPollOption4] = useState('');
+  const [pollOptionsCount, setPollOptionsCount] = useState(2);
+
+  const resetPollForm = () => {
+    setShowPollForm(false);
+    setPollQuestion('');
+    setPollOption1('');
+    setPollOption2('');
+    setPollOption3('');
+    setPollOption4('');
+    setPollOptionsCount(2);
+  };
 
   // Anti-Bot & Rate Limit Protection State
   const COOLDOWN_SECONDS = 60;
@@ -409,32 +426,71 @@ export const FreedomWall: React.FC = () => {
       return;
     }
 
-    const success = await addFreedomPost({
-      author_alias: postAsAdmin
-        ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
-        : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student')),
-      department: currentUser ? currentUser.department : (department || 'General'),
-      message: message.trim(),
-      color: postAsAdmin ? '#701a31' : selectedColor,
-      is_admin: postAsAdmin,
-    }, honeypot, deviceId);
+    let pollOptionsList: FreedomPollOption[] | undefined = undefined;
+    let finalPollQuestion: string | undefined = undefined;
 
-    if (success) {
-      if (!postAsAdmin && !isAdminUser) {
-        const now = Date.now();
-        localStorage.setItem('capitalk_wall_last_post_ts', String(now));
-        try {
-          const rawHistory = localStorage.getItem('capitalk_wall_post_history');
-          const history: number[] = rawHistory ? JSON.parse(rawHistory) : [];
-          const oneDayAgo = now - 24 * 60 * 60 * 1000;
-          const updated = [...history.filter((ts) => ts > oneDayAgo), now];
-          localStorage.setItem('capitalk_wall_post_history', JSON.stringify(updated));
-        } catch (e) {}
+    if (showPollForm) {
+      const rawOptions = [pollOption1, pollOption2, pollOption3, pollOption4]
+        .slice(0, pollOptionsCount)
+        .map((opt) => opt.trim())
+        .filter(Boolean);
+
+      if (rawOptions.length < 2) {
+        setModerationError('⚠️ Poll Error: Please enter at least 2 non-empty options for your poll.');
+        return;
       }
 
-      setMessage('');
-      setShowCreateModal(false);
-      setModerationError(null);
+      for (const opt of rawOptions) {
+        const check = analyzeContentModeration(opt);
+        if (check.contains_profanity) {
+          setModerationError(`⚠️ Poll Option blocked: Contains inappropriate term ("${check.matched_terms.join(', ')}").`);
+          return;
+        }
+      }
+
+      finalPollQuestion = pollQuestion.trim() || message.trim();
+      pollOptionsList = rawOptions.map((optText, idx) => ({
+        id: `opt_${Date.now()}_${idx}`,
+        text: optText,
+        votes_count: 0,
+        voted_users: [],
+      }));
+    }
+
+    setIsSubmitting(true);
+    try {
+      const success = await addFreedomPost({
+        author_alias: postAsAdmin
+          ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
+          : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student')),
+        department: currentUser ? currentUser.department : (department || 'General'),
+        message: message.trim(),
+        color: postAsAdmin ? '#701a31' : selectedColor,
+        is_admin: postAsAdmin,
+        poll_question: finalPollQuestion,
+        poll_options: pollOptionsList,
+      }, honeypot, deviceId);
+
+      if (success) {
+        if (!postAsAdmin && !isAdminUser) {
+          const now = Date.now();
+          localStorage.setItem('capitalk_wall_last_post_ts', String(now));
+          try {
+            const rawHistory = localStorage.getItem('capitalk_wall_post_history');
+            const history: number[] = rawHistory ? JSON.parse(rawHistory) : [];
+            const oneDayAgo = now - 24 * 60 * 60 * 1000;
+            const updated = [...history.filter((ts) => ts > oneDayAgo), now];
+            localStorage.setItem('capitalk_wall_post_history', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        setMessage('');
+        resetPollForm();
+        setShowCreateModal(false);
+        setModerationError(null);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -543,146 +599,228 @@ export const FreedomWall: React.FC = () => {
         key={post.id}
         id={`post-${post.id}`}
         style={{ backgroundColor: post.color || (isPostAdmin ? '#701a31' : '#ffc900') }}
-        className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-black transition-all flex flex-col justify-between group relative overflow-hidden ${
+        className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all flex flex-col justify-between group relative overflow-hidden ${
           isPinned
             ? 'border-4 border-black ring-4 ring-[#ffc900] shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
             : isPostAdmin
-            ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/80 shadow-[0_0_30px_rgba(112,26,49,0.85)] animate-pulse text-white'
-            : 'text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
+            ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/60 shadow-[0_10px_35px_rgba(112,26,49,0.7)] text-white'
+            : 'border-black text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
         }`}
       >
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
-            <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-              {post.status === 'pending' && (
-                <span className="px-2.5 py-0.5 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1 animate-pulse" title="Awaiting Admin Review before public display">
-                  ⏳ PENDING REVIEW
-                </span>
-              )}
-              {isPinned ? (
-                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                  📌 PINNED NOTE
-                </span>
-              ) : isPostAdmin ? (
-                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                  👑 ADMIN NOTE
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 sm:px-2.5 bg-black text-white text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0">
-                  {post.department.replace('College of ', '')}
-                </span>
-              )}
-              {isMyPost && !isPinned && !isPostAdmin && (
-                <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs" title="Created by you">
-                  YOU
-                </span>
-              )}
+        {/* Silk WebGL background layer for Admin Notes */}
+        {isPostAdmin && (
+          <div className="absolute inset-0 pointer-events-none z-0 opacity-90 overflow-hidden rounded-2xl sm:rounded-3xl">
+            <Silk
+              speed={5}
+              scale={1}
+              color="#701a31"
+              noiseIntensity={1.5}
+              rotation={0}
+              className="w-full h-full"
+            />
+          </div>
+        )}
+
+        <div className="relative z-10 flex flex-col justify-between h-full min-w-0">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2 min-w-0">
+                {post.status === 'pending' && (
+                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-0.5 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1 animate-pulse" title="Awaiting Admin Review before public display">
+                    PENDING REVIEW
+                  </span>
+                )}
+                {isPinned ? (
+                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
+                    PINNED NOTE
+                  </span>
+                ) : isPostAdmin ? (
+                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
+                    ADMIN NOTE
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 sm:px-2.5 bg-black text-white text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0">
+                    {post.department.replace('College of ', '')}
+                  </span>
+                )}
+                {isMyPost && !isPinned && !isPostAdmin && (
+                  <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs" title="Created by you">
+                    YOU
+                  </span>
+                )}
+              </div>
+              <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
+                {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
             </div>
-            <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
-              {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+
+            <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-[#242423]'}`}>
+              "{post.message}"
+            </p>
+
+            {/* Freedom Poll Widget */}
+            {post.poll_options && post.poll_options.length > 0 && (() => {
+              const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'guest_anon');
+              const totalVotes = post.poll_options.reduce((sum, opt) => sum + (opt.votes_count || 0), 0);
+              const userVotedOption = post.poll_options.find((opt) => opt.voted_users?.includes(currentUserId));
+              const hasUserVoted = !!userVotedOption;
+
+              return (
+                <div className="my-2.5 p-2.5 sm:p-3 rounded-xl border-2 border-black bg-white/95 text-black shadow-xs">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-black flex items-center gap-1.5 truncate">
+                      <BarChart2 className="w-3.5 h-3.5 text-[#701a31] shrink-0" />
+                      <span className="truncate">{post.poll_question || 'Campus Poll'}</span>
+                    </span>
+                    <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-black text-white rounded-full shrink-0">
+                      {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {post.poll_options.map((opt) => {
+                      const optVotes = opt.votes_count || 0;
+                      const percentage = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
+                      const isMySelection = userVotedOption?.id === opt.id;
+
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => voteFreedomPoll(post.id, opt.id)}
+                          className={`w-full relative text-left p-1.5 sm:p-2 rounded-lg border-2 border-black transition-all overflow-hidden ${
+                            isMySelection
+                              ? 'bg-amber-200 border-black ring-2 ring-black font-black'
+                              : 'bg-gray-50 hover:bg-amber-50'
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-0 bottom-0 left-0 transition-all duration-500 ${
+                              isMySelection ? 'bg-[#ffc900] opacity-60' : 'bg-gray-300 opacity-40'
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+
+                          <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] sm:text-xs font-bold">
+                            <div className="flex items-center gap-1.5 truncate">
+                              {isMySelection && <CheckCircle className="w-3.5 h-3.5 text-black shrink-0 fill-black/20" />}
+                              <span className="truncate">{opt.text}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px] font-extrabold">
+                              <span>{percentage}%</span>
+                              <span className="text-gray-600 text-[9px] sm:text-[10px]">({optVotes})</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {hasUserVoted && (
+                    <p className="text-[9px] sm:text-[10px] font-extrabold text-[#701a31] text-center mt-1.5">
+                      ✓ You voted in this poll
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
-          <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-[#242423]'}`}>
-            "{post.message}"
-          </p>
-        </div>
+          <div className={`pt-2 sm:pt-3 border-t flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 ${isPostAdmin && !isPinned ? 'border-white/30' : 'border-black/20'}`}>
+            <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/80'}`}>
+              ~ {post.author_alias || 'Anon Student'}
+            </span>
 
-        <div className={`pt-2 sm:pt-3 border-t flex items-center justify-between gap-2 ${isPostAdmin && !isPinned ? 'border-white/30' : 'border-black/20'}`}>
-          <span className={`text-[11px] sm:text-xs font-extrabold italic truncate ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/80'}`}>
-            ~ {post.author_alias || 'Anon Student'}
-          </span>
+            <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 shrink-0">
+              {isAdminUser && post.status === 'pending' && (
+                <button
+                  type="button"
+                  onClick={() => approveFreedomPost(post.id)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-2 border-black bg-emerald-500 text-white font-black text-[9px] sm:text-xs hover:bg-emerald-600 transition-all shadow-xs active:scale-95 shrink-0"
+                  title="Admin: Approve Note & Publish to Wall"
+                >
+                  <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <span>Approve</span>
+                </button>
+              )}
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {isAdminUser && post.status === 'pending' && (
               <button
                 type="button"
-                onClick={() => approveFreedomPost(post.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2 border-black bg-emerald-500 text-white font-black text-[10px] sm:text-xs hover:bg-emerald-600 transition-all shadow-xs active:scale-95"
-                title="Admin: Approve Note & Publish to Wall"
+                onClick={() => setSelectedPostForReport(post)}
+                className="inline-flex items-center justify-center w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs shrink-0"
+                title="Report this note to admin"
               >
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>Approve</span>
+                <Flag className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => setSelectedPostForReport(post)}
-              className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs"
-              title="Report this note to admin"
-            >
-              <Flag className="w-3.5 h-3.5" />
-            </button>
+              {isAdminUser && (
+                <button
+                  type="button"
+                  onClick={() => togglePinFreedomPost(post.id)}
+                  className={`inline-flex items-center justify-center w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full border-2 border-black transition-all shadow-xs shrink-0 ${
+                    isPinned
+                      ? 'bg-[#ffc900] text-black border-black shadow-md scale-105'
+                      : 'bg-white text-black hover:bg-amber-100'
+                  }`}
+                  title={isPinned ? "Admin: Unpin Note" : "Admin: Pin Note to top"}
+                >
+                  <Pin className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isPinned ? 'fill-black' : ''}`} />
+                </button>
+              )}
 
-            {isAdminUser && (
+              {(isAdminUser || isMyPost) && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPostForDelete(post)}
+                  className="inline-flex items-center justify-center w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs shrink-0"
+                  title={isMyPost && !isAdminUser ? "Delete your note" : "Admin: Delete Note"}
+                >
+                  <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => togglePinFreedomPost(post.id)}
-                className={`inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black transition-all shadow-xs ${
-                  isPinned
-                    ? 'bg-[#ffc900] text-black border-black shadow-md scale-105'
-                    : 'bg-white text-black hover:bg-amber-100'
-                }`}
-                title={isPinned ? "Admin: Unpin Note" : "Admin: Pin Note to top"}
+                onClick={() => openCommentsModal(post)}
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border-2 border-black bg-white text-[10px] sm:text-xs font-extrabold text-black hover:bg-black hover:text-white transition-all shadow-xs shrink-0"
+                title="View & Post Comments"
               >
-                <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-black' : ''}`} />
+                <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <span>{commentsCountMap[post.id] || 0}</span>
               </button>
-            )}
 
-            {(isAdminUser || isMyPost) && (
-              <button
-                type="button"
-                onClick={() => setSelectedPostForDelete(post)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
-                title={isMyPost && !isAdminUser ? "Delete your note" : "Admin: Delete Note"}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => openCommentsModal(post)}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-black bg-white text-xs font-extrabold text-black hover:bg-black hover:text-white transition-all shadow-xs"
-              title="View & Post Comments"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>{commentsCountMap[post.id] || 0}</span>
-            </button>
-
-            {/* Heart button — long press (mobile) to see reactors, tap to like */}
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onMouseDown={() => handleHeartPressStart(post)}
-                onMouseUp={() => handleHeartPressEnd(post)}
-                onMouseLeave={() => { if (heartPressTimer.current) clearTimeout(heartPressTimer.current); }}
-                onTouchStart={() => handleHeartPressStart(post)}
-                onTouchEnd={(e) => { e.preventDefault(); handleHeartPressEnd(post); }}
-                onContextMenu={(e) => e.preventDefault()}
-                className={`inline-flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-l-full border-2 border-r-0 text-xs font-extrabold transition-all shadow-sm select-none ${
-                  hasLiked
-                    ? 'bg-rose-500 text-white border-black shadow-md scale-105'
-                    : 'bg-white border-black text-black hover:bg-black hover:text-white'
-                }`}
-                title="Tap to like · Hold to see who liked"
-              >
-                <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
-              </button>
-              {/* Likes count — click on desktop to open reactors */}
-              <button
-                type="button"
-                onClick={() => setReactorsPost(post)}
-                className={`inline-flex items-center px-2 py-1 rounded-r-full border-2 border-l-0 text-xs font-extrabold transition-all shadow-sm select-none ${
-                  hasLiked
-                    ? 'bg-rose-500 text-white border-black shadow-md scale-105'
-                    : 'bg-white border-black text-black hover:bg-[#fff1f3] hover:text-rose-600'
-                }`}
-                title="See who liked this note"
-              >
-                {post.likes_count}
-              </button>
+              {/* Heart button — long press (mobile) to see reactors, tap to like */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  onMouseDown={() => handleHeartPressStart(post)}
+                  onMouseUp={() => handleHeartPressEnd(post)}
+                  onMouseLeave={() => { if (heartPressTimer.current) clearTimeout(heartPressTimer.current); }}
+                  onTouchStart={() => handleHeartPressStart(post)}
+                  onTouchEnd={(e) => { e.preventDefault(); handleHeartPressEnd(post); }}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className={`inline-flex items-center gap-1 pl-2 pr-1.5 sm:pl-3 sm:pr-2 py-0.5 sm:py-1 rounded-l-full border-2 border-r-0 text-[10px] sm:text-xs font-extrabold transition-all shadow-sm select-none ${
+                    hasLiked
+                      ? 'bg-rose-500 text-white border-black shadow-md scale-105'
+                      : 'bg-white border-black text-black hover:bg-black hover:text-white'
+                  }`}
+                  title="Tap to like · Hold to see who liked"
+                >
+                  <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
+                </button>
+                {/* Likes count — click on desktop to open reactors */}
+                <button
+                  type="button"
+                  onClick={() => setReactorsPost(post)}
+                  className={`inline-flex items-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-r-full border-2 border-l-0 text-[10px] sm:text-xs font-extrabold transition-all shadow-sm select-none ${
+                    hasLiked
+                      ? 'bg-rose-500 text-white border-black shadow-md scale-105'
+                      : 'bg-white border-black text-black hover:bg-[#fff1f3] hover:text-rose-600'
+                  }`}
+                  title="See who liked this note"
+                >
+                  {post.likes_count}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1114,6 +1252,129 @@ export const FreedomWall: React.FC = () => {
                 />
               </div>
 
+              {/* Optional Poll Feature */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPollForm(!showPollForm)}
+                  className={`w-full py-2 px-3 rounded-xl border-2 border-black flex items-center justify-between text-xs font-black transition-all ${
+                    showPollForm ? 'bg-[#ffc900] text-black shadow-xs' : 'bg-gray-100 hover:bg-gray-200 text-black'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <BarChart2 className="w-4 h-4 text-black shrink-0" />
+                    <span>{showPollForm ? 'Poll Attached' : 'Add Poll (Max 4 Options)'}</span>
+                  </div>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-black text-white shrink-0">
+                    {showPollForm ? 'Remove Poll' : '+ Add Poll'}
+                  </span>
+                </button>
+
+                {showPollForm && (
+                  <div className="mt-2.5 p-3 bg-amber-50/90 border-2 border-black rounded-xl space-y-2 text-black animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-black">
+                        Poll Question (Optional)
+                      </label>
+                      <span className="text-[10px] font-bold text-gray-600">Max 4 options</span>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={100}
+                      value={pollQuestion}
+                      onChange={(e) => setPollQuestion(e.target.value)}
+                      placeholder="e.g. Which library floor is best for studying?"
+                      className="w-full p-2 text-xs border-2 border-black rounded-lg font-bold bg-white text-black focus:outline-none"
+                    />
+
+                    <div className="space-y-1.5 pt-1">
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-black">
+                        Poll Options ({pollOptionsCount}/4)
+                      </label>
+
+                      <input
+                        type="text"
+                        maxLength={60}
+                        value={pollOption1}
+                        onChange={(e) => setPollOption1(e.target.value)}
+                        placeholder="Option 1 (e.g. 2nd Floor Quiet Zone)"
+                        className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
+                      />
+
+                      <input
+                        type="text"
+                        maxLength={60}
+                        value={pollOption2}
+                        onChange={(e) => setPollOption2(e.target.value)}
+                        placeholder="Option 2 (e.g. 4th Floor Study Pods)"
+                        className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
+                      />
+
+                      {pollOptionsCount >= 3 && (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            maxLength={60}
+                            value={pollOption3}
+                            onChange={(e) => setPollOption3(e.target.value)}
+                            placeholder="Option 3 (Optional)"
+                            className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
+                          />
+                          {pollOptionsCount === 3 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPollOption3('');
+                                setPollOptionsCount(2);
+                              }}
+                              className="p-2 border-2 border-black rounded-lg bg-rose-200 hover:bg-rose-300 text-black text-xs font-black shrink-0"
+                              title="Remove Option 3"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {pollOptionsCount >= 4 && (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            maxLength={60}
+                            value={pollOption4}
+                            onChange={(e) => setPollOption4(e.target.value)}
+                            placeholder="Option 4 (Optional)"
+                            className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPollOption4('');
+                              setPollOptionsCount(3);
+                            }}
+                            className="p-2 border-2 border-black rounded-lg bg-rose-200 hover:bg-rose-300 text-black text-xs font-black shrink-0"
+                            title="Remove Option 4"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {pollOptionsCount < 4 && (
+                        <button
+                          type="button"
+                          onClick={() => setPollOptionsCount(Math.min(4, pollOptionsCount + 1))}
+                          className="w-full py-1.5 px-3 border-2 border-dashed border-black rounded-lg bg-white hover:bg-amber-100 text-black text-xs font-extrabold flex items-center justify-center gap-1 transition-all mt-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Option ({pollOptionsCount + 1}/4)</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Anti-Bot Verification Challenge */}
               {!postAsAdmin && (
                 <div className="hidden">
@@ -1176,21 +1437,30 @@ export const FreedomWall: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)}
+                  disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))}
                   className={`btn-gumroad-primary text-xs px-5 py-2 flex items-center gap-1.5 ${
-                    !postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)
+                    isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))
                       ? 'opacity-50 cursor-not-allowed bg-gray-400 border-gray-600'
                       : ''
                   }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>
-                    {cooldownRemaining > 0 && !postAsAdmin
-                      ? `Wait ${cooldownRemaining}s...`
-                      : dailyPostCount >= DAILY_MAX_POSTS && !postAsAdmin
-                      ? 'Daily Limit Reached'
-                      : 'Post Note'}
-                  </span>
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Posting Note...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>
+                        {cooldownRemaining > 0 && !postAsAdmin
+                          ? `Wait ${cooldownRemaining}s...`
+                          : dailyPostCount >= DAILY_MAX_POSTS && !postAsAdmin
+                          ? 'Daily Limit Reached'
+                          : 'Post Note'}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

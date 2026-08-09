@@ -108,6 +108,22 @@ export const ChatRoom: React.FC = () => {
     }
   };
 
+  const [confirmExit, setConfirmExit] = useState(false);
+  const confirmExitTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleExitClick = () => {
+    if (!confirmExit) {
+      setConfirmExit(true);
+      // Auto-reset after 3 seconds if not confirmed
+      if (confirmExitTimerRef.current) clearTimeout(confirmExitTimerRef.current);
+      confirmExitTimerRef.current = setTimeout(() => setConfirmExit(false), 3000);
+    } else {
+      if (confirmExitTimerRef.current) clearTimeout(confirmExitTimerRef.current);
+      setConfirmExit(false);
+      leaveRoom();
+    }
+  };
+
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleTouchStart = (msgId: string) => {
@@ -446,12 +462,18 @@ export const ChatRoom: React.FC = () => {
 
           <button
             type="button"
-            onClick={leaveRoom}
-            className="p-1.5 sm:p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors"
-            title="Exit Chat"
+            onClick={handleExitClick}
+            className={`p-1.5 sm:p-2 rounded border flex items-center gap-1 transition-all ${
+              confirmExit
+                ? 'bg-red-600 text-white border-red-600 font-bold scale-105 animate-pulse'
+                : 'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
+            }`}
+            title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
           >
             <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="text-xs font-semibold hidden md:inline">Exit</span>
+            <span className={`text-xs font-semibold ${confirmExit ? 'inline' : 'hidden md:inline'}`}>
+              {confirmExit ? 'Sure?' : 'Exit'}
+            </span>
           </button>
 
           <button
@@ -907,12 +929,18 @@ export const ChatRoom: React.FC = () => {
               {/* Exit / Leave Chat Button */}
               <button
                 type="button"
-                onClick={leaveRoom}
-                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 flex items-center gap-1 transition-colors shrink-0"
-                title="Exit Chat"
+                onClick={handleExitClick}
+                className={`p-2 rounded border flex items-center gap-1 transition-all shrink-0 ${
+                  confirmExit
+                    ? 'bg-red-600 text-white border-red-600 font-bold scale-105 animate-pulse'
+                    : 'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
+                }`}
+                title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-xs font-bold hidden md:inline">Exit</span>
+                <span className={`text-xs font-bold ${confirmExit ? 'inline' : 'hidden md:inline'}`}>
+                  {confirmExit ? 'Sure?' : 'Exit'}
+                </span>
               </button>
 
               {/* File Upload Button */}

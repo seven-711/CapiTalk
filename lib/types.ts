@@ -69,6 +69,13 @@ export interface FreedomComment {
   created_at: string;
 }
 
+export interface FreedomPollOption {
+  id: string;
+  text: string;
+  votes_count: number;
+  voted_users: string[];
+}
+
 export interface FreedomPost {
   id: string;
   author_id?: string;
@@ -90,6 +97,8 @@ export interface FreedomPost {
   song_preview_url?: string;
   song_link?: string;
   dedicated_to?: string;
+  poll_question?: string;
+  poll_options?: FreedomPollOption[];
   created_at: string;
 }
 
