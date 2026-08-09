@@ -2444,17 +2444,7 @@ export const useChatStore = create<ChatStoreState>()(
           });
         } catch (e) {}
 
-        // 3. Send over Supabase Realtime Channel & save to Supabase Database for production deployments
-        try {
-          const { useBroadcastStore } = require('./useBroadcastStore');
-          useBroadcastStore.getState().createBroadcast({
-            owner_id: 'admin',
-            owner_name: 'Campus Administrator',
-            title: '📢 Campus Announcement',
-            description: message.trim(),
-            duration_minutes: 60,
-          });
-        } catch (e) {}
+
 
         if (supabase && isSupabaseConfigured) {
           try {
