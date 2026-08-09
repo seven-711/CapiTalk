@@ -87,6 +87,10 @@ export const AdminDashboard: React.FC = () => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('capitalk_admin_auth_v1', 'true');
       }
+      const { currentUser } = useChatStore.getState();
+      if (currentUser) {
+        useChatStore.setState({ currentUser: { ...currentUser, is_admin: true } });
+      }
       setIsAuthenticated(true);
       setAuthError(false);
     } else {
@@ -97,6 +101,10 @@ export const AdminDashboard: React.FC = () => {
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('capitalk_admin_auth_v1');
+    }
+    const { currentUser } = useChatStore.getState();
+    if (currentUser) {
+      useChatStore.setState({ currentUser: { ...currentUser, is_admin: false } });
     }
     setIsAuthenticated(false);
     setViewState('landing');

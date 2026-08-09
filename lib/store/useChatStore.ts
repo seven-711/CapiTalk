@@ -1131,9 +1131,7 @@ export const useChatStore = create<ChatStoreState>()(
         const isAdmin = Boolean(
           (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
           get().viewState === 'admin' ||
-          currentUser.is_admin ||
-          (currentUser.department as string) === 'Administration' ||
-          currentUser.username?.toLowerCase().includes('admin')
+          currentUser.is_admin === true
         );
 
         const sanitizedUser: UserProfile = {

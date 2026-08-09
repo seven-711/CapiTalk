@@ -235,9 +235,7 @@ class MatchmakingEngine {
   public joinQueue(user: UserProfile, filter: QueueFilter) {
     const isAdmin = Boolean(
       (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
-      user.is_admin ||
-      (user.department as string) === 'Administration' ||
-      user.username?.toLowerCase().includes('admin')
+      user.is_admin === true
     );
     const sanitizedUser: UserProfile = { ...user, is_admin: isAdmin };
     this.currentUser = sanitizedUser;
@@ -261,7 +259,7 @@ class MatchmakingEngine {
     if (this.checkInterval) clearInterval(this.checkInterval);
     this.checkInterval = setInterval(() => {
       if (this.isSearching) {
-        this.scanLocalStorageQueue(user, filter);
+        this.scanLocalStorageQueue(sanitizedUser, filter);
       }
     }, 1000);
 

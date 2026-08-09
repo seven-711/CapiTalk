@@ -467,15 +467,9 @@ export const ChatRoom: React.FC = () => {
   const isAdminRoom = Boolean(
     (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
     useChatStore.getState().viewState === 'admin' ||
-    currentUser?.is_admin ||
-    partner?.is_admin ||
-    (currentUser?.department as string) === 'Administration' ||
-    (partner?.department as string) === 'Administration' ||
-    currentUser?.username?.toLowerCase().includes('admin') ||
-    partner?.username?.toLowerCase().includes('admin') ||
-    currentUser?.id?.startsWith('admin_') ||
-    partner?.id?.startsWith('admin_') ||
-    partner?.id?.startsWith('bot_admin')
+    currentUser?.is_admin === true ||
+    partner?.is_admin === true ||
+    partner?.id === 'bot_admin'
   );
 
   const handleSend = (e?: React.FormEvent) => {
