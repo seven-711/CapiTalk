@@ -10,6 +10,7 @@ export interface UserProfile {
   bio?: string;
   status: UserStatus;
   is_banned?: boolean;
+  is_admin?: boolean;
   created_at?: string;
 }
 
@@ -38,6 +39,17 @@ export interface ChatMessage {
   };
   reactions?: Record<string, string[]>; // reaction_emoji -> array of user_ids
   reaction_update?: { message_id: string; emoji_key: string };
+  game_data?: {
+    game_id: string;
+    game_name: string;
+    game_emoji: string;
+    session_id: string;
+    status: 'invited' | 'accepted' | 'declined' | 'completed';
+    scores?: Record<string, number>;
+    state?: any;
+    game_state?: any;
+    winner_id?: string;
+  };
   is_profane?: boolean;
   strike_count?: number;
   created_at: string;

@@ -649,12 +649,12 @@ export const FreedomWall: React.FC = () => {
                   </span>
                 )}
               </div>
-              <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
+              <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
                 {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
 
-            <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin && !isPinned ? 'text-white drop-shadow-sm' : 'text-[#242423]'}`}>
+            <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin ? 'text-white drop-shadow-sm' : 'text-black'}`}>
               "{post.message}"
             </p>
 
@@ -704,7 +704,7 @@ export const FreedomWall: React.FC = () => {
                             />
                           )}
 
-                          <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] sm:text-xs font-bold">
+                          <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] sm:text-xs font-bold text-black">
                             <div className="flex items-center gap-1.5 truncate">
                               {isMySelection && <CheckCircle className="w-3.5 h-3.5 text-black shrink-0 fill-black/20" />}
                               <span className="truncate">{opt.text}</span>
@@ -712,12 +712,12 @@ export const FreedomWall: React.FC = () => {
 
                             {/* Option percentages and vote counts — ONLY show if user has voted */}
                             {hasUserVoted ? (
-                              <div className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px] font-extrabold">
+                              <div className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px] font-extrabold text-black">
                                 <span>{percentage}%</span>
-                                <span className="text-gray-600 text-[9px] sm:text-[10px]">({optVotes})</span>
+                                <span className="text-black/70 text-[9px] sm:text-[10px]">({optVotes})</span>
                               </div>
                             ) : (
-                              <div className="shrink-0 text-[9px] sm:text-[10px] font-extrabold text-gray-500 uppercase">
+                              <div className="shrink-0 text-[9px] sm:text-[10px] font-extrabold text-black/70 uppercase">
                                 Vote
                               </div>
                             )}
@@ -731,7 +731,7 @@ export const FreedomWall: React.FC = () => {
                       ✓ You voted in this poll
                     </p>
                   ) : (
-                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-500 text-center mt-1.5 italic">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-black/70 text-center mt-1.5 italic">
                       Vote to reveal result
                     </p>
                   )}
@@ -740,8 +740,8 @@ export const FreedomWall: React.FC = () => {
             })()}
           </div>
 
-          <div className={`pt-2 sm:pt-3 border-t flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 ${isPostAdmin && !isPinned ? 'border-white/30' : 'border-black/20'}`}>
-            <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/80'}`}>
+          <div className={`pt-2 sm:pt-3 border-t flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 ${isPostAdmin ? 'border-white/30' : 'border-black/20'}`}>
+            <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
               ~ {post.author_alias || 'Anon Student'}
             </span>
 
@@ -1181,10 +1181,7 @@ export const FreedomWall: React.FC = () => {
                   <Flame className="w-4 h-4 text-[#ffc900] animate-bounce shrink-0" />
                   <div>
                     <span className="text-[11px] font-black uppercase tracking-wider block text-[#ffc900]">
-                      👑 Admin Privilege Mode
-                    </span>
-                    <span className="text-[10px] font-bold text-white/90 block">
-                      Post note with glowing aura & official Admin badge
+                      Admin Privilege Mode
                     </span>
                   </div>
                 </div>
@@ -1195,7 +1192,7 @@ export const FreedomWall: React.FC = () => {
                     onChange={(e) => {
                       setPostAsAdmin(e.target.checked);
                       if (e.target.checked) {
-                        setAlias('👑 CapiTalk Admin');
+                        setAlias('CapiTalk Admin');
                         setSelectedColor('#701a31');
                       }
                     }}

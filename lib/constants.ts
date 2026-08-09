@@ -37,7 +37,17 @@ export const BOT_PARTNERS: Array<{
   bio: string;
   avatar_url: string;
   status: "in_chat";
+  is_admin?: boolean;
 }> = [
+  {
+    id: "bot_admin",
+    username: "👑 CapiTalk Admin",
+    department: "College of Computer Studies",
+    bio: "Official CapiTalk Platform Administrator 🛡️ Here to moderate & assist campus chats.",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=capitalkadmin&backgroundColor=701a31",
+    status: "in_chat",
+    is_admin: true,
+  },
   {
     id: "bot_1",
     username: "pixel_sammy",

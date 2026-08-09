@@ -79,7 +79,7 @@ export async function POST(req: Request) {
 
       const { data: bannedData } = await supabase
         .from('banned_users')
-        .select('id')
+        .select('user_id')
         .or(queryFilter)
         .limit(1);
 

@@ -309,17 +309,20 @@ class RoomManager {
       try {
         supabase
           .from('messages')
-          .insert({
-            id: msg.id,
-            room_id: roomId,
-            sender_id: msg.sender_id,
-            sender_username: msg.sender_username,
-            message: msg.message || '',
-            image_url: msg.image_url || null,
-            created_at: msg.created_at,
-          })
+          .upsert(
+            {
+              id: msg.id,
+              room_id: roomId,
+              sender_id: msg.sender_id,
+              sender_username: msg.sender_username,
+              message: msg.message || '',
+              image_url: msg.image_url || null,
+              created_at: msg.created_at,
+            },
+            { onConflict: 'id', ignoreDuplicates: true }
+          )
           .then(({ error }) => {
-            if (error) {
+            if (error && error.code !== '23505' && !error.message.includes('duplicate key')) {
               console.warn('[DB Messages Insert Notice]', error.message);
             }
           }, () => {});

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -209,6 +208,11 @@
   outline: none;
   transition: border-color 0.15s ease;
   width: 100%;
+}
+
+.gumroad-input.rounded-full,
+.rounded-full.gumroad-input {
+  border-radius: 9999px !important;
 }
 
 @media (min-width: 640px) {

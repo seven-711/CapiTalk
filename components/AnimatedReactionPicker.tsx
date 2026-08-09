@@ -24,6 +24,44 @@ interface ReactionPickerProps {
   onClose?: () => void;
 }
 
+const ReactionItemButton: React.FC<{
+  item: ReactionDefinition;
+  onSelect: () => void;
+}> = ({ item, onSelect }) => {
+  const [hasError, setHasError] = React.useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect();
+      }}
+      className="p-1 hover:scale-125 transition-transform duration-150 rounded-full hover:bg-black/5 flex items-center justify-center focus:outline-none"
+      title={item.label}
+    >
+      <div className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center overflow-hidden ${item.key === 'like' ? 'scale-125' : ''}`}>
+        {!hasError ? (
+          <DotLottieReact
+            src={item.file}
+            loop
+            autoplay
+            onError={() => setHasError(true)}
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'transparent',
+            }}
+          />
+        ) : (
+          <span className="text-xl sm:text-2xl select-none leading-none">{item.emoji}</span>
+        )}
+      </div>
+    </button>
+  );
+};
+
 export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelectReaction, onClose }) => {
   return (
     <div
@@ -31,32 +69,14 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
       onClick={(e) => e.stopPropagation()}
     >
       {REACTION_KEYS.map((item) => (
-        <button
+        <ReactionItemButton
           key={item.key}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          item={item}
+          onSelect={() => {
             onSelectReaction(item.key);
             if (onClose) onClose();
           }}
-          className="p-1 hover:scale-125 transition-transform duration-150 rounded-full hover:bg-black/5 flex items-center justify-center focus:outline-none"
-          title={item.label}
-        >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center overflow-hidden ${item.key === 'like' ? 'scale-135' : ''}`}>
-            <DotLottieReact
-              src={item.file}
-              loop
-              autoplay
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'transparent',
-                transform: item.key === 'like' ? 'scale(1.35)' : 'none',
-              }}
-            />
-          </div>
-        </button>
+        />
       ))}
     </div>
   );

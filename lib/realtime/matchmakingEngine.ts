@@ -233,7 +233,14 @@ class MatchmakingEngine {
   }
 
   public joinQueue(user: UserProfile, filter: QueueFilter) {
-    this.currentUser = user;
+    const isAdmin = Boolean(
+      (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
+      user.is_admin ||
+      (user.department as string) === 'Administration' ||
+      user.username?.toLowerCase().includes('admin')
+    );
+    const sanitizedUser: UserProfile = { ...user, is_admin: isAdmin };
+    this.currentUser = sanitizedUser;
     this.currentFilter = filter;
     this.isSearching = true;
 
@@ -246,11 +253,11 @@ class MatchmakingEngine {
 
     // 2. If Supabase is configured, use Supabase Realtime Presence
     if (isSupabaseConfigured && supabase) {
-      this.initSupabaseQueue(user, filter);
+      this.initSupabaseQueue(sanitizedUser, filter);
     }
 
     // 3. Fallback: Shared localStorage mesh & local scanner
-    this.syncToLocalStorage(user, filter);
+    this.syncToLocalStorage(sanitizedUser, filter);
     if (this.checkInterval) clearInterval(this.checkInterval);
     this.checkInterval = setInterval(() => {
       if (this.isSearching) {

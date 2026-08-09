@@ -35,6 +35,152 @@ import {
   Sparkles,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import FloatingLines from './FloatingLines';
+
+const ADMIN_LINES_GRADIENT = ['#ffc900', '#701a31', '#00f2fe', '#e11d48'];
+
+interface SwipeableMessageRowProps {
+  msg: ChatMessage;
+  onReply: (msg: ChatMessage) => void;
+  onLongPress: (msgId: string) => void;
+  children: React.ReactNode;
+}
+
+const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
+  msg,
+  onReply,
+  onLongPress,
+  children,
+}) => {
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isHorizontalSwipeRef = useRef<boolean | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasVibratedRef = useRef(false);
+
+  const SWIPE_THRESHOLD = 50;
+
+  const handleStart = (clientX: number, clientY: number) => {
+    touchStartRef.current = { x: clientX, y: clientY };
+    isHorizontalSwipeRef.current = null;
+    hasVibratedRef.current = false;
+
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      if (!isHorizontalSwipeRef.current) {
+        onLongPress(msg.id);
+        if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+          window.navigator.vibrate(40);
+        }
+      }
+    }, 380);
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (!touchStartRef.current) return;
+
+    const deltaX = clientX - touchStartRef.current.x;
+    const deltaY = clientY - touchStartRef.current.y;
+
+    if (isHorizontalSwipeRef.current === null) {
+      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+        if (isHorizontalSwipeRef.current && longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      }
+    }
+
+    if (isHorizontalSwipeRef.current) {
+      if (deltaX < 0) {
+        const rawOffset = Math.abs(deltaX);
+        const clampedOffset = Math.min(rawOffset, 85);
+        const elasticOffset =
+          clampedOffset > SWIPE_THRESHOLD
+            ? SWIPE_THRESHOLD + (clampedOffset - SWIPE_THRESHOLD) * 0.4
+            : clampedOffset;
+
+        setDragOffset(elasticOffset);
+        setIsSwiping(true);
+
+        if (elasticOffset >= SWIPE_THRESHOLD && !hasVibratedRef.current) {
+          hasVibratedRef.current = true;
+          if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+            window.navigator.vibrate(30);
+          }
+        }
+      }
+    }
+  };
+
+  const handleEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (dragOffset >= SWIPE_THRESHOLD) {
+      onReply(msg);
+    }
+
+    setDragOffset(0);
+    setIsSwiping(false);
+    touchStartRef.current = null;
+    isHorizontalSwipeRef.current = null;
+    hasVibratedRef.current = false;
+  };
+
+  const progress = Math.min(1, dragOffset / SWIPE_THRESHOLD);
+  const isTriggered = dragOffset >= SWIPE_THRESHOLD;
+
+  return (
+    <div className="relative w-full overflow-visible touch-pan-y">
+      {/* Swipe Left Reply Icon Indicator */}
+      <div
+        className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-0 pr-1"
+        style={{
+          opacity: progress,
+          transform: `translateY(-50%) scale(${0.5 + progress * 0.6})`,
+        }}
+      >
+        <div
+          className={`p-2 rounded-full border-2 border-black transition-all ${
+            isTriggered
+              ? 'bg-[#ffc900] text-black shadow-md scale-110'
+              : 'bg-white text-black shadow-xs'
+          }`}
+        >
+          <CornerUpLeft className="w-4 h-4 stroke-[2.5]" />
+        </div>
+      </div>
+
+      {/* Sliding Message Bubble Container */}
+      <div
+        onTouchStart={(e) => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchEnd={handleEnd}
+        onTouchCancel={handleEnd}
+        onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+        onMouseMove={(e) => {
+          if (touchStartRef.current) {
+            handleMove(e.clientX, e.clientY);
+          }
+        }}
+        onMouseUp={handleEnd}
+        onMouseLeave={handleEnd}
+        className="relative z-10 transition-transform select-none"
+        style={{
+          transform: `translateX(-${dragOffset}px)`,
+          transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const EMOJI_PRESETS = ['😊', '😂', '👍', '🔥', '❤️', '😮', '☕', '📚', '🎉', '👋'];
 
@@ -60,17 +206,27 @@ export const ChatRoom: React.FC = () => {
 
   const [text, setText] = useState('');
   const [showMobileExtras, setShowMobileExtras] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
+    const isDeleting = val.length < text.length;
     setText(val);
 
-    // Auto-resize textarea
+    // Smooth auto-resize without layout shift or placeholder tweaking
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+      const el = textareaRef.current;
+      if (!val) {
+        el.style.height = '42px';
+      } else {
+        if (isDeleting) {
+          el.style.height = '42px';
+        }
+        const targetH = Math.min(el.scrollHeight, 120);
+        el.style.height = `${Math.max(42, targetH)}px`;
+      }
     }
 
     if (val.trim()) {
@@ -307,7 +463,20 @@ export const ChatRoom: React.FC = () => {
     );
   }
 
-  const partner = activeRoom.user_two;
+  const partner = activeRoom.user_one.id === currentUser.id ? activeRoom.user_two : activeRoom.user_one;
+  const isAdminRoom = Boolean(
+    (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
+    useChatStore.getState().viewState === 'admin' ||
+    currentUser?.is_admin ||
+    partner?.is_admin ||
+    (currentUser?.department as string) === 'Administration' ||
+    (partner?.department as string) === 'Administration' ||
+    currentUser?.username?.toLowerCase().includes('admin') ||
+    partner?.username?.toLowerCase().includes('admin') ||
+    currentUser?.id?.startsWith('admin_') ||
+    partner?.id?.startsWith('admin_') ||
+    partner?.id?.startsWith('bot_admin')
+  );
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -372,9 +541,26 @@ export const ChatRoom: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col h-full min-h-0 overflow-hidden overscroll-none touch-pan-y">
+    <div className={`w-full flex-1 flex flex-col h-full min-h-0 overflow-hidden overscroll-none touch-pan-y relative ${
+      isAdminRoom ? 'bg-slate-950 text-white' : ''
+    }`}>
+      {/* Full-Screen Floating Lines WebGL Background for Admin Chat */}
+      {isAdminRoom && (
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-90 overflow-hidden">
+          <FloatingLines
+            linesGradient={ADMIN_LINES_GRADIENT}
+            animationSpeed={1}
+            interactive={true}
+            parallax={true}
+            mixBlendMode="normal"
+          />
+        </div>
+      )}
+
       {/* Top Header Bar */}
-      <div className="bg-white border-b border-[#d1d5dc] px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20">
+      <div className={`px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20 transition-colors duration-300 ${
+        isAdminRoom ? 'bg-slate-950/80 border-b border-slate-800/80 text-white backdrop-blur-md' : 'bg-white border-b border-[#d1d5dc] text-black'
+      }`}>
         {/* Partner Info */}
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -394,10 +580,15 @@ export const ChatRoom: React.FC = () => {
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className={`font-extrabold text-sm sm:text-base leading-tight transition-colors duration-300 ${
-                partnerLeft ? 'text-gray-400 line-through' : 'text-black'
+                partnerLeft ? 'text-gray-400 line-through' : isAdminRoom ? 'text-white' : 'text-black'
               }`}>
                 {partner.username}
               </h3>
+              {isAdminRoom && (
+                <span className="px-2 py-0.5 bg-[#701a31] text-[#ffc900] border border-black text-[12px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
+                  Admin
+                </span>
+              )}
               {partnerLeft && (
                 <span className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse border ${
                   partnerLeftReason === 'inactivity'
@@ -433,7 +624,7 @@ export const ChatRoom: React.FC = () => {
               )}
             </div>
             <p className={`text-[11px] sm:text-xs font-medium transition-colors duration-300 ${
-              partnerLeft ? 'text-gray-400' : 'text-[#242423]'
+              partnerLeft ? 'text-gray-400' : isAdminRoom ? 'text-slate-400' : 'text-[#242423]'
             }`}>
               {partner.department.replace('College of ', '')}
             </p>
@@ -445,7 +636,11 @@ export const ChatRoom: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowReportModal(true)}
-            className="p-1.5 sm:p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded border border-[#d1d5dc]"
+            className={`p-1.5 sm:p-2 rounded border transition-colors ${
+              isAdminRoom
+                ? 'text-slate-300 border-slate-700 hover:text-red-400 hover:bg-slate-800'
+                : 'text-gray-600 hover:text-red-600 hover:bg-red-50 border-[#d1d5dc]'
+            }`}
             title="Report User"
           >
             <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -454,7 +649,11 @@ export const ChatRoom: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowBlockModal(true)}
-            className="p-1.5 sm:p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded border border-[#d1d5dc]"
+            className={`p-1.5 sm:p-2 rounded border transition-colors ${
+              isAdminRoom
+                ? 'text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800'
+                : 'text-gray-600 hover:text-black hover:bg-gray-100 border-[#d1d5dc]'
+            }`}
             title="Block User"
           >
             <UserX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -525,8 +724,11 @@ export const ChatRoom: React.FC = () => {
       </div> */}
 
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
-      <div className="bg-[#fbf9f5] flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain">
-        {messages.map((msg) => {
+      <div className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain ${
+        isAdminRoom ? 'bg-transparent text-white' : 'bg-[#fbf9f5]'
+      }`}>
+        <div className="space-y-3 sm:space-y-4">
+          {messages.map((msg) => {
           if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
             return null;
           }
@@ -627,87 +829,90 @@ export const ChatRoom: React.FC = () => {
                 </div>
               )}
 
-              {/* Message Bubble + Inline Quick Reply Action Row */}
-              <div className={`flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                {/* Main Message Content */}
-                <div
-                  onTouchStart={() => handleTouchStart(msg.id)}
-                  onTouchEnd={handleTouchEnd}
-                  onTouchMove={handleTouchEnd}
-                  className={`p-3.5 rounded-[12px] border text-sm relative select-none cursor-pointer flex-1 min-w-0 ${
-                    isMe
-                      ? msg.is_profane
-                        ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
-                        : 'bg-black text-white border-black rounded-tr-none'
-                      : msg.is_profane
-                      ? 'bg-red-50 text-black border-red-400 rounded-tl-none'
-                      : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
-                  }`}
-                >
-                  {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.message}</p>}
+              {/* Swipe-to-Reply Interactive Message Container */}
+              <SwipeableMessageRow
+                msg={msg}
+                onReply={(m) => setReplyTo(m)}
+                onLongPress={(mId) => setActivePickerMsgId(mId)}
+              >
+                <div className={`flex items-center gap-1.5 w-fit max-w-[85%] sm:max-w-[75%] ${isMe ? 'flex-row-reverse ml-auto' : 'flex-row mr-auto'}`}>
+                  {/* Main Message Content */}
+                  <div
+                    className={`p-3 sm:p-3.5 rounded-[16px] border text-sm relative cursor-pointer w-fit max-w-full min-w-0 ${
+                      isMe
+                        ? msg.is_profane
+                          ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
+                          : 'bg-black text-white border-black rounded-tr-none'
+                        : msg.is_profane
+                        ? 'bg-red-50 text-black border-red-400 rounded-tl-none'
+                        : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
+                    }`}
+                  >
+                    {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.message}</p>}
 
-                  {msg.image_url && (
-                    <div className="mt-2 rounded overflow-hidden border border-[#d1d5dc]">
-                      <img
-                        src={msg.image_url}
-                        alt="Uploaded media"
-                        className="max-h-60 w-auto object-cover rounded"
-                      />
+                    {msg.image_url && (
+                      <div className="mt-2 rounded overflow-hidden border border-[#d1d5dc]">
+                        <img
+                          src={msg.image_url}
+                          alt="Uploaded media"
+                          className="max-h-60 w-auto object-cover rounded"
+                        />
+                      </div>
+                    )}
+
+                    {/* Quick Action Toolbar on Hover */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 bg-white border border-black rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm text-black z-10">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActivePickerMsgId(activePickerMsgId === msg.id ? null : msg.id);
+                        }}
+                        className="p-1 hover:text-amber-500"
+                        title="React"
+                      >
+                        <Smile className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReplyTo(msg);
+                        }}
+                        className="p-1 hover:text-blue-600"
+                        title="Reply"
+                      >
+                        <CornerUpLeft className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyMessageText(msg.id, msg.message);
+                        }}
+                        className="p-1 hover:text-green-600"
+                        title="Copy"
+                      >
+                        {copiedId === msg.id ? (
+                          <Check className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </button>
                     </div>
-                  )}
-
-                  {/* Quick Action Toolbar on Hover */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 bg-white border border-black rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm text-black z-10">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActivePickerMsgId(activePickerMsgId === msg.id ? null : msg.id);
-                      }}
-                      className="p-1 hover:text-amber-500"
-                      title="React"
-                    >
-                      <Smile className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setReplyTo(msg);
-                      }}
-                      className="p-1 hover:text-blue-600"
-                      title="Reply"
-                    >
-                      <CornerUpLeft className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyMessageText(msg.id, msg.message);
-                      }}
-                      className="p-1 hover:text-green-600"
-                      title="Copy"
-                    >
-                      {copiedId === msg.id ? (
-                        <Check className="w-3 h-3 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
-                    </button>
                   </div>
-                </div>
 
-                {/* Inline Quick Reply Button next to message */}
-                <button
-                  type="button"
-                  onClick={() => setReplyTo(msg)}
-                  className="p-1.5 text-gray-400 hover:text-black hover:bg-black/5 active:scale-95 rounded-full transition-all shrink-0"
-                  title="Reply to message"
-                >
-                  <CornerUpLeft className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  {/* Inline Quick Reply Button next to message */}
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo(msg)}
+                    className="p-1.5 text-gray-400 hover:text-black hover:bg-black/5 active:scale-95 rounded-full transition-all shrink-0"
+                    title="Reply to message"
+                  >
+                    <CornerUpLeft className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </SwipeableMessageRow>
 
               {/* Animated Reaction Badges Row */}
               {msg.reactions && Object.keys(msg.reactions).length > 0 && (
@@ -820,6 +1025,7 @@ export const ChatRoom: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
 
         <div ref={messagesEndRef} />
       </div>
@@ -848,7 +1054,9 @@ export const ChatRoom: React.FC = () => {
 
       {/* Disconnected action bar — replaces input when partner leaves */}
       {partnerLeft ? (
-        <div className="bg-white border-t border-[#d1d5dc] p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200">
+        <div className={`p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-colors ${
+          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : 'bg-white border-t border-[#d1d5dc] text-black'
+        }`}>
           <div className="flex items-center gap-2 text-sm">
             {partnerLeftReason === 'inactivity' ? (
               <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
@@ -879,10 +1087,14 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border-t border-[#d1d5dc] p-2 sm:p-2.5 relative shrink-0 z-20">
+        <div className={`p-2 sm:p-2.5 relative shrink-0 z-20 transition-colors duration-300 ${
+          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : 'bg-white border-t border-[#d1d5dc] text-black'
+        }`}>
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
-            <div className="absolute bottom-16 left-3 bg-white border-2 border-black p-3 rounded-full flex items-center gap-2 flex-wrap shadow-lg z-30">
+            <div className={`absolute bottom-16 left-3 p-3 rounded-full flex items-center gap-2 flex-wrap shadow-lg z-30 ${
+              isAdminRoom ? 'bg-slate-900 border-2 border-slate-700 text-white' : 'bg-white border-2 border-black text-black'
+            }`}>
               {EMOJI_PRESETS.map((emoji) => (
                 <button
                   key={emoji}
@@ -907,7 +1119,7 @@ export const ChatRoom: React.FC = () => {
             className="hidden"
           />
 
-          <form onSubmit={handleSend} className="flex items-end gap-2">
+          <form onSubmit={handleSend} className="flex items-end rounded-full gap-2">
             {/* Mobile: toggle button to show/hide extra actions */}
             <button
               type="button"
@@ -915,6 +1127,8 @@ export const ChatRoom: React.FC = () => {
               className={`sm:hidden p-2 transition-all duration-200 shrink-0 ${
                 showMobileExtras
                   ? 'bg-black text-white border-black rounded-full rotate-45'
+                  : isAdminRoom
+                  ? 'text-slate-300 border-slate-700'
                   : 'text-[#242423] border-[#d1d5dc]'
               }`}
               title="More options"
@@ -948,7 +1162,9 @@ export const ChatRoom: React.FC = () => {
                 type="button"
                 disabled={isUploading}
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded shrink-0"
+                className={`p-2 rounded shrink-0 transition-colors ${
+                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
+                }`}
                 title="Upload Image (Max 10MB)"
               >
                 {isUploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -958,40 +1174,52 @@ export const ChatRoom: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="p-2 text-[#242423] hover:text-black hover:bg-gray-100 rounded shrink-0"
+                className={`p-2 rounded shrink-0 transition-colors ${
+                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
+                }`}
                 title="Add Emoji"
               >
                 <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
 
-            {/* Textarea — auto-grows, wraps text */}
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={handleTextChange}
-              onFocus={() => setShowMobileExtras(false)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Type a message here..."
-              rows={1}
-              className="gumroad-input flex-1 py-2 text-sm resize-none overflow-hidden leading-relaxed"
-              style={{ minHeight: '38px', maxHeight: '120px' }}
-            />
+            {/* Input field wrapper with Send button positioned inside */}
+            <div className="relative flex-1 flex items-center min-w-0">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleTextChange}
+                onFocus={() => setShowMobileExtras(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Type a message here..."
+                rows={1}
+                className={`w-full pl-5 pr-12 py-2.5 text-sm resize-none overflow-hidden leading-relaxed rounded-full transition-colors duration-150 ${
+                  isAdminRoom
+                    ? 'bg-slate-900 border-2 py-2.5 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
+                    : 'bg-white border-2 border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
+                }`}
+                style={{ minHeight: '42px', maxHeight: '120px', borderRadius: '9999px' }}
+              />
 
-            {/* Send Button */}
-            <button
-              type="submit"
-              disabled={!text.trim() && !replyTo}
-              className="btn-gumroad-primary py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            >
-              <Send className="w-4 h-4" />
-              <span className="hidden sm:inline">Send</span>
-            </button>
+              {/* Inside Send Button — Perfectly aligned inside the pill curve */}
+              <button
+                type="submit"
+                disabled={!text.trim() && !replyTo}
+                className={`absolute right-1.5 bottom-1.5 p-2 rounded-full transition-all duration-200 flex items-center justify-center shrink-0  shadow-xs ${
+                  text.trim() || replyTo
+                    ? 'bg-[#ffc900] text-black hover:scale-105 active:scale-95 cursor-pointer opacity-100'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50'
+                }`}
+                title="Send Message"
+              >
+                <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </form>
         </div>
       )}

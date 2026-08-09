@@ -72,7 +72,7 @@ interface ChatStoreState {
   registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => void;
   startSearch: () => void;
   cancelSearch: () => void;
-  sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to']) => void;
+  sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to'], gameData?: ChatMessage['game_data']) => void;
   toggleReaction: (messageId: string, emojiKey: string) => void;
   sendTypingSignal: (isTyping: boolean) => void;
   nextMatch: () => void;
@@ -387,6 +387,7 @@ export const useChatStore = create<ChatStoreState>()(
                           liked_by_profiles: dbProfiles,
                           is_admin: !!row.is_admin,
                           is_pinned: !!row.is_pinned,
+                          pinned_at: row.pinned_at || undefined,
                           status: dbStatus,
                           created_at: row.created_at,
                           song_title: row.song_title,
@@ -776,6 +777,7 @@ export const useChatStore = create<ChatStoreState>()(
                     liked_by_profiles: { ...(existingLocal?.liked_by_profiles || {}), ...dbProfiles },
                     is_admin: !!row.is_admin,
                     is_pinned: !!row.is_pinned,
+                    pinned_at: row.pinned_at || undefined,
                     status: dbStatus,
                     created_at: row.created_at,
                     song_title: row.song_title,
@@ -1126,6 +1128,23 @@ export const useChatStore = create<ChatStoreState>()(
           return;
         }
 
+        const isAdmin = Boolean(
+          (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
+          get().viewState === 'admin' ||
+          currentUser.is_admin ||
+          (currentUser.department as string) === 'Administration' ||
+          currentUser.username?.toLowerCase().includes('admin')
+        );
+
+        const sanitizedUser: UserProfile = {
+          ...currentUser,
+          is_admin: isAdmin,
+        };
+
+        if (isAdmin && !currentUser.is_admin) {
+          set({ currentUser: sanitizedUser });
+        }
+
         roomManager.leaveRoom();
 
         set({
@@ -1159,11 +1178,12 @@ export const useChatStore = create<ChatStoreState>()(
         unsubscribeMatch = matchmakingEngine.onMatchFound((match) => {
           if (searchTimer) clearInterval(searchTimer);
 
-          const partner = match.userOne.id === currentUser.id ? match.userTwo : match.userOne;
+          const myProfile = match.userOne.id === sanitizedUser.id ? match.userOne : match.userTwo;
+          const partner = match.userOne.id === sanitizedUser.id ? match.userTwo : match.userOne;
 
           const newRoom: ChatRoom = {
             id: match.roomId,
-            user_one: currentUser,
+            user_one: myProfile,
             user_two: partner,
             started_at: new Date().toISOString(),
             status: 'active',
@@ -1267,7 +1287,7 @@ export const useChatStore = create<ChatStoreState>()(
         set({ isSearching: false, searchingTimeSeconds: 0, viewState: 'queue' });
       },
 
-      sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to']) => {
+      sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to'], gameData?: ChatMessage['game_data']) => {
         const { activeRoom, currentUser, messages, profanityStrikes, bannedUserIds, bayotCount } = get();
         if (!activeRoom || !currentUser) return;
 
@@ -1296,6 +1316,7 @@ export const useChatStore = create<ChatStoreState>()(
           message: text,
           image_url: imageUrl,
           reply_to: replyTo,
+          game_data: gameData,
           is_profane: isProfaneMsg,
           strike_count: isProfaneMsg ? newStrikes : undefined,
           created_at: new Date().toISOString(),
@@ -1368,7 +1389,7 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
-        // If matched with a Bot partner, simulate realistic bot typing & response
+        // If matched with a Bot partner, simulate realistic text response
         const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
         if (partner.id.startsWith('bot_')) {
           setTimeout(() => {
@@ -1376,6 +1397,7 @@ export const useChatStore = create<ChatStoreState>()(
           }, 600);
 
           setTimeout(() => {
+            set({ partnerTyping: false });
             const randomReply = BOT_RESPONSES[Math.floor(Math.random() * BOT_RESPONSES.length)];
             const botMsg: ChatMessage = {
               id: 'msg_bot_' + Date.now(),
@@ -1387,9 +1409,8 @@ export const useChatStore = create<ChatStoreState>()(
             };
             set((state) => ({
               messages: [...state.messages, botMsg],
-              partnerTyping: false,
             }));
-          }, 2200);
+          }, 1800);
         }
       },
 

@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
     const { data: bans, error } = await supabase
       .from('banned_users')
-      .select('id, user_id, device_id, ip_address, username, reason')
+      .select('user_id, device_id, ip_address, username, reason')
       .or(filterParts.join(','))
       .limit(1);
 
