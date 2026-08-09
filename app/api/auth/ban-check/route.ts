@@ -49,6 +49,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, ip, deviceId, isBanned: false });
     }
 
+    let isAdminFromDb = false;
+    if (userId) {
+      try {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('is_admin')
+          .eq('id', userId)
+          .single();
+        if (dbUser && dbUser.is_admin) {
+          isAdminFromDb = true;
+        }
+      } catch (e) {}
+    }
+
     if (bans && bans.length > 0) {
       const match = bans[0];
       return NextResponse.json({
@@ -56,6 +70,7 @@ export async function GET(req: Request) {
         ip,
         deviceId,
         isBanned: true,
+        isAdmin: isAdminFromDb,
         banReason: match.reason || 'Account or IP address restricted by CapiTalk Administrator.',
       });
     }
@@ -65,6 +80,7 @@ export async function GET(req: Request) {
       ip,
       deviceId,
       isBanned: false,
+      isAdmin: isAdminFromDb,
     });
   } catch (error) {
     console.error('[ban-check] Internal Error:', error);

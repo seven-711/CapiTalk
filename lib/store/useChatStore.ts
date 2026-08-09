@@ -292,6 +292,9 @@ export const useChatStore = create<ChatStoreState>()(
             if (data.ip) {
               set({ clientIp: data.ip });
             }
+            if (data.isAdmin && currentUser && !currentUser.is_admin) {
+              set({ currentUser: { ...currentUser, is_admin: true } });
+            }
             if (data.isBanned) {
               try { get().cancelSearch(); } catch (e) {}
               try { roomManager.leaveRoom(); } catch (e) {}

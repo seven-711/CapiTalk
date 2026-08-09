@@ -464,9 +464,9 @@ export const ChatRoom: React.FC = () => {
   }
 
   const partner = activeRoom.user_one.id === currentUser.id ? activeRoom.user_two : activeRoom.user_one;
+
+  // Premium background & dark mode UI for BOTH participants whenever an Admin or bot_admin is in the room
   const isAdminRoom = Boolean(
-    (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
-    useChatStore.getState().viewState === 'admin' ||
     currentUser?.is_admin === true ||
     partner?.is_admin === true ||
     partner?.id === 'bot_admin'
@@ -578,7 +578,7 @@ export const ChatRoom: React.FC = () => {
               }`}>
                 {partner.username}
               </h3>
-              {isAdminRoom && (
+              {(partner.is_admin || partner.id === 'bot_admin') && (
                 <span className="px-2 py-0.5 bg-[#701a31] text-[#ffc900] border border-black text-[12px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
                   Admin
                 </span>
@@ -731,26 +731,6 @@ export const ChatRoom: React.FC = () => {
           const isMe = msg.sender_id === currentUser.id;
 
           if (isSystem || msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
-            if (msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
-              const displayMessage = msg.message?.replace(/^\[ADMIN\]\s*/i, '') || '';
-
-              return (
-                <div key={msg.id} className="my-3.5 p-3.5 sm:p-4 bg-[#fff1f3] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black animate-in fade-in zoom-in-95 duration-200">
-                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap sm:flex-nowrap">
-                    <span className="px-3 py-1 bg-[#701a31] text-white border-2 border-black text-[10px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1">
-                      📢 ADMIN NA GWAPO
-                    </span>
-                    <span className="text-[10px] sm:text-xs font-bold text-black/70 shrink-0">
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-black">
-                    {displayMessage}
-                  </p>
-                </div>
-              );
-            }
-
             if (msg.message?.includes('Profanity Warning')) {
               return (
                 <div key={msg.id} className="my-3 p-3.5 bg-[#dc341e]/10 border-2 border-[#dc341e] rounded-2xl shadow-sm text-black animate-in fade-in zoom-in-95 duration-200">
@@ -1177,43 +1157,41 @@ export const ChatRoom: React.FC = () => {
               </button>
             </div>
 
-            {/* Input field wrapper with Send button positioned inside */}
-            <div className="relative flex-1 flex items-center min-w-0">
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={handleTextChange}
-                onFocus={() => setShowMobileExtras(false)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder="Type a message here..."
-                rows={1}
-                className={`w-full pl-5 pr-12 py-2.5 text-sm resize-none overflow-hidden leading-relaxed rounded-full transition-colors duration-150 ${
-                  isAdminRoom
-                    ? 'bg-slate-900 border-2 py-2.5 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
-                    : 'bg-white border-2 border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
-                }`}
-                style={{ minHeight: '42px', maxHeight: '120px', borderRadius: '9999px' }}
-              />
+            {/* Input field */}
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextChange}
+              onFocus={() => setShowMobileExtras(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Type a message here..."
+              rows={1}
+              className={`flex-1 px-4 py-2.5 text-sm resize-none overflow-hidden leading-relaxed rounded-xl transition-colors duration-150 ${
+                isAdminRoom
+                  ? 'bg-slate-900 border-2 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
+                  : 'bg-white border-2 border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
+              }`}
+              style={{ minHeight: '42px', maxHeight: '120px' }}
+            />
 
-              {/* Inside Send Button — Perfectly aligned inside the pill curve */}
-              <button
-                type="submit"
-                disabled={!text.trim() && !replyTo}
-                className={`absolute right-1.5 bottom-1.5 p-2 rounded-full transition-all duration-200 flex items-center justify-center shrink-0  shadow-xs ${
-                  text.trim() || replyTo
-                    ? 'bg-[#ffc900] text-black hover:scale-105 active:scale-95 cursor-pointer opacity-100'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50'
-                }`}
-                title="Send Message"
-              >
-                <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
-              </button>
-            </div>
+            {/* Standalone Unwrapped Send Button */}
+            <button
+              type="submit"
+              disabled={!text.trim() && !replyTo}
+              className={`p-2.5 sm:p-3 rounded-xl border-2 border-black font-extrabold flex items-center justify-center shrink-0 transition-all duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                text.trim() || replyTo
+                  ? 'bg-[#ffc900] text-black hover:scale-105 active:scale-95 cursor-pointer opacity-100'
+                  : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-50 shadow-none'
+              }`}
+              title="Send Message"
+            >
+              <Send className="w-4 h-4 sm:w-4 sm:h-4 stroke-[2.5]" />
+            </button>
           </form>
         </div>
       )}
