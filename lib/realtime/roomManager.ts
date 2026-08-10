@@ -15,6 +15,7 @@ class RoomManager {
   private currentUserId: string | null = null;
   private currentPartnerId: string | null = null;
   private knownMsgIds: Set<string> = new Set();
+  private lastRawMessages: string | null = null;
   private syncInterval: NodeJS.Timeout | null = null;
   private supabaseChannel: any = null;
   private storageListener: ((e: StorageEvent) => void) | null = null;
@@ -52,8 +53,11 @@ class RoomManager {
     // 1. Load initial persisted messages from localStorage
     this.loadPersistedMessages();
 
-    // 2. Poll storage every 500ms for fallback tab/browser sync
-    this.syncInterval = setInterval(() => this.loadPersistedMessages(), 500);
+    // 2. Poll storage every 5s as a fallback safety net.
+    // The storage event listener above already handles instant cross-tab delivery;
+    // this poll only exists to catch rare edge cases (e.g. private browsing storage events
+    // not firing). A 5s tick is more than sufficient and cuts idle CPU by ~10×.
+    this.syncInterval = setInterval(() => this.loadPersistedMessages(), 5000);
 
     // 3. Storage event listener for instant cross-tab/browser sync
     if (typeof window !== 'undefined') {
@@ -336,6 +340,10 @@ class RoomManager {
       const key = MSG_STORAGE_PREFIX + this.currentRoomId;
       const raw = localStorage.getItem(key);
       if (!raw) return;
+      // Skip parse + iteration entirely if storage hasn't changed since last check.
+      // This is the common case and avoids O(n) work on every poll tick.
+      if (raw === this.lastRawMessages) return;
+      this.lastRawMessages = raw;
       const msgs: ChatMessage[] = JSON.parse(raw);
       msgs.forEach((msg) => this.dispatchMessage(msg));
     } catch (e) {}
@@ -376,6 +384,7 @@ class RoomManager {
     this.typingCallbacks.clear();
     this.skipCallbacks.clear();
     this.knownMsgIds.clear();
+    this.lastRawMessages = null;
     this.currentRoomId = null;
     this.currentUserId = null;
     this.currentPartnerId = null;

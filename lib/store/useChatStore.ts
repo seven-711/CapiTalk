@@ -108,6 +108,8 @@ const DEMO_WALL_NOTIFICATIONS: WallNotification[] = [];
 
 let searchTimer: NodeJS.Timeout | null = null;
 let unsubscribeMatch: (() => void) | null = null;
+let sessionInitialized = false;
+let globalPollInterval: NodeJS.Timeout | null = null;
 
 export const useChatStore = create<ChatStoreState>()(
   persist(
@@ -311,6 +313,11 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       initSession: () => {
+        // Guard: prevent stacking storage listeners and intervals on repeated calls
+        // (e.g. page reload while persisted room is active, HMR, component remount)
+        if (sessionInitialized) return;
+        sessionInitialized = true;
+
         const { activeRoom, currentUser, isSearching } = get();
         
         // Initial real-time ban check via API
@@ -950,7 +957,8 @@ export const useChatStore = create<ChatStoreState>()(
 
             // ── 6. Lightweight 60-second fallback (catches any missed Realtime events) ─
             // Fetches only essential columns, capped at 200 rows — ~95% less data than the old poll.
-            setInterval(() => {
+            if (globalPollInterval) clearInterval(globalPollInterval);
+            globalPollInterval = setInterval(() => {
               if (!supabase || !isSupabaseConfigured) return;
               try {
                 supabase
@@ -2555,7 +2563,10 @@ export const useChatStore = create<ChatStoreState>()(
       partialize: (state: ChatStoreState) => ({
         currentUser: state.currentUser,
         activeRoom: state.activeRoom,
-        messages: state.messages,
+        // NOTE: messages are intentionally excluded from persistence.
+        // roomManager already persists them under capitalk_msgs_v4_<roomId>
+        // and reloads them on joinRoom. Persisting here caused a full
+        // JSON serialization of the entire message array on every set() call.
         viewState: state.viewState,
         partnerLeft: state.partnerLeft,
         blockedUserIds: state.blockedUserIds,
