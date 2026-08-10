@@ -78,6 +78,8 @@ export interface FreedomComment {
   author_alias: string;
   department?: string;
   message: string;
+  reply_to_comment_id?: string;
+  reply_to_alias?: string;
   created_at: string;
 }
 

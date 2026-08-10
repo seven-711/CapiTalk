@@ -27,6 +27,11 @@ import {
   ChevronRight,
   BarChart2,
   RefreshCw,
+  CornerUpLeft,
+  Dices,
+  Sparkles,
+  Reply,
+  Shuffle,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -215,8 +220,24 @@ export const FreedomWall: React.FC = () => {
   const [commentsList, setCommentsList] = useState<FreedomComment[]>([]);
   const [commentsCountMap, setCommentsCountMap] = useState<Record<string, number>>({});
   const [newCommentText, setNewCommentText] = useState('');
-  const [commentAlias, setCommentAlias] = useState(currentUser ? currentUser.username : 'Anon Student');
+  const [commentAlias, setCommentAlias] = useState(currentUser ? currentUser.username : 'Anonymous Student');
   const [isFetchingComments, setIsFetchingComments] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; alias: string } | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Sync registered user's username if updated
+  React.useEffect(() => {
+    if (currentUser?.username) {
+      setCommentAlias(currentUser.username);
+    }
+  }, [currentUser?.username]);
+
+  const handleStartReply = (comment: FreedomComment) => {
+    setReplyingTo({ id: comment.id, alias: comment.author_alias });
+    if (commentInputRef.current) {
+      commentInputRef.current.focus();
+    }
+  };
 
   React.useEffect(() => {
     const fetchCounts = async () => {
@@ -240,6 +261,7 @@ export const FreedomWall: React.FC = () => {
     setSelectedPostForComments(post);
     setIsFetchingComments(true);
     setCommentsList([]);
+    setReplyingTo(null);
 
     if (supabase && isSupabaseConfigured) {
       try {
@@ -275,7 +297,9 @@ export const FreedomWall: React.FC = () => {
       post_id: selectedPostForComments.id,
       author_alias: commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student'),
       department: currentUser ? currentUser.department : 'General',
-      message: newCommentText.trim(),
+      message: replyingTo ? `@${replyingTo.alias} ${newCommentText.trim()}` : newCommentText.trim(),
+      reply_to_comment_id: replyingTo?.id,
+      reply_to_alias: replyingTo?.alias,
       created_at: new Date().toISOString(),
     };
 
@@ -286,6 +310,7 @@ export const FreedomWall: React.FC = () => {
       [selectedPostForComments.id]: (prev[selectedPostForComments.id] || 0) + 1,
     }));
     setNewCommentText('');
+    setReplyingTo(null);
 
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
@@ -316,6 +341,8 @@ export const FreedomWall: React.FC = () => {
           author_alias: newComment.author_alias,
           department: newComment.department,
           message: newComment.message,
+          reply_to_comment_id: newComment.reply_to_comment_id,
+          reply_to_alias: newComment.reply_to_alias,
           created_at: newComment.created_at,
         });
 
@@ -1048,93 +1075,310 @@ export const FreedomWall: React.FC = () => {
         <Plus className="w-7 h-7" />
       </button>
 
-      {/* Comments Modal */}
+      {/* Comments — Ultra-Premium Full-Screen Panel (Gumroad DESIGN.md - Borderless Edition) */}
       {selectedPostForComments && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#f4f4f0] border-2 border-black rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b-2 border-black">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-[#701a31]" />
-                <h3 className="text-lg font-extrabold text-black">Campus Wall Comments</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPostForComments(null)}
-                className="p-1 hover:bg-black/10 rounded-full text-black transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <div className="fixed inset-0 z-[100] bg-[#f4f4f0] flex flex-col animate-in fade-in duration-200">
 
-            {/* Selected Post Preview */}
-            <div
-              style={{ backgroundColor: selectedPostForComments.color || '#ffc900' }}
-              className="p-4 rounded-2xl border-2 border-black text-black mb-4 shadow-sm shrink-0"
-            >
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded-full uppercase">
-                  {selectedPostForComments.department.replace('College of ', '')}
-                </span>
-                <span className="text-[10px] font-bold text-black/70">
-                  {new Date(selectedPostForComments.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {/* ── Top Navigation Bar ── Cream canvas strip */}
+          <div className="h-14 bg-[#f4f4f0] shrink-0">
+            <div className="max-w-[1200px] h-full mx-auto px-4 sm:px-6 md:px-8 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="font-bold text-[18px] text-[#000000] tracking-tight leading-none">
+                  Freedom Wall
+                </h2>
+                {/* Nav Pill (Active) */}
+                <span className="bg-[#000000] text-white text-[12px] font-medium px-3 py-1 rounded-full uppercase tracking-wider hidden sm:inline-block">
+                  Thread
                 </span>
               </div>
-              <p className="text-xs sm:text-sm font-extrabold text-black whitespace-pre-wrap">
-                "{selectedPostForComments.message}"
-              </p>
-              <span className="text-[11px] font-bold text-black/80 italic block mt-2">
-                ~ {selectedPostForComments.author_alias}
-              </span>
-            </div>
 
-            {/* Comments List Feed */}
-            <div className="flex-1 overflow-y-auto space-y-2.5 mb-4 pr-1 min-h-[120px]">
-              {isFetchingComments ? (
-                <div className="text-center py-8 text-xs font-bold text-gray-500">
-                  Loading comments...
+              <div className="flex items-center gap-3">
+                {/* Stat Badge */}
+                <div className="bg-white rounded-full px-3 py-1 text-[13px] font-bold text-[#000000] hidden sm:flex items-center gap-1.5 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-[#ffc900]" />
+                  <span>{commentsList.length} Comments</span>
                 </div>
-              ) : commentsList.length === 0 ? (
-                <div className="text-center py-8 bg-white border border-dashed border-black/30 rounded-2xl text-xs font-bold text-gray-500">
-                  💬 No comments yet on this note. Be the first student to comment!
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPostForComments(null)}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-white text-[#000000] hover:bg-black hover:text-white transition-colors shadow-xs"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Main Content Layout ── 1200px max-width grid */}
+          <div className="flex-1 max-w-[1200px] w-full mx-auto flex flex-col md:flex-row bg-[#f4f4f0] overflow-hidden">
+
+            {/* LEFT COLUMN — Original Note Preview & Details (360px on desktop) */}
+            <div className="md:w-[360px] lg:w-[380px] flex flex-col p-4 sm:p-5 overflow-y-auto shrink-0 bg-[#f4f4f0] space-y-3">
+
+              {/* Note Card — Paper White surface, 16px radius, Borderless */}
+              <div className="bg-white rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xs">
+                {/* Color Marker Swatch stripe */}
+                <div
+                  className="absolute top-0 left-0 right-0 h-1.5"
+                  style={{ background: selectedPostForComments.color || '#ffc900' }}
+                />
+
+                {/* Meta Header */}
+                <div className="flex items-center justify-between gap-2 mb-3 pt-1">
+                  <span className="px-2 py-0.5 bg-[#000000] text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
+                    {selectedPostForComments.department.replace('College of ', '')}
+                  </span>
+                  <span className="text-[11px] font-medium text-[#242423]">
+                    {new Date(selectedPostForComments.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    {' · '}
+                    {new Date(selectedPostForComments.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-              ) : (
-                commentsList.map((cm) => (
-                  <div key={cm.id} className="p-3 bg-white border border-black rounded-2xl text-black shadow-xs">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-xs font-extrabold text-[#701a31]">
-                        @{cm.author_alias}
-                      </span>
-                      <span className="text-[10px] font-bold text-black/60">
-                        {new Date(cm.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+
+                {/* Post Message */}
+                <p
+                  className="text-[16px] font-bold text-[#000000] leading-snug whitespace-pre-wrap mb-3 break-words [overflow-wrap:anywhere] max-w-full overflow-hidden"
+                  style={{ letterSpacing: '-0.108px' }}
+                >
+                  &ldquo;{selectedPostForComments.message}&rdquo;
+                </p>
+
+                {/* Dedicated Song preview if present */}
+                {selectedPostForComments.song_title && (
+                  <div className="mb-3 p-2.5 bg-[#f4f4f0] rounded-xl flex items-center gap-2.5">
+                    {selectedPostForComments.song_image_url && (
+                      <img
+                        src={selectedPostForComments.song_image_url}
+                        alt="Song Cover"
+                        className="w-8 h-8 rounded-lg object-cover"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-[#000000] truncate">{selectedPostForComments.song_title}</p>
+                      <p className="text-[10px] font-medium text-[#242423] truncate">{selectedPostForComments.song_artist}</p>
                     </div>
-                    <p className="text-xs font-medium text-black whitespace-pre-wrap leading-relaxed">
-                      {cm.message}
-                    </p>
                   </div>
-                ))
-              )}
+                )}
+
+                {/* Poll options preview if present */}
+                {selectedPostForComments.poll_question && selectedPostForComments.poll_options && (
+                  <div className="mb-3 p-3 bg-[#f4f4f0] rounded-md space-y-1.5">
+                    <p className="text-[12px] font-bold text-[#000000]">{selectedPostForComments.poll_question}</p>
+                    <div className="space-y-1">
+                      {selectedPostForComments.poll_options.map((opt) => (
+                        <div key={opt.id} className="bg-white rounded-lg p-1.5 text-[11px] font-medium text-[#242423] flex justify-between shadow-2xs">
+                          <span>{opt.text}</span>
+                          <span className="font-bold text-[#000000]">{opt.votes_count} votes</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer Signature */}
+                <div className="flex items-center justify-between pt-3 border-t border-black/5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2 h-2 "
+                      style={{ background: selectedPostForComments.color || '#ffc900' }}
+                    />
+                    <span className="text-[12px] font-bold text-[#242423] italic">
+                      ~ {selectedPostForComments.author_alias}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Add Comment Form */}
-            <form onSubmit={handleAddComment} className="pt-3 border-t-2 border-black flex gap-2 shrink-0">
-              <input
-                type="text"
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-                placeholder="Write your anonymous comment..."
-                className="gumroad-input text-xs flex-1 py-2"
-                required
-              />
-              <button
-                type="submit"
-                className="btn-gumroad-primary text-xs px-4 py-2 flex items-center gap-1 shrink-0 bg-[#701a31] hover:bg-[#4d0d1f]"
-              >
-                <Send className="w-3.5 h-3.5 text-white" />
-                <span>Send</span>
-              </button>
-            </form>
+            {/* RIGHT COLUMN — Comments Feed & Input (Paper White container) */}
+            <div className="flex-1 flex flex-col bg-white overflow-hidden">
+
+              {/* Thread Header Strip */}
+              <div className="px-4 sm:px-6 py-2.5 shrink-0 bg-white flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-sm bg-[#f1f333]" />
+                  <h3 className="text-[11px] font-bold text-[#000000] uppercase tracking-widest">
+                    THREADS
+                  </h3>
+                </div>
+                <span className="text-[11px] font-medium text-[#242423]">
+                  Replies as @{currentUser?.username || 'Anonymous Student'}
+                </span>
+              </div>
+
+              {/* Comments Feed List */}
+              <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-2 bg-[#f4f4f0] min-w-0">
+                {isFetchingComments ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 py-10 text-[#242423]">
+                    <div className="w-6 h-6 rounded-full border-2 border-black/20 border-t-[#000000] animate-spin" />
+                    <p className="text-[13px] font-medium">Loading replies…</p>
+                  </div>
+                ) : commentsList.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-10">
+                    {/* Sketchbook Empty Card */}
+                    <div className="bg-white rounded-2xl p-6 text-center max-w-xs mx-auto space-y-2 shadow-xs">
+                      <div className="w-10 h-10 rounded-full bg-[#ff90e8] flex items-center justify-center font-extrabold text-base text-black mx-auto shadow-xs">
+                        G
+                      </div>
+                      <p className="text-[15px] font-bold text-[#000000]">No comments yet</p>
+                      <p className="text-[13px] font-medium text-[#242423] leading-relaxed">
+                        Be the first student to reply on this note!
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  (() => {
+                    const allCommentIds = new Set(commentsList.map((c) => c.id));
+                    const rootComments = commentsList.filter(
+                      (c) => !c.reply_to_comment_id || !allCommentIds.has(c.reply_to_comment_id)
+                    );
+
+                    const renderNode = (cm: FreedomComment, depth = 0) => {
+                      const directReplies = commentsList.filter((c) => c.reply_to_comment_id === cm.id);
+                      const isReply = depth > 0;
+
+                      return (
+                        <div key={cm.id} className="space-y-1.5">
+                          {/* Individual Comment Tile Card — Borderless */}
+                          <div
+                            className={`bg-white rounded-xl p-2.5 sm:p-3 transition-colors space-y-1.5 animate-in slide-in-from-bottom-1 duration-150 min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] shadow-xs ${
+                              isReply ? 'ml-3 sm:ml-4 border-l-4 border-l-[#ffc900] bg-white/95' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span
+                                  className="w-2 h-2 rounded-full shrink-0"
+                                  style={{ background: selectedPostForComments.color || '#ffc900' }}
+                                />
+                                <span className="text-[13px] font-bold text-[#000000] truncate">
+                                  @{cm.author_alias}
+                                </span>
+                                {cm.department && (
+                                  <span className="text-[10px] font-medium text-[#242423] px-1.5 py-0.2 bg-[#f4f4f0] rounded-full shrink-0">
+                                    {cm.department.replace('College of ', '')}
+                                  </span>
+                                )}
+                                {isReply && (
+                                  <span className="text-[9px] font-bold text-[#000000] bg-[#ffc900]/30 px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shrink-0">
+                                    <CornerUpLeft className="w-2.5 h-2.5 text-[#000000]" />
+                                    <span>Reply</span>
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] font-medium text-[#242423] shrink-0">
+                                {new Date(cm.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+
+                            <p
+                              className="text-[13px] sm:text-[14px] font-medium text-[#242423] whitespace-pre-wrap leading-snug pl-2.5 border-l-2 border-black/10 break-words [overflow-wrap:anywhere] max-w-full overflow-hidden"
+                              style={{ letterSpacing: '-0.064px' }}
+                            >
+                              {cm.message}
+                            </p>
+
+                            {/* Comment Action Footer: Reply */}
+                            <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                              {cm.reply_to_alias ? (
+                                <span className="text-[10px] font-medium text-[#242423]/70 italic flex items-center gap-1">
+                                  <CornerUpLeft className="w-2.5 h-2.5 text-[#242423]/60" />
+                                  <span>Replying to @{cm.reply_to_alias}</span>
+                                </span>
+                              ) : <span />}
+
+                              <button
+                                type="button"
+                                onClick={() => handleStartReply(cm)}
+                                className="text-[10px] font-bold text-[#000000] hover:bg-[#ffc900] flex items-center gap-1 px-2.5 py-0.5 bg-[#f4f4f0] rounded transition-colors ml-auto"
+                              >
+                                <Reply className="w-2.5 h-2.5" />
+                                <span>Reply</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Nested Child Replies directly underneath */}
+                          {directReplies.length > 0 && (
+                            <div className="space-y-1.5 pl-1.5 sm:pl-2 ml-1.5 sm:ml-2">
+                              {directReplies.map((reply) => renderNode(reply, depth + 1))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    };
+
+                    return rootComments.map((rootCm) => renderNode(rootCm, 0));
+                  })()
+                )}
+              </div>
+
+              {/* ── Comment Input Footer ── Borderless */}
+              <div className="p-3 sm:p-4 bg-white shrink-0">
+                {/* Replying Banner */}
+                {replyingTo && (
+                  <div className="mb-1.5 p-1.5 px-2.5 bg-[#ffc900]/20 rounded text-[11px] font-bold text-[#000000] flex items-center justify-between animate-in fade-in slide-in-from-bottom-1">
+                    <div className="flex items-center gap-1.5">
+                      <Reply className="w-3 h-3 text-[#000000]" />
+                      <span>Replying to <span className="underline">@{replyingTo.alias}</span></span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="p-0.5 hover:bg-black/10 rounded transition-colors"
+                      title="Cancel reply"
+                    >
+                      <X className="w-3 h-3 text-black" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Handle bar */}
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-[#000000]">Posting as:</span>
+                    <span className="text-[11px] font-extrabold text-[#000000] bg-[#f4f4f0] px-2 py-0.5 rounded">
+                      @{currentUser?.username || 'Anonymous Student'}
+                    </span>
+                    {currentUser?.department && (
+                      <span className="text-[10px] font-medium text-[#242423] bg-[#f4f4f0] px-1.5 py-0.2 rounded-full">
+                        {currentUser.department.replace('College of ', '')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <form onSubmit={handleAddComment} className="flex items-end gap-3">
+                  <textarea
+                    ref={commentInputRef}
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddComment(e);
+                      }
+                    }}
+                    placeholder={replyingTo ? `Write a reply to @${replyingTo.alias}…` : "Write an anonymous comment… (Enter to post, Shift+Enter for new line)"}
+                    rows={1}
+                    maxLength={2000}
+                    className="flex-1 bg-[#f4f4f0] border-none rounded-xl px-4 py-[10px] text-[14px] leading-[22px] text-[#000000] placeholder-[#242423]/50 font-medium outline-none focus:bg-[#e9e9e4] transition-colors resize-none break-words [overflow-wrap:anywhere] min-h-[44px] max-h-32 overflow-y-auto"
+                    required
+                    style={{ letterSpacing: '-0.028px' }}
+                  />
+                  {/* Primary Action Button — Solid Ink Black #000000 fill */}
+                  <button
+                    type="submit"
+                    className="flex items-center justify-center gap-2 px-5 h-[44px] bg-[#000000] text-white text-[14px] font-medium rounded-xl shrink-0 hover:bg-[#242423] transition-colors active:scale-95 self-end shadow-xs"
+                  >
+                    <Send className="w-4 h-4 text-white" />
+                    <span className="hidden sm:inline">Post Reply</span>
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       )}
