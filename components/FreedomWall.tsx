@@ -1361,7 +1361,7 @@ export const FreedomWall: React.FC = () => {
                         handleAddComment(e);
                       }
                     }}
-                    placeholder={replyingTo ? `Write a reply to @${replyingTo.alias}…` : "Write an anonymous comment… (Enter to post, Shift+Enter for new line)"}
+                    placeholder={replyingTo ? `Reply to @${replyingTo.alias}…` : "Write comment here…"}
                     rows={1}
                     maxLength={2000}
                     className="flex-1 bg-[#f4f4f0] border-none rounded-xl px-4 py-[10px] text-[14px] leading-[22px] text-[#000000] placeholder-[#242423]/50 font-medium outline-none focus:bg-[#e9e9e4] transition-colors resize-none break-words [overflow-wrap:anywhere] min-h-[44px] max-h-32 overflow-y-auto"
