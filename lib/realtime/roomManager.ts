@@ -6,6 +6,7 @@ import { supabase, isSupabaseConfigured } from '../supabase/client';
 export type MessageCallback = (message: ChatMessage) => void;
 export type TypingCallback = (isTyping: boolean) => void;
 export type SkipCallback = (reason?: string) => void;
+export type ThemeCallback = (isDarkMode: boolean) => void;
 
 const MSG_STORAGE_PREFIX = 'capitalk_msgs_v4_';
 const SIGNAL_STORAGE_PREFIX = 'capitalk_signal_v4_';
@@ -23,6 +24,7 @@ class RoomManager {
   private messageCallbacks: Set<MessageCallback> = new Set();
   private typingCallbacks: Set<TypingCallback> = new Set();
   private skipCallbacks: Set<SkipCallback> = new Set();
+  private themeCallbacks: Set<ThemeCallback> = new Set();
 
   private getSocket(): WebSocket | null {
     try {
@@ -31,6 +33,11 @@ class RoomManager {
     } catch (e) {
       return null;
     }
+  }
+
+  public onThemeChange(cb: ThemeCallback) {
+    this.themeCallbacks.add(cb);
+    return () => this.themeCallbacks.delete(cb);
   }
 
   public joinRoom(
@@ -54,9 +61,6 @@ class RoomManager {
     this.loadPersistedMessages();
 
     // 2. Poll storage every 5s as a fallback safety net.
-    // The storage event listener above already handles instant cross-tab delivery;
-    // this poll only exists to catch rare edge cases (e.g. private browsing storage events
-    // not firing). A 5s tick is more than sufficient and cuts idle CPU by ~10×.
     this.syncInterval = setInterval(() => this.loadPersistedMessages(), 5000);
 
     // 3. Storage event listener for instant cross-tab/browser sync
@@ -72,6 +76,8 @@ class RoomManager {
                 this.typingCallbacks.forEach((cb) => cb(signal.isTyping));
               } else if (signal.type === 'SKIP') {
                 this.skipCallbacks.forEach((cb) => cb(signal.reason));
+              } else if (signal.type === 'THEME') {
+                this.themeCallbacks.forEach((cb) => cb(signal.isDarkMode));
               }
             }
           } catch (err) {}
@@ -80,7 +86,7 @@ class RoomManager {
       window.addEventListener('storage', this.storageListener);
     }
 
-    // 4. Connect to Supabase Realtime channel if configured (Netlify/Vercel production)
+    // 4. Connect to Supabase Realtime channel if configured
     if (isSupabaseConfigured && supabase) {
       try {
         this.supabaseChannel = supabase.channel(`capitalk:room:${roomId}`);
@@ -99,6 +105,11 @@ class RoomManager {
           .on('broadcast', { event: 'skip' }, ({ payload }: { payload: { senderId: string; reason?: string } }) => {
             if (payload && payload.senderId !== user.id) {
               this.skipCallbacks.forEach((cb) => cb(payload.reason));
+            }
+          })
+          .on('broadcast', { event: 'theme' }, ({ payload }: { payload: { senderId: string; isDarkMode: boolean } }) => {
+            if (payload && payload.senderId !== user.id) {
+              this.themeCallbacks.forEach((cb) => cb(payload.isDarkMode));
             }
           })
           .subscribe();
@@ -166,10 +177,46 @@ class RoomManager {
         this.skipCallbacks.forEach((cb) => cb(data.reason));
         break;
       }
+      case 'THEME': {
+        this.themeCallbacks.forEach((cb) => cb(data.isDarkMode));
+        break;
+      }
       case 'PARTNER_LEFT': {
         this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
         break;
       }
+    }
+  }
+
+  public sendThemeSignal(isDarkMode: boolean) {
+    if (!this.currentRoomId) return;
+
+    const signal = { type: 'THEME', isDarkMode, senderId: this.currentUserId, t: Date.now() };
+
+    // Broadcast 1: LocalStorage signal
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify(signal));
+    }
+
+    // Broadcast 2: WebSocket server
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'THEME',
+        roomId: this.currentRoomId,
+        isDarkMode,
+      }));
+    }
+
+    // Broadcast 3: Supabase Realtime
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'theme',
+          payload: { senderId: this.currentUserId, isDarkMode },
+        });
+      } catch (e) {}
     }
   }
 
@@ -383,6 +430,7 @@ class RoomManager {
     this.messageCallbacks.clear();
     this.typingCallbacks.clear();
     this.skipCallbacks.clear();
+    this.themeCallbacks.clear();
     this.knownMsgIds.clear();
     this.lastRawMessages = null;
     this.currentRoomId = null;

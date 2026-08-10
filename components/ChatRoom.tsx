@@ -31,6 +31,8 @@ import {
   AlertTriangle,
   Hourglass,
   Sparkles,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
@@ -219,6 +221,39 @@ export const ChatRoom: React.FC = () => {
 
   const [text, setText] = useState('');
   const [showMobileExtras, setShowMobileExtras] = useState(false);
+
+  // Dark Mode State with LocalStorage Persistence & Realtime Room Sync
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('capitalk_chat_theme');
+      if (saved) return saved === 'dark';
+    }
+    return false;
+  });
+
+  // Listen to realtime theme sync signals from partner
+  useEffect(() => {
+    const unsubscribe = roomManager.onThemeChange((newIsDarkMode) => {
+      setIsDarkMode(newIsDarkMode);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('capitalk_chat_theme', newIsDarkMode ? 'dark' : 'light');
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('capitalk_chat_theme', next ? 'dark' : 'light');
+      }
+      roomManager.sendThemeSignal(next);
+      return next;
+    });
+  };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -490,7 +525,7 @@ export const ChatRoom: React.FC = () => {
 
       {/* Top Header Bar */}
       <div className={`px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20 transition-colors duration-300 ${
-        isAdminRoom ? 'bg-slate-950/80 border-b border-slate-800/80 text-white backdrop-blur-md' : 'bg-white border-b border-[#d1d5dc] text-black'
+        isAdminRoom ? 'bg-slate-950/80 border-b border-slate-800/80 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-b border-[#27272a] text-white' : 'bg-white border-b border-[#d1d5dc] text-black'
       }`}>
         {/* Partner Info */}
         <div className="flex items-center gap-2">
@@ -499,7 +534,7 @@ export const ChatRoom: React.FC = () => {
               src={partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.username}`}
               alt={partner.username}
               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#f4f4f0] border-2 transition-all duration-500 ${
-                partnerLeft ? 'border-red-400 opacity-50 grayscale' : 'border-black'
+                partnerLeft ? 'border-red-400 opacity-50 grayscale' : isDarkMode ? 'border-[#3f3f46]' : 'border-black'
               }`}
             />
             <span
@@ -511,7 +546,7 @@ export const ChatRoom: React.FC = () => {
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className={`font-extrabold text-sm sm:text-base leading-tight transition-colors duration-300 ${
-                partnerLeft ? 'text-gray-400 line-through' : isAdminRoom ? 'text-white' : 'text-black'
+                partnerLeft ? 'text-gray-400 line-through' : isAdminRoom ? 'text-white' : isDarkMode ? 'text-white' : 'text-black'
               }`}>
                 {partner.username}
               </h3>
@@ -555,21 +590,39 @@ export const ChatRoom: React.FC = () => {
               )}
             </div>
             <p className={`text-[11px] sm:text-xs font-medium transition-colors duration-300 ${
-              partnerLeft ? 'text-gray-400' : isAdminRoom ? 'text-slate-400' : 'text-[#242423]'
+              partnerLeft ? 'text-gray-400' : isAdminRoom ? 'text-slate-400' : isDarkMode ? 'text-zinc-400' : 'text-[#242423]'
             }`}>
               {partner.department.replace('College of ', '')}
             </p>
           </div>
         </div>
 
-        {/* Action Buttons: Report, Block, Exit, Next */}
+        {/* Action Buttons: Dark Mode Toggle, Report, Block, Exit, Next */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Dark Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            className={`p-1.5 sm:p-2 rounded border transition-colors ${
+              isAdminRoom
+                ? 'text-amber-400 border-slate-700 hover:bg-slate-800'
+                : isDarkMode
+                ? 'text-amber-400 border-[#3f3f46] hover:bg-[#27272a]'
+                : 'text-gray-600 hover:text-black hover:bg-gray-100 border-[#d1d5dc]'
+            }`}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-600" />}
+          </button>
+
           <button
             type="button"
             onClick={() => setShowReportModal(true)}
             className={`p-1.5 sm:p-2 rounded border transition-colors ${
               isAdminRoom
                 ? 'text-slate-300 border-slate-700 hover:text-red-400 hover:bg-slate-800'
+                : isDarkMode
+                ? 'text-zinc-300 border-[#3f3f46] hover:text-red-400 hover:bg-[#27272a]'
                 : 'text-gray-600 hover:text-red-600 hover:bg-red-50 border-[#d1d5dc]'
             }`}
             title="Report User"
@@ -583,6 +636,8 @@ export const ChatRoom: React.FC = () => {
             className={`p-1.5 sm:p-2 rounded border transition-colors ${
               isAdminRoom
                 ? 'text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800'
+                : isDarkMode
+                ? 'text-zinc-300 border-[#3f3f46] hover:text-white hover:bg-[#27272a]'
                 : 'text-gray-600 hover:text-black hover:bg-gray-100 border-[#d1d5dc]'
             }`}
             title="Block User"
@@ -596,6 +651,8 @@ export const ChatRoom: React.FC = () => {
             className={`p-1.5 sm:p-2 rounded border flex items-center gap-1 transition-all ${
               confirmExit
                 ? 'bg-red-600 text-white border-red-600 font-bold scale-105 animate-pulse'
+                : isDarkMode
+                ? 'text-red-400 hover:text-red-300 hover:bg-red-950/40 border-red-900/60'
                 : 'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
             }`}
             title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
@@ -627,8 +684,8 @@ export const ChatRoom: React.FC = () => {
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
       <div
         onClick={() => activePickerMsgId && setActivePickerMsgId(null)}
-        className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain ${
-          isAdminRoom ? 'bg-transparent text-white' : 'bg-[#fbf9f5]'
+        className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain transition-colors duration-300 ${
+          isAdminRoom ? 'bg-transparent text-white' : isDarkMode ? 'bg-[#121212] text-zinc-100' : 'bg-[#fbf9f5]'
         }`}
       >
         <div className="space-y-3 sm:space-y-4">
@@ -643,16 +700,18 @@ export const ChatRoom: React.FC = () => {
           if (isSystem || msg.sender_id === 'system_announcement' || msg.id.startsWith('msg_ann_')) {
             if (msg.message?.includes('Profanity Warning')) {
               return (
-                <div key={msg.id} className="my-3 p-3.5 bg-[#dc341e]/10 border-2 border-[#dc341e] rounded-2xl shadow-sm text-black animate-in fade-in zoom-in-95 duration-200">
+                <div key={msg.id} className={`my-3 p-3.5 border-2 rounded-2xl shadow-sm animate-in fade-in zoom-in-95 duration-200 ${
+                  isDarkMode ? 'bg-red-950/40 border-red-700 text-white' : 'bg-[#dc341e]/10 border-[#dc341e] text-black'
+                }`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-[#dc341e] text-white text-[10px] font-extrabold rounded uppercase tracking-wider">
                       ⚠️ Profanity Warning
                     </span>
-                    <span className="text-[10px] font-bold text-gray-500">
+                    <span className={`text-[10px] font-bold ${isDarkMode ? 'text-zinc-400' : 'text-gray-500'}`}>
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-xs sm:text-sm font-extrabold text-[#dc341e] leading-relaxed">{msg.message}</p>
+                  <p className={`text-xs sm:text-sm font-extrabold leading-relaxed ${isDarkMode ? 'text-red-300' : 'text-[#dc341e]'}`}>{msg.message}</p>
                 </div>
               );
             }
@@ -672,7 +731,9 @@ export const ChatRoom: React.FC = () => {
 
             return (
               <div key={msg.id} className="text-center my-4">
-                <span className="inline-block bg-white border border-[#d1d5dc] text-xs font-semibold px-4 py-1.5 rounded-full text-black">
+                <span className={`inline-block border text-xs font-semibold px-4 py-1.5 rounded-full ${
+                  isDarkMode ? 'bg-[#27272a] border-[#3f3f46] text-zinc-200' : 'bg-white border-[#d1d5dc] text-black'
+                }`}>
                   {msg.message}
                 </span>
               </div>
@@ -685,17 +746,19 @@ export const ChatRoom: React.FC = () => {
               className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
             >
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-bold text-[#242423]">
+                <span className={`text-[11px] font-bold ${isDarkMode ? 'text-zinc-300' : 'text-[#242423]'}`}>
                   {isMe ? 'You' : msg.sender_username}
                 </span>
-                <span className="text-[10px] text-gray-500">
+                <span className={`text-[10px] ${isDarkMode ? 'text-zinc-400' : 'text-gray-500'}`}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
 
               {/* Reply Reference Bubble */}
               {msg.reply_to && (
-                <div className="mb-1 p-2 bg-white/70 border-l-2 border-black rounded text-xs text-[#242423]">
+                <div className={`mb-1 p-2 border-l-2 rounded text-xs ${
+                  isDarkMode ? 'bg-[#27272a] border-[#ffc900] text-zinc-200' : 'bg-white/70 border-black text-[#242423]'
+                }`}>
                   <span className="font-bold">{msg.reply_to.sender_username}:</span> {msg.reply_to.message}
                 </div>
               )}
@@ -727,16 +790,22 @@ export const ChatRoom: React.FC = () => {
                       isMe
                         ? msg.is_profane
                           ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
+                          : isDarkMode
+                          ? 'bg-[#ffc900] text-black border-[#ffc900] font-semibold rounded-tr-none shadow-xs'
                           : 'bg-black text-white border-black rounded-tr-none'
                         : msg.is_profane
-                        ? 'bg-red-50 text-black border-red-400 rounded-tl-none'
+                        ? isDarkMode
+                          ? 'bg-red-950/80 text-white border-red-700 rounded-tl-none'
+                          : 'bg-red-50 text-black border-red-400 rounded-tl-none'
+                        : isDarkMode
+                        ? 'bg-[#27272a] text-zinc-100 border-[#3f3f46] rounded-tl-none shadow-xs'
                         : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
                     }`}
                   >
                     {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.message}</p>}
 
                     {msg.image_url && (
-                      <div className="mt-2 rounded overflow-hidden border border-[#d1d5dc]">
+                      <div className={`mt-2 rounded overflow-hidden border ${isDarkMode ? 'border-[#3f3f46]' : 'border-[#d1d5dc]'}`}>
                         <img
                           src={msg.image_url}
                           alt="Uploaded media"
@@ -746,7 +815,9 @@ export const ChatRoom: React.FC = () => {
                     )}
 
                     {/* Quick Action Toolbar on Hover */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 bg-white border border-black rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm text-black z-10">
+                    <div className={`opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3 right-2 border rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm z-10 ${
+                      isDarkMode ? 'bg-[#27272a] border-[#3f3f46] text-white' : 'bg-white border-black text-black'
+                    }`}>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -791,7 +862,9 @@ export const ChatRoom: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setReplyTo(msg)}
-                    className="p-1.5 text-gray-400 hover:text-black hover:bg-black/5 active:scale-95 rounded-full transition-all shrink-0"
+                    className={`p-1.5 active:scale-95 rounded-full transition-all shrink-0 ${
+                      isDarkMode ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800' : 'text-gray-400 hover:text-black hover:bg-black/5'
+                    }`}
                     title="Reply to message"
                   >
                     <CornerUpLeft className="w-3.5 h-3.5" />
@@ -827,8 +900,10 @@ export const ChatRoom: React.FC = () => {
         {/* Partner Typing Indicator — height-stable container prevents layout shift */}
         <div className="min-h-[28px] flex items-center transition-all duration-200">
           {partnerTyping && !partnerLeft && (
-            <div className="flex items-center gap-2 text-xs text-[#242423] font-medium bg-white px-3 py-1.5 rounded-full border border-[#d1d5dc] w-fit animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-black animate-bounce" />
+            <div className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border w-fit animate-pulse ${
+              isDarkMode ? 'bg-[#27272a] border-[#3f3f46] text-zinc-200' : 'bg-white border-[#d1d5dc] text-[#242423]'
+            }`}>
+              <span className={`w-2 h-2 rounded-full animate-bounce ${isDarkMode ? 'bg-[#ffc900]' : 'bg-black'}`} />
               <span>{partner.username} is typing...</span>
             </div>
           )}
@@ -857,7 +932,7 @@ export const ChatRoom: React.FC = () => {
               )}
             </div>
             <div className="text-center max-w-sm space-y-2">
-              <p className="text-sm font-extrabold text-black">
+              <p className={`text-sm font-extrabold ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 {partnerLeftReason === 'inactivity'
                   ? 'User Disconnected (Inactivity)'
                   : partnerLeftReason === 'exited'
@@ -868,7 +943,7 @@ export const ChatRoom: React.FC = () => {
               </p>
               
               {/* Ended Chat Indicator with Report / Block & Feedback Prompt */}
-              <div className="text-xs text-[#242423] space-y-1.5 pt-1">
+              <div className={`text-xs space-y-1.5 pt-1 ${isDarkMode ? 'text-zinc-400' : 'text-[#242423]'}`}>
                 <p className="font-medium">
                   {partnerLeftReason === 'left' || partnerLeftReason === 'exited' ? (
                     <>You ended the chat.</>
@@ -896,7 +971,7 @@ export const ChatRoom: React.FC = () => {
                   </button>
                 </p>
 
-                <p className="text-[11px] font-bold tracking-wider uppercase text-gray-500 pt-1">
+                <p className={`text-[11px] font-bold tracking-wider uppercase pt-1 ${isDarkMode ? 'text-zinc-500' : 'text-gray-500'}`}>
                   FOUND A BUG OR HAVE SUGGESTIONS?{' '}
                   <button
                     type="button"
@@ -917,7 +992,9 @@ export const ChatRoom: React.FC = () => {
 
       {/* Reply Bar Overlay */}
       {replyTo && (
-        <div className="bg-[#ffc900] border-x border-t border-black p-2 text-xs text-black font-medium flex items-center justify-between">
+        <div className={`border-x border-t p-2 text-xs font-medium flex items-center justify-between ${
+          isDarkMode ? 'bg-[#ffc900] text-black border-[#ffc900]' : 'bg-[#ffc900] border-black text-black'
+        }`}>
           <div className="truncate">
             Replying to <span className="font-bold">{replyTo.sender_username}</span>: "{replyTo.message}"
           </div>
@@ -940,7 +1017,7 @@ export const ChatRoom: React.FC = () => {
       {/* Disconnected action bar — replaces input when partner leaves */}
       {partnerLeft ? (
         <div className={`p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-colors ${
-          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : 'bg-white border-t border-[#d1d5dc] text-black'
+          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-t border-[#27272a] text-white' : 'bg-white border-t border-[#d1d5dc] text-black'
         }`}>
           <div className="flex items-center gap-2 text-sm">
             {partnerLeftReason === 'inactivity' ? (
@@ -957,7 +1034,7 @@ export const ChatRoom: React.FC = () => {
             <button
               type="button"
               onClick={leaveRoom}
-              className="btn-gumroad-ghost text-xs px-4 py-2"
+              className={`btn-gumroad-ghost text-xs px-4 py-2 ${isDarkMode ? 'text-zinc-200 border-[#3f3f46] hover:bg-[#27272a]' : ''}`}
             >
               <span>Stay Here</span>
             </button>
@@ -973,12 +1050,12 @@ export const ChatRoom: React.FC = () => {
         </div>
       ) : (
         <div className={`p-2 sm:p-2.5 relative shrink-0 z-20 transition-colors duration-300 ${
-          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : 'bg-white border-t border-[#d1d5dc] text-black'
+          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-t border-[#27272a] text-white' : 'bg-white border-t border-[#d1d5dc] text-black'
         }`}>
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
             <div className={`absolute bottom-16 left-3 p-3 rounded-full flex items-center gap-2 flex-wrap shadow-lg z-30 ${
-              isAdminRoom ? 'bg-slate-900 border-2 border-slate-700 text-white' : 'bg-white border-2 border-black text-black'
+              isAdminRoom ? 'bg-slate-900 border-2 border-slate-700 text-white' : isDarkMode ? 'bg-[#27272a] border-2 border-[#3f3f46] text-white' : 'bg-white border-2 border-black text-black'
             }`}>
               {EMOJI_PRESETS.map((emoji) => (
                 <button
@@ -1014,6 +1091,8 @@ export const ChatRoom: React.FC = () => {
                   ? 'bg-black text-white border-black rounded-full rotate-45'
                   : isAdminRoom
                   ? 'text-slate-300 border-slate-700'
+                  : isDarkMode
+                  ? 'text-zinc-300 border-[#3f3f46]'
                   : 'text-[#242423] border-[#d1d5dc]'
               }`}
               title="More options"
@@ -1032,6 +1111,8 @@ export const ChatRoom: React.FC = () => {
                 className={`p-2 rounded border flex items-center gap-1 transition-all shrink-0 ${
                   confirmExit
                     ? 'bg-red-600 text-white border-red-600 font-bold scale-105 animate-pulse'
+                    : isDarkMode
+                    ? 'text-red-400 hover:text-red-300 hover:bg-red-950/40 border-red-900/60'
                     : 'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
                 }`}
                 title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
@@ -1048,7 +1129,7 @@ export const ChatRoom: React.FC = () => {
                 disabled={isUploading}
                 onClick={() => fileInputRef.current?.click()}
                 className={`p-2 rounded shrink-0 transition-colors ${
-                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
+                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : isDarkMode ? 'text-zinc-300 hover:text-white hover:bg-zinc-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
                 }`}
                 title="Upload Image (Max 10MB)"
               >
@@ -1060,7 +1141,7 @@ export const ChatRoom: React.FC = () => {
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 className={`p-2 rounded shrink-0 transition-colors ${
-                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
+                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : isDarkMode ? 'text-zinc-300 hover:text-white hover:bg-zinc-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
                 }`}
                 title="Add Emoji"
               >
@@ -1085,6 +1166,8 @@ export const ChatRoom: React.FC = () => {
               className={`flex-1 px-4 py-2.5 text-sm resize-none overflow-hidden leading-relaxed rounded-xl transition-colors duration-150 ${
                 isAdminRoom
                   ? 'bg-slate-900 border-2 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
+                  : isDarkMode
+                  ? 'bg-[#27272a] border-2 border-[#3f3f46] text-white placeholder-zinc-500 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
                   : 'bg-white border-2 border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
               }`}
               style={{ minHeight: '42px', maxHeight: '120px' }}
@@ -1097,6 +1180,8 @@ export const ChatRoom: React.FC = () => {
               className={`p-2.5 sm:p-3 rounded-xl border-2 border-black font-extrabold flex items-center justify-center shrink-0 transition-all duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
                 text.trim() || replyTo
                   ? 'bg-[#ffc900] text-black hover:scale-105 active:scale-95 cursor-pointer opacity-100'
+                  : isDarkMode
+                  ? 'bg-zinc-800 text-zinc-600 border-zinc-700 cursor-not-allowed opacity-50 shadow-none'
                   : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-50 shadow-none'
               }`}
               title="Send Message"
@@ -1117,10 +1202,12 @@ export const ChatRoom: React.FC = () => {
 
       {/* Image Preview & Confirmation Modal */}
       {pendingImage && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border-2 border-black rounded-[16px] max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#d1d5dc] pb-3">
-              <h3 className="font-extrabold text-base text-black flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className={`border-2 rounded-[16px] max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 ${
+            isDarkMode ? 'bg-[#18181b] border-[#3f3f46] text-white' : 'bg-white border-black text-black'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${isDarkMode ? 'border-[#3f3f46]' : 'border-[#d1d5dc]'}`}>
+              <h3 className={`font-extrabold text-base flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 <ImageIcon className="w-5 h-5 text-[#ffc900]" />
                 Image Preview
               </h3>
@@ -1130,13 +1217,13 @@ export const ChatRoom: React.FC = () => {
                   setPendingImage(null);
                   setCaptionText('');
                 }}
-                className="p-1 hover:bg-gray-100 rounded-full text-black transition-colors"
+                className={`p-1 rounded-full transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-gray-100 text-black'}`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-[#f4f4f0] rounded-xl p-2 flex items-center justify-center border border-[#d1d5dc]">
+            <div className={`rounded-xl p-2 flex items-center justify-center border ${isDarkMode ? 'bg-[#27272a] border-[#3f3f46]' : 'bg-[#f4f4f0] border-[#d1d5dc]'}`}>
               <img
                 src={pendingImage.previewUrl}
                 alt="Image Preview"
@@ -1145,7 +1232,7 @@ export const ChatRoom: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#242423] uppercase tracking-wider mb-1">
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-zinc-400' : 'text-[#242423]'}`}>
                 Caption (Optional)
               </label>
               <input
@@ -1156,19 +1243,19 @@ export const ChatRoom: React.FC = () => {
                   if (e.key === 'Enter') handleSendPendingImage();
                 }}
                 placeholder="Write a caption to go with your image..."
-                className="gumroad-input w-full py-2.5 px-3 text-sm"
+                className={`gumroad-input w-full py-2.5 px-3 text-sm ${isDarkMode ? 'bg-[#27272a] border-[#3f3f46] text-white placeholder-zinc-500' : ''}`}
                 autoFocus
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#d1d5dc]">
+            <div className={`flex items-center justify-end gap-2 pt-2 border-t ${isDarkMode ? 'border-[#3f3f46]' : 'border-[#d1d5dc]'}`}>
               <button
                 type="button"
                 onClick={() => {
                   setPendingImage(null);
                   setCaptionText('');
                 }}
-                className="btn-gumroad-ghost text-xs px-4 py-2.5"
+                className={`btn-gumroad-ghost text-xs px-4 py-2.5 ${isDarkMode ? 'text-zinc-300 border-[#3f3f46] hover:bg-[#27272a]' : ''}`}
               >
                 Cancel
               </button>
@@ -1187,18 +1274,20 @@ export const ChatRoom: React.FC = () => {
 
       {/* 60s Inactivity Timeout Warning Modal */}
       {showInactivityAlert && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border-2 border-black rounded-[16px] max-w-md w-full p-6 shadow-2xl text-center space-y-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className={`border-2 rounded-[16px] max-w-md w-full p-6 shadow-2xl text-center space-y-4 ${
+            isDarkMode ? 'bg-[#18181b] border-[#3f3f46] text-white' : 'bg-white border-black text-black'
+          }`}>
             <div className="w-14 h-14 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto animate-bounce">
               <AlertTriangle className="w-7 h-7 text-black" />
             </div>
 
             <div>
-              <h3 className="text-xl font-extrabold text-black tracking-tight">
+              <h3 className={`text-xl font-extrabold tracking-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 Are You Still There?
               </h3>
-              <p className="text-xs sm:text-sm text-[#242423] mt-1.5 leading-relaxed">
-                You've been inactive for <span className="font-bold text-black">60 seconds</span>. Please confirm you are still active, or this chat will automatically end in:
+              <p className={`text-xs sm:text-sm mt-1.5 leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-[#242423]'}`}>
+                You've been inactive for <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>60 seconds</span>. Please confirm you are still active, or this chat will automatically end in:
               </p>
             </div>
 
