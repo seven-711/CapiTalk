@@ -75,11 +75,16 @@ export interface UserReport {
 export interface FreedomComment {
   id: string;
   post_id: string;
+  author_id?: string;
   author_alias: string;
   department?: string;
+  author_avatar?: string;
+  author_bio?: string;
   message: string;
   reply_to_comment_id?: string;
   reply_to_alias?: string;
+  likes_count?: number;
+  liked_by_users?: string[];
   created_at: string;
 }
 
@@ -95,6 +100,8 @@ export interface FreedomPost {
   author_id?: string;
   author_alias: string;
   department: string;
+  author_avatar?: string;
+  author_bio?: string;
   message: string;
   color: string;
   likes_count: number;

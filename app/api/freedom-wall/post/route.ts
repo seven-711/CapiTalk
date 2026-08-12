@@ -184,7 +184,11 @@ export async function POST(req: Request) {
     const pollMeta = (postData.poll_options && postData.poll_options.length > 0)
       ? JSON.stringify({ question: postData.poll_question || '', options: postData.poll_options })
       : '';
-    const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}`;
+    const profileMeta = JSON.stringify({
+      avatar: postData.author_avatar || '',
+      bio: postData.author_bio || '',
+    });
+    const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}||${profileMeta}`;
 
     const insertPayload: any = {
       id: postData.id,
@@ -198,6 +202,8 @@ export async function POST(req: Request) {
     };
     
     if (postData.author_id) insertPayload.author_id = postData.author_id;
+    if (postData.author_avatar) insertPayload.author_avatar = postData.author_avatar;
+    if (postData.author_bio) insertPayload.author_bio = postData.author_bio;
     if (postData.dedicated_to) insertPayload.dedicated_to = postData.dedicated_to;
     if (postData.poll_question) insertPayload.poll_question = postData.poll_question;
     if (postData.poll_options && postData.poll_options.length > 0) insertPayload.poll_options = postData.poll_options;
@@ -221,9 +227,11 @@ export async function POST(req: Request) {
         error = retry.error;
       }
 
-      // Retry 2: If author_id column is missing from schema, strip it and retry
-      if (error && error.message?.includes('author_id')) {
+      // Retry 2: If author_id, author_avatar or author_bio column is missing from schema, strip them and retry
+      if (error && (error.message?.includes('author_id') || error.message?.includes('author_avatar') || error.message?.includes('author_bio'))) {
         delete insertPayload.author_id;
+        delete insertPayload.author_avatar;
+        delete insertPayload.author_bio;
         const retry = await supabase.from('freedom_posts').insert(insertPayload);
         error = retry.error;
       }

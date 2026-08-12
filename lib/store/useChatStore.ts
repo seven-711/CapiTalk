@@ -775,11 +775,23 @@ export const useChatStore = create<ChatStoreState>()(
                     }
                   } catch (e) {}
 
+                  let extractedAvatar = existingLocal?.author_avatar || row.author_avatar;
+                  let extractedBio = existingLocal?.author_bio || row.author_bio;
+                  try {
+                    if (parts[4]) {
+                      const parsedProfile = JSON.parse(parts[4]);
+                      if (parsedProfile.avatar) extractedAvatar = parsedProfile.avatar;
+                      if (parsedProfile.bio) extractedBio = parsedProfile.bio;
+                    }
+                  } catch (e) {}
+
                   return {
                     id: row.id,
                     author_id: row.author_id,
                     author_alias: row.author_alias || 'Anon Student',
                     department: row.department || 'General',
+                    author_avatar: extractedAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(row.author_alias || 'Anon')}&backgroundColor=ffc900`,
+                    author_bio: extractedBio || '',
                     message: row.message,
                     color: dbColor,
                     likes_count: useLikedBy.length,
@@ -1825,8 +1837,10 @@ export const useChatStore = create<ChatStoreState>()(
         const newPost: FreedomPost = {
           id: 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
           author_id: currentUserId,
-          author_alias: postData.author_alias || 'Anon Student',
-          department: postData.department || 'General',
+          author_alias: postData.author_alias || (currentUser ? currentUser.username : 'Anon Student'),
+          department: postData.department || (currentUser ? currentUser.department : 'General'),
+          author_avatar: postData.author_avatar || currentUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(postData.author_alias || 'Anon')}&backgroundColor=ffc900`,
+          author_bio: postData.author_bio || currentUser?.bio || '',
           message: postData.message,
           color: postData.color || '#ffc900',
           song_title: postData.song_title,

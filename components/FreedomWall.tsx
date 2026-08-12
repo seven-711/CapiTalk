@@ -94,6 +94,14 @@ export const FreedomWall: React.FC = () => {
   const [selectedPostForReport, setSelectedPostForReport] = useState<FreedomPost | null>(null);
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reactorsPost, setReactorsPost] = useState<FreedomPost | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<{
+    username: string;
+    department: string;
+    avatar_url?: string;
+    bio?: string;
+    is_admin?: boolean;
+    author_id?: string;
+  } | null>(null);
 
   // Long-press heart (mobile) → show reactors
   const heartPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -223,6 +231,7 @@ export const FreedomWall: React.FC = () => {
   const [commentAlias, setCommentAlias] = useState(currentUser ? currentUser.username : 'Anonymous Student');
   const [isFetchingComments, setIsFetchingComments] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; alias: string } | null>(null);
+  const [expandedReplyCommentIds, setExpandedReplyCommentIds] = useState<Record<string, boolean>>({});
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Sync registered user's username if updated
@@ -232,6 +241,13 @@ export const FreedomWall: React.FC = () => {
     }
   }, [currentUser?.username]);
 
+  const toggleExpandReplies = (commentId: string) => {
+    setExpandedReplyCommentIds((prev) => ({
+      ...prev,
+      [commentId]: !prev[commentId],
+    }));
+  };
+
   const handleStartReply = (comment: FreedomComment) => {
     setReplyingTo({ id: comment.id, alias: comment.author_alias });
     if (commentInputRef.current) {
@@ -239,20 +255,76 @@ export const FreedomWall: React.FC = () => {
     }
   };
 
+  const toggleLikeComment = async (comment: FreedomComment) => {
+    const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+
+    setCommentsList((prevList) =>
+      prevList.map((c) => {
+        if (c.id !== comment.id) return c;
+        const likedUsers = c.liked_by_users || [];
+        const hasLiked = likedUsers.includes(currentUserId);
+        const updatedUsers = hasLiked
+          ? likedUsers.filter((id) => id !== currentUserId)
+          : [...likedUsers, currentUserId];
+        const updatedCount = Math.max(0, (c.likes_count || 0) + (hasLiked ? -1 : 1));
+        return {
+          ...c,
+          likes_count: updatedCount,
+          liked_by_users: updatedUsers,
+        };
+      })
+    );
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const likedUsers = comment.liked_by_users || [];
+        const hasLiked = likedUsers.includes(currentUserId);
+        const updatedUsers = hasLiked
+          ? likedUsers.filter((id) => id !== currentUserId)
+          : [...likedUsers, currentUserId];
+        const updatedCount = Math.max(0, (comment.likes_count || 0) + (hasLiked ? -1 : 1));
+
+        await supabase
+          .from('freedom_comments')
+          .update({ likes_count: updatedCount, liked_by_users: updatedUsers })
+          .eq('id', comment.id);
+      } catch (e) {}
+    }
+  };
+
   React.useEffect(() => {
     const fetchCounts = async () => {
+      const counts: Record<string, number> = {};
+
       if (supabase && isSupabaseConfigured) {
         try {
           const { data } = await supabase.from('freedom_comments').select('post_id');
           if (data) {
-            const counts: Record<string, number> = {};
             data.forEach((row: any) => {
               counts[row.post_id] = (counts[row.post_id] || 0) + 1;
             });
-            setCommentsCountMap(counts);
           }
         } catch (e) {}
       }
+
+      // Merge local storage comment counts
+      if (typeof window !== 'undefined') {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('capitalk_comments_')) {
+              const postId = key.replace('capitalk_comments_', '');
+              const raw = localStorage.getItem(key);
+              if (raw) {
+                const list: any[] = JSON.parse(raw);
+                counts[postId] = Math.max(counts[postId] || 0, list.length);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      setCommentsCountMap(counts);
     };
     fetchCounts();
   }, [freedomPosts.length]);
@@ -262,29 +334,39 @@ export const FreedomWall: React.FC = () => {
     setIsFetchingComments(true);
     setCommentsList([]);
     setReplyingTo(null);
+    setExpandedReplyCommentIds({});
+
+    let localComments: FreedomComment[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`capitalk_comments_${post.id}`);
+        if (raw) localComments = JSON.parse(raw);
+      } catch (e) {}
+    }
 
     if (supabase && isSupabaseConfigured) {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('freedom_comments')
           .select('*')
           .eq('post_id', post.id)
           .order('created_at', { ascending: true });
 
-        if (data) {
-          setCommentsList(data as FreedomComment[]);
+        if (data && !error) {
+          const dbIds = new Set(data.map((c: any) => c.id));
+          const localOnly = localComments.filter((c) => !dbIds.has(c.id));
+          const merged = [...(data as FreedomComment[]), ...localOnly].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+
+          setCommentsList(merged);
           setIsFetchingComments(false);
           return;
         }
       } catch (e) {}
     }
 
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(`capitalk_comments_${post.id}`);
-        if (raw) setCommentsList(JSON.parse(raw));
-      } catch (e) {}
-    }
+    setCommentsList(localComments);
     setIsFetchingComments(false);
   };
 
@@ -292,16 +374,30 @@ export const FreedomWall: React.FC = () => {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedPostForComments) return;
 
+    const authorAliasVal = commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student');
+    const authorAvatarVal = currentUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authorAliasVal)}&backgroundColor=ffc900`;
+    const authorBioVal = currentUser?.bio || '';
+
     const newComment: FreedomComment = {
       id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       post_id: selectedPostForComments.id,
-      author_alias: commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student'),
+      author_id: currentUser?.id,
+      author_alias: authorAliasVal,
       department: currentUser ? currentUser.department : 'General',
+      author_avatar: authorAvatarVal,
+      author_bio: authorBioVal,
       message: replyingTo ? `@${replyingTo.alias} ${newCommentText.trim()}` : newCommentText.trim(),
       reply_to_comment_id: replyingTo?.id,
       reply_to_alias: replyingTo?.alias,
       created_at: new Date().toISOString(),
     };
+
+    if (replyingTo?.id) {
+      setExpandedReplyCommentIds((prev) => ({
+        ...prev,
+        [replyingTo.id]: true,
+      }));
+    }
 
     const updated = [...commentsList, newComment];
     setCommentsList(updated);
@@ -335,7 +431,7 @@ export const FreedomWall: React.FC = () => {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        await supabase.from('freedom_comments').insert({
+        const insertPayload: any = {
           id: newComment.id,
           post_id: newComment.post_id,
           author_alias: newComment.author_alias,
@@ -344,7 +440,18 @@ export const FreedomWall: React.FC = () => {
           reply_to_comment_id: newComment.reply_to_comment_id,
           reply_to_alias: newComment.reply_to_alias,
           created_at: newComment.created_at,
-        });
+        };
+        if (newComment.author_id) insertPayload.author_id = newComment.author_id;
+        if (newComment.author_avatar) insertPayload.author_avatar = newComment.author_avatar;
+        if (newComment.author_bio) insertPayload.author_bio = newComment.author_bio;
+
+        let { error: commentError } = await supabase.from('freedom_comments').insert(insertPayload);
+        if (commentError && (commentError.message?.includes('author_id') || commentError.message?.includes('author_avatar') || commentError.message?.includes('author_bio'))) {
+          delete insertPayload.author_id;
+          delete insertPayload.author_avatar;
+          delete insertPayload.author_bio;
+          await supabase.from('freedom_comments').insert(insertPayload);
+        }
 
         const targetUserId = selectedPostForComments.author_id || selectedPostForComments.id;
         const userChannel = supabase.channel(`user:${targetUserId}:notifications`);
@@ -441,7 +548,7 @@ export const FreedomWall: React.FC = () => {
         .some((p) => p.message.trim().toLowerCase() === message.trim().toLowerCase());
 
       if (isDuplicate) {
-        setModerationError('⚠️ Spam Blocked: An identical note was recently published to the Freedom Wall. Please share a unique thought!');
+        setModerationError('⚠️ Spam Blocked: An identical note was recently published to the Campus Wall. Please share a unique thought!');
         return;
       }
     }
@@ -449,7 +556,7 @@ export const FreedomWall: React.FC = () => {
     // Run profanity moderation check
     const modResult = analyzeContentModeration(message);
     if (modResult.contains_profanity) {
-      setModerationError(`⚠️ Message blocked: Contains profane or inappropriate terms (${modResult.matched_terms.join(', ')}). Please keep the Freedom Wall friendly!`);
+      setModerationError(`⚠️ Message blocked: Contains profane or inappropriate terms (${modResult.matched_terms.join(', ')}). Please keep the Campus Wall friendly!`);
       return;
     }
 
@@ -486,11 +593,19 @@ export const FreedomWall: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const finalAuthorAlias = postAsAdmin
+        ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
+        : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
+
+      const finalAuthorAvatar = postAsAdmin
+        ? 'https://api.dicebear.com/7.x/bottts/svg?seed=capitalkadmin&backgroundColor=701a31'
+        : (currentUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(finalAuthorAlias)}&backgroundColor=ffc900`);
+
       const success = await addFreedomPost({
-        author_alias: postAsAdmin
-          ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
-          : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student')),
+        author_alias: finalAuthorAlias,
         department: currentUser ? currentUser.department : (department || 'General'),
+        author_avatar: finalAuthorAvatar,
+        author_bio: currentUser?.bio || '',
         message: message.trim(),
         color: postAsAdmin ? '#701a31' : selectedColor,
         is_admin: postAsAdmin,
@@ -768,9 +883,31 @@ export const FreedomWall: React.FC = () => {
           </div>
 
           <div className={`pt-2 sm:pt-3 border-t flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 ${isPostAdmin ? 'border-white/30' : 'border-black/20'}`}>
-            <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
-              ~ {post.author_alias || 'Anon Student'}
-            </span>
+            <button
+              type="button"
+              onClick={() => setViewingProfile({
+                username: post.author_alias || 'Anon Student',
+                department: post.department || 'General',
+                avatar_url: post.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.author_alias || 'Anon')}&backgroundColor=ffc900`,
+                bio: post.author_bio,
+                is_admin: isPostAdmin,
+                author_id: post.author_id,
+              })}
+              className="flex items-center gap-1.5 group/avatar text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
+              title="Click to view student profile"
+            >
+              <img
+                src={post.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.author_alias || 'Anon')}&backgroundColor=ffc900`}
+                alt={post.author_alias}
+                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/avatar:scale-105 transition-transform"
+                onError={(e) => {
+                  (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.author_alias || 'Anon')}&backgroundColor=ffc900`);
+                }}
+              />
+              <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none group-hover/avatar:underline ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
+                ~ {post.author_alias || 'Anon Student'}
+              </span>
+            </button>
 
             <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 shrink-0">
               {isAdminUser && post.status === 'pending' && (
@@ -987,11 +1124,11 @@ export const FreedomWall: React.FC = () => {
             📜
           </div>
           <h3 className="text-lg sm:text-xl font-extrabold text-black">
-            {activeTab === 'my_notes' ? 'No Created Notes Yet' : 'No Freedom Wall Posts Found'}
+            {activeTab === 'my_notes' ? 'No Created Notes Yet' : 'No Campus Wall Posts Found'}
           </h3>
           <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
             {activeTab === 'my_notes'
-              ? "You haven't created any notes on the Freedom Wall yet. Click below to share your first thought or confession!"
+              ? "You haven't created any notes on the Campus Wall yet. Click below to share your first thought or confession!"
               : searchQuery || departmentFilter !== 'all'
               ? 'No posts match your active search filter. Try clearing filters!'
               : 'Be the very first CU student to post an anonymous confession or thought on the wall!'}
@@ -1084,7 +1221,7 @@ export const FreedomWall: React.FC = () => {
             <div className="max-w-[1200px] h-full mx-auto px-4 sm:px-6 md:px-8 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="font-bold text-[18px] text-[#000000] tracking-tight leading-none">
-                  Freedom Wall
+                  Campus Wall
                 </h2>
                 {/* Nav Pill (Active) */}
                 <span className="bg-[#000000] text-white text-[12px] font-medium px-3 py-1 rounded-full uppercase tracking-wider hidden sm:inline-block">
@@ -1179,24 +1316,40 @@ export const FreedomWall: React.FC = () => {
 
                 {/* Footer Signature */}
                 <div className="flex items-center justify-between pt-3 border-t border-black/5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2 h-2 "
-                      style={{ background: selectedPostForComments.color || '#ffc900' }}
+                  <button
+                    type="button"
+                    onClick={() => setViewingProfile({
+                      username: selectedPostForComments.author_alias || 'Anon Student',
+                      department: selectedPostForComments.department || 'General',
+                      avatar_url: selectedPostForComments.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedPostForComments.author_alias || 'Anon')}&backgroundColor=ffc900`,
+                      bio: selectedPostForComments.author_bio,
+                      is_admin: selectedPostForComments.is_admin,
+                      author_id: selectedPostForComments.author_id,
+                    })}
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity text-left cursor-pointer group/author"
+                    title="Click to view author profile"
+                  >
+                    <img
+                      src={selectedPostForComments.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedPostForComments.author_alias || 'Anon')}&backgroundColor=ffc900`}
+                      alt={selectedPostForComments.author_alias}
+                      className="w-5.5 h-5.5 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/author:scale-105 transition-transform"
+                      onError={(e) => {
+                        (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedPostForComments.author_alias || 'Anon')}&backgroundColor=ffc900`);
+                      }}
                     />
-                    <span className="text-[12px] font-bold text-[#242423] italic">
+                    <span className="text-[12px] font-bold text-[#242423] italic group-hover/author:underline">
                       ~ {selectedPostForComments.author_alias}
                     </span>
-                  </div>
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* RIGHT COLUMN — Comments Feed & Input (Paper White container) */}
-            <div className="flex-1 flex flex-col bg-white overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden">
 
               {/* Thread Header Strip */}
-              <div className="px-4 sm:px-6 py-2.5 shrink-0 bg-white flex items-center justify-between flex-wrap gap-2">
+              <div className="px-4 sm:px-6 py-2.5 shrink-0 flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-sm bg-[#f1f333]" />
                   <h3 className="text-[11px] font-bold text-[#000000] uppercase tracking-widest">
@@ -1220,7 +1373,7 @@ export const FreedomWall: React.FC = () => {
                     {/* Sketchbook Empty Card */}
                     <div className="bg-white rounded-2xl p-6 text-center max-w-xs mx-auto space-y-2 shadow-xs">
                       <div className="w-10 h-10 rounded-full bg-[#ff90e8] flex items-center justify-center font-extrabold text-base text-black mx-auto shadow-xs">
-                        G
+                        C
                       </div>
                       <p className="text-[15px] font-bold text-[#000000]">No comments yet</p>
                       <p className="text-[13px] font-medium text-[#242423] leading-relaxed">
@@ -1238,33 +1391,52 @@ export const FreedomWall: React.FC = () => {
                     const renderNode = (cm: FreedomComment, depth = 0) => {
                       const directReplies = commentsList.filter((c) => c.reply_to_comment_id === cm.id);
                       const isReply = depth > 0;
+                      const isExpanded = !!expandedReplyCommentIds[cm.id];
+
+                      const calcTotalThreadReactions = (comment: FreedomComment): number => {
+                        const selfLikes = comment.likes_count || 0;
+                        const children = commentsList.filter((c) => c.reply_to_comment_id === comment.id);
+                        return selfLikes + children.reduce((sum, child) => sum + calcTotalThreadReactions(child), 0);
+                      };
+                      const totalThreadReactions = calcTotalThreadReactions(cm);
 
                       return (
                         <div key={cm.id} className="space-y-1.5">
                           {/* Individual Comment Tile Card — Borderless */}
                           <div
-                            className={`bg-white rounded-xl p-2.5 sm:p-3 transition-colors space-y-1.5 animate-in slide-in-from-bottom-1 duration-150 min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] shadow-xs ${
-                              isReply ? 'ml-3 sm:ml-4 border-l-4 border-l-[#ffc900] bg-white/95' : ''
+                            className={`rounded-xl p-2.5 sm:p-3 transition-colors space-y-1.5 animate-in slide-in-from-bottom-1 duration-150 min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] shadow-xs ${
+                              isReply ? 'ml-3 sm:ml-4 border-l-4 border-l-[#ffc900]' : ''
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span
-                                  className="w-2 h-2 rounded-full shrink-0"
-                                  style={{ background: selectedPostForComments.color || '#ffc900' }}
-                                />
-                                <span className="text-[13px] font-bold text-[#000000] truncate">
-                                  @{cm.author_alias}
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingProfile({
+                                    username: cm.author_alias,
+                                    department: cm.department || 'General',
+                                    avatar_url: cm.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cm.author_alias)}&backgroundColor=ffc900`,
+                                    bio: cm.author_bio,
+                                    author_id: cm.author_id,
+                                  })}
+                                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-left cursor-pointer group/cmter min-w-0"
+                                  title="Click to view commenter profile"
+                                >
+                                  <img
+                                    src={cm.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cm.author_alias)}&backgroundColor=ffc900`}
+                                    alt={cm.author_alias}
+                                    className="w-5 h-5 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/cmter:scale-105 transition-transform"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cm.author_alias)}&backgroundColor=ffc900`);
+                                    }}
+                                  />
+                                  <span className="text-[13px] font-bold text-[#000000] truncate group-hover/cmter:underline">
+                                    @{cm.author_alias}
+                                  </span>
+                                </button>
                                 {cm.department && (
                                   <span className="text-[10px] font-medium text-[#242423] px-1.5 py-0.2 bg-[#f4f4f0] rounded-full shrink-0">
                                     {cm.department.replace('College of ', '')}
-                                  </span>
-                                )}
-                                {isReply && (
-                                  <span className="text-[9px] font-bold text-[#000000] bg-[#ffc900]/30 px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shrink-0">
-                                    <CornerUpLeft className="w-2.5 h-2.5 text-[#000000]" />
-                                    <span>Reply</span>
                                   </span>
                                 )}
                               </div>
@@ -1280,30 +1452,74 @@ export const FreedomWall: React.FC = () => {
                               {cm.message}
                             </p>
 
-                            {/* Comment Action Footer: Reply */}
-                            <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
-                              {cm.reply_to_alias ? (
-                                <span className="text-[10px] font-medium text-[#242423]/70 italic flex items-center gap-1">
-                                  <CornerUpLeft className="w-2.5 h-2.5 text-[#242423]/60" />
-                                  <span>Replying to @{cm.reply_to_alias}</span>
-                                </span>
-                              ) : <span />}
+                            {/* Comment Action Footer: Heart & Reply buttons below message */}
+                            <div className="flex items-center justify-between pt-1.5 gap-2 flex-wrap border-t border-black/5 mt-1">
+                              <div className="flex items-center gap-1.5 ml-auto">
+                                {/* Heart Button */}
+                                {(() => {
+                                  const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+                                  const likedUsers = cm.liked_by_users || [];
+                                  const hasLiked = likedUsers.includes(currentUid);
+                                  const likesCount = cm.likes_count || 0;
 
-                              <button
-                                type="button"
-                                onClick={() => handleStartReply(cm)}
-                                className="text-[10px] font-bold text-[#000000] hover:bg-[#ffc900] flex items-center gap-1 px-2.5 py-0.5 bg-[#f4f4f0] rounded transition-colors ml-auto"
-                              >
-                                <Reply className="w-2.5 h-2.5" />
-                                <span>Reply</span>
-                              </button>
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleLikeComment(cm)}
+                                      className={`text-[10px] font-extrabold flex items-center gap-1 px-2.5 py-0.5 rounded-full transition-all border shadow-2xs ${
+                                        hasLiked
+                                          ? 'bg-rose-500 text-white border-black scale-105'
+                                          : 'bg-[#f4f4f0] text-[#242423] border-black/20 hover:bg-rose-50 hover:border-black hover:text-rose-600'
+                                      }`}
+                                      title={hasLiked ? "Unlike comment" : "Like comment"}
+                                    >
+                                      <Heart className={`w-3 h-3 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
+                                      <span>{likesCount}</span>
+                                    </button>
+                                  );
+                                })()}
+
+                                {/* Reply Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartReply(cm)}
+                                  className="text-[10px] font-extrabold text-[#000000] hover:bg-[#ffc900] flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-black/20 hover:border-black transition-colors shrink-0"
+                                  title={directReplies.length > 0 ? `Reply (${directReplies.length} replies)` : "Reply to comment"}
+                                >
+                                  <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#701a31]" />
+                                  {directReplies.length === 0 && <span>Reply</span>}
+                                  {directReplies.length > 0 && (
+                                    <span className="text-black text-[9px] font-black rounded-full" title={`${directReplies.length} active replies`}>
+                                      {directReplies.length}
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Nested Child Replies directly underneath */}
+                          {/* Nested Child Replies — Collapsed by default */}
                           {directReplies.length > 0 && (
-                            <div className="space-y-1.5 pl-1.5 sm:pl-2 ml-1.5 sm:ml-2">
-                              {directReplies.map((reply) => renderNode(reply, depth + 1))}
+                            <div className="pl-1.5 sm:pl-2 ml-1.5 sm:ml-2 space-y-1.5 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandReplies(cm.id)}
+                                className="text-[11px] font-extrabold text-[#701a31] hover:text-black flex items-center gap-1.5 py-1 px-3 rounded-full transition-all shadow-2xs group/expand cursor-pointer"
+                                title={isExpanded ? "Hide replies" : "Show replies"}
+                              >
+                                <span>
+                                  {isExpanded
+                                    ? `Hide ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`
+                                    : `Show ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`}
+                                </span>
+                                <span className="text-[9px] font-black">{isExpanded ? '▲' : '▼'}</span>
+                              </button>
+
+                              {isExpanded && (
+                                <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-150">
+                                  {directReplies.map((reply) => renderNode(reply, depth + 1))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1334,21 +1550,6 @@ export const FreedomWall: React.FC = () => {
                     </button>
                   </div>
                 )}
-
-                {/* Handle bar */}
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-[#000000]">Posting as:</span>
-                    <span className="text-[11px] font-extrabold text-[#000000] bg-[#f4f4f0] px-2 py-0.5 rounded">
-                      @{currentUser?.username || 'Anonymous Student'}
-                    </span>
-                    {currentUser?.department && (
-                      <span className="text-[10px] font-medium text-[#242423] bg-[#f4f4f0] px-1.5 py-0.2 rounded-full">
-                        {currentUser.department.replace('College of ', '')}
-                      </span>
-                    )}
-                  </div>
-                </div>
 
                 <form onSubmit={handleAddComment} className="flex items-end gap-3">
                   <textarea
@@ -1404,7 +1605,7 @@ export const FreedomWall: React.FC = () => {
               </span>
             </div>
             <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
-              Post to Freedom Wall ✏️
+              Post to Freedom Wall
             </h3>
             <p className="text-[11px] text-[#242423] mt-0.5 mb-3">
               Share your thoughts safely and anonymously with fellow students.
@@ -1887,6 +2088,85 @@ export const FreedomWall: React.FC = () => {
                 className="w-full py-3 rounded-2xl border-2 border-black bg-black text-white font-black text-sm hover:bg-[#701a31] transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Interactive User Profile Modal */}
+      {viewingProfile && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setViewingProfile(null)}
+        >
+          <div
+            className="bg-white border-4 border-black p-6 rounded-3xl max-w-sm w-full text-center shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setViewingProfile(null)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-black/10 rounded-full transition-colors text-black"
+              title="Close profile"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Avatar with status indicator */}
+            <div className="relative w-24 h-24 mx-auto mb-4">
+              <img
+                src={viewingProfile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(viewingProfile.username)}&backgroundColor=ffc900`}
+                alt={viewingProfile.username}
+                className="w-24 h-24 rounded-full border-4 border-black object-cover shadow-md bg-amber-100"
+                onError={(e) => {
+                  (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(viewingProfile.username)}&backgroundColor=ffc900`);
+                }}
+              />
+              {viewingProfile.is_admin ? (
+                <span className="absolute bottom-0 right-0 bg-[#701a31] text-white border-2 border-black rounded-full p-1 text-xs" title="Official Platform Admin">
+                  👑
+                </span>
+              ) : (
+                <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-black rounded-full" title="Active Campus Student" />
+              )}
+            </div>
+
+            {/* Username */}
+            <h3 className="text-xl font-black text-black flex items-center justify-center gap-1.5">
+              @{viewingProfile.username}
+              {viewingProfile.is_admin && (
+                <span className="text-[10px] font-black px-2 py-0.5 bg-[#701a31] text-white rounded-full uppercase border border-black">
+                  ADMIN
+                </span>
+              )}
+            </h3>
+
+            {/* Department badge */}
+            <div className="mt-2 inline-block px-3 py-1 bg-black text-white rounded-full text-xs font-extrabold uppercase tracking-wider shadow-xs">
+              {viewingProfile.department.replace('College of ', '')}
+            </div>
+
+            {/* Campus Bio */}
+            <div className="mt-4 p-3.5 bg-[#f4f4f0] border-2 border-black rounded-2xl text-left shadow-xs">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Campus Profile Bio</p>
+              <p className="text-xs font-semibold text-black italic leading-relaxed">
+                {viewingProfile.bio?.trim() ? `"${viewingProfile.bio}"` : "No custom bio added yet. Active student at Capitol University."}
+              </p>
+            </div>
+
+            {/* Action buttons */}
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewingProfile(null);
+                  startSearch();
+                }}
+                className="btn-gumroad-primary text-xs w-full py-3 flex items-center justify-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] bg-[#ffc900] hover:bg-[#ffc900]/80"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Chat on Campus</span>
               </button>
             </div>
           </div>
