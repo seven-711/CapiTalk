@@ -21,6 +21,7 @@ class RoomManager {
   private syncInterval: NodeJS.Timeout | null = null;
   private supabaseChannel: any = null;
   private storageListener: ((e: StorageEvent) => void) | null = null;
+  private unloadListener: (() => void) | null = null;
 
   private messageCallbacks: Set<MessageCallback> = new Set();
   private typingCallbacks: Set<TypingCallback> = new Set();
@@ -93,6 +94,14 @@ class RoomManager {
         }
       };
       window.addEventListener('storage', this.storageListener);
+
+      this.unloadListener = () => {
+        // Synchronously notify room that this participant went offline / disconnected
+        this.sendStatusSignal('offline');
+        this.sendSkipSignal('disconnected');
+      };
+      window.addEventListener('beforeunload', this.unloadListener);
+      window.addEventListener('pagehide', this.unloadListener);
     }
 
     // 4. Connect to Supabase Realtime channel if configured
@@ -241,7 +250,7 @@ class RoomManager {
   public sendStatusSignal(status: 'online' | 'idle' | 'offline') {
     if (!this.currentRoomId) return;
 
-    const signal = { type: 'STATUS', status, senderId: this.currentUserId, t: Date.now() };
+    const signal = { type: 'STATUS', status, senderId: this.currentUserId, t: Date.now() + Math.random() };
 
     // Broadcast 1: LocalStorage signal
     if (typeof window !== 'undefined') {
@@ -460,6 +469,12 @@ class RoomManager {
     if (typeof window !== 'undefined' && this.storageListener) {
       window.removeEventListener('storage', this.storageListener);
       this.storageListener = null;
+    }
+
+    if (typeof window !== 'undefined' && this.unloadListener) {
+      window.removeEventListener('beforeunload', this.unloadListener);
+      window.removeEventListener('pagehide', this.unloadListener);
+      this.unloadListener = null;
     }
 
     if (this.syncInterval) {

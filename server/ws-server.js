@@ -114,9 +114,10 @@ function removeUserFromAll(userId) {
     const { roomId, partnerId } = roomInfo;
     rooms.delete(userId);
 
-    // Notify partner
+    // Notify partner immediately with offline status and partner left signal
     const partnerInfo = rooms.get(partnerId);
     if (partnerInfo) {
+      send(partnerInfo.ws, { type: 'STATUS', status: 'offline' });
       send(partnerInfo.ws, { type: 'PARTNER_LEFT', reason: 'disconnected' });
     }
 
@@ -274,6 +275,20 @@ wss.on('connection', (ws) => {
     broadcastOnlineCount();
     if (clientUserId) {
       removeUserFromAll(clientUserId);
+    } else {
+      // Robust lookup by websocket reference in case clientUserId was not attached
+      for (const [uid, info] of rooms.entries()) {
+        if (info.ws === ws) {
+          removeUserFromAll(uid);
+          break;
+        }
+      }
+      for (const [uid, q] of queue.entries()) {
+        if (q.ws === ws) {
+          removeUserFromAll(uid);
+          break;
+        }
+      }
     }
   });
 

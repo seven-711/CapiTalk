@@ -235,6 +235,8 @@ export const ChatRoom: React.FC = () => {
   const [partnerStatus, setPartnerStatus] = useState<'online' | 'idle' | 'offline'>('online');
   const myStatusRef = useRef<'online' | 'idle' | 'offline'>('online');
   const myIdleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPartnerHeartbeatRef = useRef<number>(Date.now());
+  const hiddenTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Listen to realtime theme & status sync signals from partner
   useEffect(() => {
@@ -246,6 +248,7 @@ export const ChatRoom: React.FC = () => {
     });
 
     const unsubStatus = roomManager.onStatusChange((newStatus) => {
+      lastPartnerHeartbeatRef.current = Date.now();
       setPartnerStatus(newStatus);
     });
 
@@ -257,20 +260,43 @@ export const ChatRoom: React.FC = () => {
 
   // Broadcast own presence status ('online' | 'idle' | 'offline') and detect inactivity
   const broadcastMyStatus = React.useCallback((status: 'online' | 'idle' | 'offline') => {
-    if (myStatusRef.current !== status) {
-      myStatusRef.current = status;
-      roomManager.sendStatusSignal(status);
-    }
+    myStatusRef.current = status;
+    roomManager.sendStatusSignal(status);
   }, []);
 
   useEffect(() => {
-    if (partnerLeft) return;
+    if (partnerLeft) {
+      setPartnerStatus('offline');
+      return;
+    }
 
     // Immediately announce presence as online upon joining room
     myStatusRef.current = 'online';
+    lastPartnerHeartbeatRef.current = Date.now();
     roomManager.sendStatusSignal('online');
 
+    // Periodic heartbeat to keep presence alive every 4s
+    const heartbeatInterval = setInterval(() => {
+      if (!partnerLeft) {
+        roomManager.sendStatusSignal(myStatusRef.current);
+      }
+    }, 4000);
+
+    // Watchdog: If partner has not sent any signal for > 10s, consider them offline
+    const watchdogInterval = setInterval(() => {
+      if (!partnerLeft) {
+        const timeSinceLastHeartbeat = Date.now() - lastPartnerHeartbeatRef.current;
+        if (timeSinceLastHeartbeat > 10000 && partnerStatus !== 'offline') {
+          setPartnerStatus('offline');
+        }
+      }
+    }, 2000);
+
     const resetIdleTimer = () => {
+      if (hiddenTimerRef.current) {
+        clearTimeout(hiddenTimerRef.current);
+        hiddenTimerRef.current = null;
+      }
       if (document.visibilityState === 'visible') {
         broadcastMyStatus('online');
       }
@@ -284,14 +310,19 @@ export const ChatRoom: React.FC = () => {
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        broadcastMyStatus('idle');
+        // Debounce slightly to allow beforeunload/pagehide to take precedence if tab is closing
+        hiddenTimerRef.current = setTimeout(() => {
+          if (document.hidden) {
+            broadcastMyStatus('idle');
+          }
+        }, 1200);
       } else {
+        if (hiddenTimerRef.current) {
+          clearTimeout(hiddenTimerRef.current);
+          hiddenTimerRef.current = null;
+        }
         resetIdleTimer();
       }
-    };
-
-    const handleWindowBlur = () => {
-      broadcastMyStatus('idle');
     };
 
     const handleWindowFocus = () => {
@@ -302,32 +333,43 @@ export const ChatRoom: React.FC = () => {
       resetIdleTimer();
     };
 
+    const handleUnload = () => {
+      broadcastMyStatus('offline');
+      roomManager.sendSkipSignal('disconnected');
+    };
+
     window.addEventListener('mousemove', handleUserActivity);
     window.addEventListener('keydown', handleUserActivity);
     window.addEventListener('click', handleUserActivity);
     window.addEventListener('touchstart', handleUserActivity);
     window.addEventListener('scroll', handleUserActivity, true);
     window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(watchdogInterval);
       if (myIdleTimerRef.current) clearTimeout(myIdleTimerRef.current);
+      if (hiddenTimerRef.current) clearTimeout(hiddenTimerRef.current);
       window.removeEventListener('mousemove', handleUserActivity);
       window.removeEventListener('keydown', handleUserActivity);
       window.removeEventListener('click', handleUserActivity);
       window.removeEventListener('touchstart', handleUserActivity);
       window.removeEventListener('scroll', handleUserActivity, true);
       window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       roomManager.sendStatusSignal('offline');
     };
-  }, [partnerLeft, broadcastMyStatus]);
+  }, [partnerLeft, partnerStatus, broadcastMyStatus]);
 
   // When partner is typing or sends a message, ensure their status is marked as online
   useEffect(() => {
     if (partnerTyping && !partnerLeft) {
+      lastPartnerHeartbeatRef.current = Date.now();
       setPartnerStatus('online');
     }
   }, [partnerTyping, partnerLeft]);
@@ -342,6 +384,7 @@ export const ChatRoom: React.FC = () => {
         lastMsg.sender_id !== 'system' &&
         lastMsg.sender_id !== 'system_announcement'
       ) {
+        lastPartnerHeartbeatRef.current = Date.now();
         setPartnerStatus('online');
       }
     }
@@ -725,12 +768,6 @@ export const ChatRoom: React.FC = () => {
                   )}
                 </span>
               )}
-
-              <span className={`text-[10px] sm:text-[11px] font-semibold transition-colors duration-300 ${
-                partnerLeft ? 'text-gray-400' : isAdminRoom ? 'text-slate-400' : isDarkMode ? 'text-zinc-400' : 'text-gray-500'
-              }`}>
-                • {partner.department.replace('College of ', '')}
-              </span>
             </div>
           </div>
         </div>
@@ -826,18 +863,6 @@ export const ChatRoom: React.FC = () => {
           isAdminRoom ? 'bg-transparent text-white' : isDarkMode ? 'bg-[#121212] text-zinc-100' : 'bg-[#fbf9f5]'
         }`}
       >
-        {/* iOS-style backdrop blur overlay — fades in when reaction picker is active */}
-        {activePickerMsgId && (
-          <div
-            className="absolute inset-0 z-30 pointer-events-auto animate-in fade-in duration-200"
-            style={{
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
-              backgroundColor: 'transparent',
-            }}
-            onClick={() => setActivePickerMsgId(null)}
-          />
-        )}
         <div className="space-y-3 sm:space-y-4">
           {messages.map((msg) => {
           if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
