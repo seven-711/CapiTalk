@@ -688,6 +688,18 @@ export const ChatRoom: React.FC = () => {
           isAdminRoom ? 'bg-transparent text-white' : isDarkMode ? 'bg-[#121212] text-zinc-100' : 'bg-[#fbf9f5]'
         }`}
       >
+        {/* iOS-style backdrop blur overlay — fades in when reaction picker is active */}
+        {activePickerMsgId && (
+          <div
+            className="absolute inset-0 z-30 pointer-events-auto animate-in fade-in duration-200"
+            style={{
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              backgroundColor: isDarkMode ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.25)',
+            }}
+            onClick={() => setActivePickerMsgId(null)}
+          />
+        )}
         <div className="space-y-3 sm:space-y-4">
           {messages.map((msg) => {
           if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
@@ -763,9 +775,9 @@ export const ChatRoom: React.FC = () => {
                 </div>
               )}
 
-              {/* Smooth Floating Animated Reaction Picker (positioned directly above message) */}
+              {/* iOS-style Floating Reaction Picker — above blur layer (z-40) */}
               {activePickerMsgId === msg.id && (
-                <div className="mb-2.5 relative z-40 animate-in fade-in slide-in-from-bottom-2 zoom-in-95 duration-200 drop-shadow-xl">
+                <div className="mb-2 relative z-40 animate-in fade-in slide-in-from-bottom-3 zoom-in-90 duration-200">
                   <AnimatedReactionPicker
                     onSelectReaction={(key) => {
                       toggleReaction(msg.id, key);

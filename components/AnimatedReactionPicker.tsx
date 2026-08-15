@@ -1,22 +1,19 @@
 'use client';
 
 import React from 'react';
-import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 export interface ReactionDefinition {
   key: string;
   label: string;
   emoji: string;
-  file: string;
 }
 
 export const REACTION_KEYS: ReactionDefinition[] = [
-  { key: 'like', label: 'Like', emoji: '👍', file: '/animated-reacts/like.lottie' },
-  { key: 'love', label: 'Love', emoji: '❤️', file: '/animated-reacts/love.lottie' },
-  { key: 'laugh', label: 'Haha', emoji: '😂', file: '/animated-reacts/laugh.lottie' },
-  { key: 'cool', label: 'Cool', emoji: '😎', file: '/animated-reacts/cool.lottie' },
-  { key: 'sad', label: 'Sad', emoji: '😢', file: '/animated-reacts/sad.lottie' },
-  { key: 'angry', label: 'Angry', emoji: '😡', file: '/animated-reacts/angry.lottie' },
+  { key: 'like',  label: 'Like',  emoji: '👍' },
+  { key: 'love',  label: 'Love',  emoji: '❤️' },
+  { key: 'laugh', label: 'Haha',  emoji: '😂' },
+  { key: 'sad',   label: 'Sad',   emoji: '😢' },
+  { key: 'angry', label: 'Angry', emoji: '😡' },
 ];
 
 interface ReactionPickerProps {
@@ -27,8 +24,9 @@ interface ReactionPickerProps {
 const ReactionItemButton: React.FC<{
   item: ReactionDefinition;
   onSelect: () => void;
-}> = ({ item, onSelect }) => {
-  const [hasError, setHasError] = React.useState(false);
+  index: number;
+}> = ({ item, onSelect, index }) => {
+  const [hovered, setHovered] = React.useState(false);
 
   return (
     <button
@@ -38,26 +36,40 @@ const ReactionItemButton: React.FC<{
         e.stopPropagation();
         onSelect();
       }}
-      className="p-1 hover:scale-125 transition-transform duration-150 rounded-full hover:bg-black/5 flex items-center justify-center focus:outline-none"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onTouchStart={() => setHovered(true)}
+      onTouchEnd={() => setHovered(false)}
+      className="flex flex-col items-center gap-1 group focus:outline-none"
       title={item.label}
+      style={{
+        animationDelay: `${index * 35}ms`,
+      }}
     >
-      <div className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center overflow-hidden ${item.key === 'like' ? 'scale-125' : ''}`}>
-        {!hasError ? (
-          <DotLottieReact
-            src={item.file}
-            loop
-            autoplay
-            onError={() => setHasError(true)}
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: 'transparent',
-            }}
-          />
-        ) : (
-          <span className="text-xl sm:text-2xl select-none leading-none">{item.emoji}</span>
-        )}
-      </div>
+      {/* Label tooltip above emoji */}
+      <span
+        className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded-full bg-black text-white opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap"
+        style={{
+          transform: hovered ? 'translateY(0px)' : 'translateY(4px)',
+          transition: 'opacity 0.15s ease, transform 0.15s ease',
+          opacity: hovered ? 1 : 0,
+        }}
+      >
+        {item.label}
+      </span>
+
+      {/* Emoji */}
+      <span
+        className="select-none leading-none block transition-all duration-150"
+        style={{
+          fontSize: hovered ? '2.6rem' : '2rem',
+          transform: hovered ? 'translateY(-6px)' : 'translateY(0px)',
+          filter: hovered ? 'drop-shadow(0 6px 12px rgba(0,0,0,0.25))' : 'none',
+          transition: 'font-size 0.15s cubic-bezier(0.34,1.56,0.64,1), transform 0.15s cubic-bezier(0.34,1.56,0.64,1), filter 0.15s ease',
+        }}
+      >
+        {item.emoji}
+      </span>
     </button>
   );
 };
@@ -72,7 +84,6 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
       }
     };
 
-    // Use setTimeout so the touch/click event that opened the picker does not immediately close it
     const timer = setTimeout(() => {
       document.addEventListener('pointerdown', handleOutsideClick);
       document.addEventListener('touchstart', handleOutsideClick);
@@ -88,13 +99,17 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
   return (
     <div
       ref={containerRef}
-      className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-md border-2 border-black rounded-full shadow-xl animate-in zoom-in-95 fade-in duration-150 z-50 shrink-0 select-none"
+      className="flex items-end gap-0.5 px-3 py-3 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-2xl border border-white/60 rounded-[28px] shadow-2xl select-none"
+      style={{
+        boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
+      }}
       onClick={(e) => e.stopPropagation()}
     >
-      {REACTION_KEYS.map((item) => (
+      {REACTION_KEYS.map((item, i) => (
         <ReactionItemButton
           key={item.key}
           item={item}
+          index={i}
           onSelect={() => {
             onSelectReaction(item.key);
             if (onClose) onClose();

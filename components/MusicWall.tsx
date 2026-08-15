@@ -554,50 +554,178 @@ export const MusicWall: React.FC = () => {
     );
   };
 
+  // Derive the most recent approved song post for the hero
+  const latestSong = (freedomPosts || [])
+    .filter((p) => p.song_title && (p.status === 'approved' || !p.status))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] || null;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f4f4f0] overflow-y-auto w-full custom-scrollbar">
-      {/* Header Section */}
-      <div className="bg-[#fff1f3] sticky top-0 z-30">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-col items-center sm:items-start text-center sm:text-left w-full sm:w-auto">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-black tracking-tight flex items-center justify-center sm:justify-start gap-2 sm:gap-3 drop-shadow-[2px_2px_0px_rgba(255,201,0,1)]">
-              <span>Music Wall</span>
-              <Music className="w-6 h-6 sm:w-8 sm:h-8 text-[#dc341e]" />
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex-1 sm:flex-none bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black font-black py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
-            >
-              Dedicate a Song
-            </button>
-          </div>
-        </div>
+      {/* ───────────────────── HERO SECTION ───────────────────── */}
+      <div
+        className="relative w-full overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #0f0a1a 0%, #1a0a1f 40%, #2d0f1f 70%, #701a31 100%)',
+          minHeight: '380px',
+        }}
+      >
+        {/* Decorative vinyl circles */}
+        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full border-[20px] border-white/5 pointer-events-none" />
+        <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full border-[10px] border-white/5 pointer-events-none" />
+        <div className="absolute top-1/2 -translate-y-1/2 -right-8 w-80 h-80 rounded-full border-[30px] border-white/[0.04] pointer-events-none" />
+        <div className="absolute -bottom-12 -left-12 w-60 h-60 rounded-full border-[18px] border-white/[0.04] pointer-events-none" />
 
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-8 pb-3 sm:pb-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 mt-2 sm:mt-0">
-          <div className="flex items-center bg-white p-1 rounded-xl border-2 border-black shadow-xs w-full sm:w-auto">
-            <button
-              onClick={() => setActiveTab('latest')}
-              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
-                activeTab === 'latest' ? 'bg-black text-white shadow-sm' : 'text-gray-600 hover:text-black hover:bg-gray-200'
-              }`}
+        {/* Floating music notes */}
+        {['♪', '♫', '♩', '♬', '♭'].map((note, i) => (
+          <span
+            key={i}
+            className="absolute select-none pointer-events-none font-black opacity-10 text-white"
+            style={{
+              fontSize: `${1.5 + i * 0.6}rem`,
+              top: `${10 + i * 14}%`,
+              left: `${5 + i * 18}%`,
+              transform: `rotate(${-20 + i * 12}deg)`,
+              animation: `float-note-${i} ${4 + i}s ease-in-out infinite alternate`,
+            }}
+          >
+            {note}
+          </span>
+        ))}
+
+        <div className="relative z-10 max-w-[1200px] mx-auto px-4 sm:px-8 py-12 sm:py-16 flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+          {/* Left copy */}
+          <div className="flex-1 text-center lg:text-left">
+            {/* Eyebrow */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-[#ffc900] text-[11px] font-black uppercase tracking-widest mb-5 backdrop-blur-sm">
+              <Music className="w-3 h-3" />
+              Anonymous song sharing
+            </div>
+
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-[1.1] tracking-tight mb-4"
+              style={{ textShadow: '0 2px 20px rgba(112,26,49,0.6)' }}
             >
-              Latest
-            </button>
-            <button
-              onClick={() => setActiveTab('trending')}
-              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'trending' ? 'bg-[#dc341e] text-white shadow-sm' : 'text-gray-600 hover:text-black hover:bg-gray-200'
-              }`}
+              Share Songs with{' '}
+              <span
+                className="relative inline-block"
+                style={{
+                  background: 'linear-gradient(90deg, #ffc900, #ff90e8)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                Anyone
+              </span>{' '}
+              Anonymously
+            </h2>
+
+            <p className="text-white/70 text-sm sm:text-base font-medium leading-relaxed mb-8 max-w-md mx-auto lg:mx-0">
+              Search and send your favorite tune to someone without revealing your identity.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 bg-[#ffc900] text-black font-black text-sm px-6 py-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all"
+              >
+                <Send className="w-4 h-4" />
+                Share Your First Song
+              </button>
+              <a
+                href="#recent-songs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('recent-songs')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2 bg-white/10 text-white font-black text-sm px-6 py-3 rounded-xl border-2 border-white/30 hover:bg-white/20 hover:border-white/50 transition-all backdrop-blur-sm"
+              >
+                <Music className="w-4 h-4" />
+                Browse Songs
+              </a>
+            </div>
+          </div>
+
+          {/* Right: Most Recent Song card */}
+          <div className="w-full lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
+            <div
+              className="rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl backdrop-blur-md"
+              style={{ background: 'rgba(255,255,255,0.07)' }}
             >
-              <Flame className="w-3.5 h-3.5" /> Trending
-            </button>
+              {/* Card header */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+                <div className="flex gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#dc341e]/70" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#ffc900]/70" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
+                </div>
+                <span className="text-white/50 text-[11px] font-bold ml-1 flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Most Recent Song
+                </span>
+              </div>
+
+              {/* Card body */}
+              {latestSong ? (
+                <div className="p-4 flex gap-3 items-center">
+                  {/* Album art */}
+                  <div className="w-16 h-16 rounded-xl border-2 border-white/20 overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center shadow-lg">
+                    {latestSong.song_image_url && !latestSong.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
+                      <img
+                        src={latestSong.song_image_url}
+                        alt={latestSong.song_title}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <Music className="w-7 h-7 text-white/40" />
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    {latestSong.dedicated_to && (
+                      <p className="text-[#ffc900] text-[11px] font-black uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Send className="w-3 h-3 flex-shrink-0" />
+                        Sent to {latestSong.dedicated_to}:
+                      </p>
+                    )}
+                    {latestSong.song_link ? (
+                      <a
+                        href={latestSong.song_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-white font-black text-sm leading-tight hover:text-[#ffc900] transition-colors truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {latestSong.song_title}
+                      </a>
+                    ) : (
+                      <p className="text-white font-black text-sm leading-tight truncate">{latestSong.song_title}</p>
+                    )}
+                    <p className="text-white/60 text-xs font-semibold mt-0.5 truncate">
+                      {latestSong.song_artist}
+                    </p>
+                    <p className="text-white/30 text-[10px] font-medium mt-1.5">
+                      {new Date(latestSong.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-white/40 text-sm font-semibold">
+                  <Music className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  No songs shared yet
+                </div>
+              )}
+            </div>
+
+            {/* Subtle glow under the card */}
+            <div className="h-4 mx-6 rounded-b-2xl blur-lg opacity-30" style={{ background: '#ffc900' }} />
           </div>
         </div>
       </div>
+      {/* ──────────────────────────────────────────────────────── */}
 
-      <div className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-10">
+      <div id="recent-songs" className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-10">
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-4 md:gap-5">
           {filteredPosts.map((post) => renderPostCard(post))}
         </div>
