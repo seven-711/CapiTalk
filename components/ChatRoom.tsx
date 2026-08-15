@@ -695,7 +695,7 @@ export const ChatRoom: React.FC = () => {
             style={{
               backdropFilter: 'blur(6px)',
               WebkitBackdropFilter: 'blur(6px)',
-              backgroundColor: isDarkMode ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.25)',
+              backgroundColor: 'transparent',
             }}
             onClick={() => setActivePickerMsgId(null)}
           />
