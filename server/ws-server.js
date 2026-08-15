@@ -218,6 +218,17 @@ wss.on('connection', (ws) => {
       }
     }
 
+    else if (type === 'STATUS') {
+      const { roomId, status } = msg;
+      const roomInfo = rooms.get(clientUserId);
+      if (roomInfo && roomInfo.roomId === roomId) {
+        broadcastToRoom(roomId, clientUserId, {
+          type: 'STATUS',
+          status,
+        });
+      }
+    }
+
     else if (type === 'REPORT_SUBMITTED') {
       const { report } = msg;
       console.log(`[Report] New incident report logged: ${report.reporter_username} -> ${report.reported_username}`);

@@ -231,18 +231,121 @@ export const ChatRoom: React.FC = () => {
     return false;
   });
 
-  // Listen to realtime theme sync signals from partner
+  // Alive Status State: 'online' | 'idle' | 'offline'
+  const [partnerStatus, setPartnerStatus] = useState<'online' | 'idle' | 'offline'>('online');
+  const myStatusRef = useRef<'online' | 'idle' | 'offline'>('online');
+  const myIdleTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Listen to realtime theme & status sync signals from partner
   useEffect(() => {
-    const unsubscribe = roomManager.onThemeChange((newIsDarkMode) => {
+    const unsubTheme = roomManager.onThemeChange((newIsDarkMode) => {
       setIsDarkMode(newIsDarkMode);
       if (typeof window !== 'undefined') {
         localStorage.setItem('capitalk_chat_theme', newIsDarkMode ? 'dark' : 'light');
       }
     });
+
+    const unsubStatus = roomManager.onStatusChange((newStatus) => {
+      setPartnerStatus(newStatus);
+    });
+
     return () => {
-      unsubscribe();
+      unsubTheme();
+      unsubStatus();
     };
   }, []);
+
+  // Broadcast own presence status ('online' | 'idle' | 'offline') and detect inactivity
+  const broadcastMyStatus = React.useCallback((status: 'online' | 'idle' | 'offline') => {
+    if (myStatusRef.current !== status) {
+      myStatusRef.current = status;
+      roomManager.sendStatusSignal(status);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (partnerLeft) return;
+
+    // Immediately announce presence as online upon joining room
+    myStatusRef.current = 'online';
+    roomManager.sendStatusSignal('online');
+
+    const resetIdleTimer = () => {
+      if (document.visibilityState === 'visible') {
+        broadcastMyStatus('online');
+      }
+      if (myIdleTimerRef.current) clearTimeout(myIdleTimerRef.current);
+      myIdleTimerRef.current = setTimeout(() => {
+        broadcastMyStatus('idle');
+      }, 25000); // 25s without interaction -> IDLE
+    };
+
+    resetIdleTimer();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        broadcastMyStatus('idle');
+      } else {
+        resetIdleTimer();
+      }
+    };
+
+    const handleWindowBlur = () => {
+      broadcastMyStatus('idle');
+    };
+
+    const handleWindowFocus = () => {
+      resetIdleTimer();
+    };
+
+    const handleUserActivity = () => {
+      resetIdleTimer();
+    };
+
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('touchstart', handleUserActivity);
+    window.addEventListener('scroll', handleUserActivity, true);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (myIdleTimerRef.current) clearTimeout(myIdleTimerRef.current);
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('touchstart', handleUserActivity);
+      window.removeEventListener('scroll', handleUserActivity, true);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      roomManager.sendStatusSignal('offline');
+    };
+  }, [partnerLeft, broadcastMyStatus]);
+
+  // When partner is typing or sends a message, ensure their status is marked as online
+  useEffect(() => {
+    if (partnerTyping && !partnerLeft) {
+      setPartnerStatus('online');
+    }
+  }, [partnerTyping, partnerLeft]);
+
+  useEffect(() => {
+    if (messages.length > 0 && !partnerLeft) {
+      const lastMsg = messages[messages.length - 1];
+      if (
+        lastMsg &&
+        currentUser &&
+        lastMsg.sender_id !== currentUser.id &&
+        lastMsg.sender_id !== 'system' &&
+        lastMsg.sender_id !== 'system_announcement'
+      ) {
+        setPartnerStatus('online');
+      }
+    }
+  }, [messages, partnerLeft, currentUser]);
 
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => {
@@ -528,35 +631,69 @@ export const ChatRoom: React.FC = () => {
         isAdminRoom ? 'bg-slate-950/80 border-b border-slate-800/80 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-b border-[#27272a] text-white' : 'bg-white border-b border-[#d1d5dc] text-black'
       }`}>
         {/* Partner Info */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <div className="relative">
             <img
               src={partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.username}`}
               alt={partner.username}
-              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#f4f4f0] border-2 transition-all duration-500 ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#f4f4f0] border-2 transition-all duration-500 ${
                 partnerLeft ? 'border-red-400 opacity-50 grayscale' : isDarkMode ? 'border-[#3f3f46]' : 'border-black'
               }`}
             />
             <span
-              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white transition-all duration-500 ${
-                partnerLeft ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 ${
+                isDarkMode ? 'border-[#18181b]' : 'border-white'
+              } ${
+                (partnerLeft || partnerStatus === 'offline')
+                  ? 'bg-zinc-400'
+                  : partnerStatus === 'idle'
+                  ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]'
+                  : 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]'
               }`}
             />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-1.5 leading-none">
               <h3 className={`font-extrabold text-sm sm:text-base leading-tight transition-colors duration-300 ${
                 partnerLeft ? 'text-gray-400 line-through' : isAdminRoom ? 'text-white' : isDarkMode ? 'text-white' : 'text-black'
               }`}>
                 {partner.username}
               </h3>
               {(partner.is_admin || partner.id === 'bot_admin') && (
-                <span className="px-2 py-0.5 bg-[#701a31] text-[#ffc900] border border-black text-[12px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
+                <span className="px-2 py-0.5 bg-[#701a31] text-[#ffc900] border border-black text-[11px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
                   Admin
                 </span>
               )}
+            </div>
+
+            {/* Alive Status & Department Line directly under profile name */}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {/* Alive Status Pill */}
+              <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border transition-all duration-300 ${
+                (partnerLeft || partnerStatus === 'offline')
+                  ? isDarkMode
+                    ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    : 'bg-zinc-100 text-zinc-600 border-zinc-300'
+                  : partnerStatus === 'idle'
+                  ? isDarkMode
+                    ? 'bg-amber-950/70 text-amber-300 border-amber-700/60'
+                    : 'bg-amber-50 text-amber-700 border-amber-300'
+                  : isDarkMode
+                  ? 'bg-emerald-950/70 text-emerald-400 border-emerald-700/60'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  (partnerLeft || partnerStatus === 'offline')
+                    ? 'bg-zinc-400'
+                    : partnerStatus === 'idle'
+                    ? 'bg-amber-400'
+                    : 'bg-emerald-500 animate-pulse'
+                }`} />
+                {(partnerLeft || partnerStatus === 'offline') ? 'OFFLINE' : partnerStatus === 'idle' ? 'IDLE' : 'ONLINE'}
+              </span>
+
               {partnerLeft && (
-                <span className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse border ${
+                <span className={`inline-flex items-center gap-0.5 text-[8.5px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse border ${
                   partnerLeftReason === 'inactivity'
                     ? 'text-amber-600 bg-amber-50 border-amber-200'
                     : partnerLeftReason === 'exited'
@@ -588,12 +725,13 @@ export const ChatRoom: React.FC = () => {
                   )}
                 </span>
               )}
+
+              <span className={`text-[10px] sm:text-[11px] font-semibold transition-colors duration-300 ${
+                partnerLeft ? 'text-gray-400' : isAdminRoom ? 'text-slate-400' : isDarkMode ? 'text-zinc-400' : 'text-gray-500'
+              }`}>
+                • {partner.department.replace('College of ', '')}
+              </span>
             </div>
-            <p className={`text-[11px] sm:text-xs font-medium transition-colors duration-300 ${
-              partnerLeft ? 'text-gray-400' : isAdminRoom ? 'text-slate-400' : isDarkMode ? 'text-zinc-400' : 'text-[#242423]'
-            }`}>
-              {partner.department.replace('College of ', '')}
-            </p>
           </div>
         </div>
 

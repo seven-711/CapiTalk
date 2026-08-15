@@ -7,6 +7,7 @@ export type MessageCallback = (message: ChatMessage) => void;
 export type TypingCallback = (isTyping: boolean) => void;
 export type SkipCallback = (reason?: string) => void;
 export type ThemeCallback = (isDarkMode: boolean) => void;
+export type StatusCallback = (status: 'online' | 'idle' | 'offline') => void;
 
 const MSG_STORAGE_PREFIX = 'capitalk_msgs_v4_';
 const SIGNAL_STORAGE_PREFIX = 'capitalk_signal_v4_';
@@ -25,6 +26,7 @@ class RoomManager {
   private typingCallbacks: Set<TypingCallback> = new Set();
   private skipCallbacks: Set<SkipCallback> = new Set();
   private themeCallbacks: Set<ThemeCallback> = new Set();
+  private statusCallbacks: Set<StatusCallback> = new Set();
 
   private getSocket(): WebSocket | null {
     try {
@@ -38,6 +40,11 @@ class RoomManager {
   public onThemeChange(cb: ThemeCallback) {
     this.themeCallbacks.add(cb);
     return () => this.themeCallbacks.delete(cb);
+  }
+
+  public onStatusChange(cb: StatusCallback) {
+    this.statusCallbacks.add(cb);
+    return () => this.statusCallbacks.delete(cb);
   }
 
   public joinRoom(
@@ -78,6 +85,8 @@ class RoomManager {
                 this.skipCallbacks.forEach((cb) => cb(signal.reason));
               } else if (signal.type === 'THEME') {
                 this.themeCallbacks.forEach((cb) => cb(signal.isDarkMode));
+              } else if (signal.type === 'STATUS') {
+                this.statusCallbacks.forEach((cb) => cb(signal.status));
               }
             }
           } catch (err) {}
@@ -110,6 +119,11 @@ class RoomManager {
           .on('broadcast', { event: 'theme' }, ({ payload }: { payload: { senderId: string; isDarkMode: boolean } }) => {
             if (payload && payload.senderId !== user.id) {
               this.themeCallbacks.forEach((cb) => cb(payload.isDarkMode));
+            }
+          })
+          .on('broadcast', { event: 'status' }, ({ payload }: { payload: { senderId: string; status: 'online' | 'idle' | 'offline' } }) => {
+            if (payload && payload.senderId !== user.id) {
+              this.statusCallbacks.forEach((cb) => cb(payload.status));
             }
           })
           .subscribe();
@@ -181,6 +195,10 @@ class RoomManager {
         this.themeCallbacks.forEach((cb) => cb(data.isDarkMode));
         break;
       }
+      case 'STATUS': {
+        this.statusCallbacks.forEach((cb) => cb(data.status));
+        break;
+      }
       case 'PARTNER_LEFT': {
         this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
         break;
@@ -215,6 +233,38 @@ class RoomManager {
           type: 'broadcast',
           event: 'theme',
           payload: { senderId: this.currentUserId, isDarkMode },
+        });
+      } catch (e) {}
+    }
+  }
+
+  public sendStatusSignal(status: 'online' | 'idle' | 'offline') {
+    if (!this.currentRoomId) return;
+
+    const signal = { type: 'STATUS', status, senderId: this.currentUserId, t: Date.now() };
+
+    // Broadcast 1: LocalStorage signal
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify(signal));
+    }
+
+    // Broadcast 2: WebSocket server
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'STATUS',
+        roomId: this.currentRoomId,
+        status,
+      }));
+    }
+
+    // Broadcast 3: Supabase Realtime
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'status',
+          payload: { senderId: this.currentUserId, status },
         });
       } catch (e) {}
     }
@@ -431,6 +481,7 @@ class RoomManager {
     this.typingCallbacks.clear();
     this.skipCallbacks.clear();
     this.themeCallbacks.clear();
+    this.statusCallbacks.clear();
     this.knownMsgIds.clear();
     this.lastRawMessages = null;
     this.currentRoomId = null;
