@@ -12,20 +12,32 @@ export const filterProfanity = (text: string): { cleanText: string; isFlagged: b
   return { cleanText: text, isFlagged: false };
 };
 
+export const MAX_USERNAME_LENGTH = 12;
+export const MIN_USERNAME_LENGTH = 3;
+
 export const validateUsername = (username: string): { isValid: boolean; error?: string } => {
   if (!username || username.trim().length === 0) {
-    return { isValid: false, error: 'Username is required.' };
+    return { isValid: false, error: 'Pseudonym is required.' };
   }
 
   const trimmed = username.trim();
 
-  if (trimmed.length > 20) {
-    return { isValid: false, error: 'Username must not exceed 20 characters.' };
+  if (trimmed.length < MIN_USERNAME_LENGTH) {
+    return { isValid: false, error: `Pseudonym must be at least ${MIN_USERNAME_LENGTH} characters.` };
+  }
+
+  if (trimmed.length > MAX_USERNAME_LENGTH) {
+    return { isValid: false, error: `Pseudonym must contain no more than ${MAX_USERNAME_LENGTH} characters.` };
+  }
+
+  // Letters, numbers, underscores, hyphens, or dots only
+  if (!/^[a-zA-Z0-9_.-]+$/.test(trimmed)) {
+    return { isValid: false, error: 'Pseudonym can only contain letters, numbers, underscores (_), hyphens (-), or dots (.).' };
   }
 
   const { isFlagged } = filterProfanity(trimmed);
   if (isFlagged) {
-    return { isValid: false, error: 'Username contains inappropriate words.' };
+    return { isValid: false, error: 'Pseudonym contains inappropriate words.' };
   }
 
   return { isValid: true };

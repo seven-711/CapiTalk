@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CU_DEPARTMENTS, DEFAULT_AVATARS, DepartmentType } from '../lib/constants';
-import { validateUsername, checkUsernameAvailability } from '../lib/utils/safety';
+import { validateUsername, checkUsernameAvailability, MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH } from '../lib/utils/safety';
 import { CoinMascot } from './CoinMascot';
-import { Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Sparkles, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export const RegistrationModal: React.FC = () => {
   const { currentUser, registerUser, setViewState } = useChatStore();
@@ -27,6 +27,13 @@ export const RegistrationModal: React.FC = () => {
       return;
     }
 
+    const validation = validateUsername(username);
+    if (!validation.isValid) {
+      setUsernameStatus({ isAvailable: false, message: validation.error });
+      setIsCheckingUsername(false);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       setIsCheckingUsername(true);
       const res = await checkUsernameAvailability(username, currentUser?.id);
@@ -34,9 +41,9 @@ export const RegistrationModal: React.FC = () => {
       if (!res.isAvailable) {
         setUsernameStatus({ isAvailable: false, message: res.error });
       } else {
-        setUsernameStatus({ isAvailable: true, message: `Username @${username.trim()} is available!` });
+        setUsernameStatus({ isAvailable: true, message: `Pseudonym @${username.trim()} is available!` });
       }
-    }, 350);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [username, currentUser?.id]);
@@ -124,17 +131,30 @@ export const RegistrationModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Username Input */}
+          {/* Username / Pseudonym Input */}
           <div>
-            <label className="block text-sm font-semibold text-black mb-1">
-              Username <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-semibold text-black">
+                Pseudonym / Username <span className="text-red-500">*</span>
+              </label>
+              <span
+                className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${
+                  username.length > MAX_USERNAME_LENGTH
+                    ? 'bg-red-100 text-red-700 border-red-300'
+                    : username.length >= MAX_USERNAME_LENGTH - 2
+                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                    : 'bg-gray-100 text-gray-600 border-gray-300'
+                }`}
+              >
+                {username.length}/{MAX_USERNAME_LENGTH} chars
+              </span>
+            </div>
             <input
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. engr_masarap, nursing_mwa , poging_marino"
+              placeholder="e.g. engr_masarap, nursing_mwa"
               className={`gumroad-input w-full ${
                 usernameStatus
                   ? usernameStatus.isAvailable
@@ -142,21 +162,21 @@ export const RegistrationModal: React.FC = () => {
                     : 'border-red-600 focus:ring-red-600'
                   : ''
               }`}
-              maxLength={20}
+              maxLength={MAX_USERNAME_LENGTH}
             />
             {isCheckingUsername ? (
               <p className="text-xs text-amber-700 font-semibold mt-1.5 flex items-center gap-1 animate-pulse">
-                Checking username availability...
+                Checking pseudonym availability...
               </p>
             ) : usernameStatus ? (
               <p className={`text-xs font-semibold mt-1.5 flex items-center gap-1.5 ${
                 usernameStatus.isAvailable ? 'text-emerald-600' : 'text-red-600 font-bold'
               }`}>
-                <span>{usernameStatus.isAvailable ? '' : ''}</span> {usernameStatus.message}
+                <span>{usernameStatus.isAvailable ? '✓' : '⚠️'}</span> {usernameStatus.message}
               </p>
             ) : (
               <p className="text-xs text-[#242423] mt-1">
-                3–20 characters. Letters, numbers, and underscores only. Must be unique to prevent impersonation.
+                Must be between {MIN_USERNAME_LENGTH} and {MAX_USERNAME_LENGTH} characters. Letters, numbers, hyphens, and underscores only.
               </p>
             )}
           </div>

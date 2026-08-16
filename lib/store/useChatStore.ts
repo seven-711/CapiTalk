@@ -1091,7 +1091,7 @@ export const useChatStore = create<ChatStoreState>()(
 
       registerUser: (username: string, department: DepartmentType, avatarUrl?: string, bio?: string) => {
         const persistentId = getOrCreatePersistentUUID();
-        const trimmedUsername = username.trim();
+        const trimmedUsername = username.trim().slice(0, 12);
         const newUser: UserProfile = {
           id: persistentId,
           username: trimmedUsername,
