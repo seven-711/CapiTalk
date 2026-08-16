@@ -88,6 +88,46 @@ export const BOT_PARTNERS: Array<{
     avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=alexa&backgroundColor=dc341e",
     status: "in_chat",
   },
+  {
+    id: "bot_educ",
+    username: "teacher_josh",
+    department: "College of Education",
+    bio: "Lesson plans, pedagogy & student mentorship 📚✏️",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=josh&backgroundColor=701a31",
+    status: "in_chat",
+  },
+  {
+    id: "bot_crim",
+    username: "cadet_miguel",
+    department: "College of Criminology",
+    bio: "Forensics, law enforcement & physical training 👮‍♂️🛡️",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=miguel&backgroundColor=18181b",
+    status: "in_chat",
+  },
+  {
+    id: "bot_cas",
+    username: "writer_sophia",
+    department: "College of Arts and Sciences",
+    bio: "Communication arts, philosophy & campus journalism ✍️🎭",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=sophia&backgroundColor=ff4b91",
+    status: "in_chat",
+  },
+  {
+    id: "bot_maritime",
+    username: "seaman_kevin",
+    department: "College of Maritime Education",
+    bio: "Bridge navigation, seamanship & compass heading ⚓🌊",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=kevin&backgroundColor=2563eb",
+    status: "in_chat",
+  },
+  {
+    id: "bot_shs",
+    username: "stem_chloe",
+    department: "Senior High School",
+    bio: "SHS STEM student getting ready for university life 🎓✨",
+    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=chloe&backgroundColor=16a34a",
+    status: "in_chat",
+  },
 ];
 
 export const BOT_RESPONSES = [

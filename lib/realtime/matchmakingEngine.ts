@@ -366,11 +366,13 @@ class MatchmakingEngine {
     if (myFilter === 'anyone') myMatch = true;
     else if (myFilter === 'same' && partnerUser.department === myUser.department) myMatch = true;
     else if (myFilter === 'different' && partnerUser.department !== myUser.department) myMatch = true;
+    else if (partnerUser.department === myFilter) myMatch = true;
 
     let partnerMatch = false;
     if (partnerFilter === 'anyone') partnerMatch = true;
     else if (partnerFilter === 'same' && myUser.department === partnerUser.department) partnerMatch = true;
     else if (partnerFilter === 'different' && myUser.department !== partnerUser.department) partnerMatch = true;
+    else if (myUser.department === partnerFilter) partnerMatch = true;
 
     return myMatch && partnerMatch;
   }
@@ -427,7 +429,7 @@ class MatchmakingEngine {
         this.supabaseChannel.untrack();
         this.supabaseChannel.unsubscribe();
       } catch (e) {}
-      this.supabaseChannel = null;
+        this.supabaseChannel = null;
     }
 
     this.matchCallbacks.forEach((cb) => cb(match));
@@ -447,6 +449,9 @@ class MatchmakingEngine {
     } else if (filter === 'different') {
       const diff = candidates.filter((b) => b.department !== user.department);
       if (diff.length > 0) candidates = diff;
+    } else if (filter !== 'anyone') {
+      const specific = candidates.filter((b) => b.department === filter);
+      if (specific.length > 0) candidates = specific;
     }
     const partner = candidates[Math.floor(Math.random() * candidates.length)];
     const match: MatchPayload = {

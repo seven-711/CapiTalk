@@ -98,6 +98,7 @@ function filterMatches(filter, myUser, theirUser) {
   if (filter === 'anyone') return true;
   if (filter === 'same') return myUser.department === theirUser.department;
   if (filter === 'different') return myUser.department !== theirUser.department;
+  if (filter === theirUser.department) return true;
   return false;
 }
 

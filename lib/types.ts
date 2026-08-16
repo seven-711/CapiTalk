@@ -14,7 +14,7 @@ export interface UserProfile {
   created_at?: string;
 }
 
-export type QueueFilter = "anyone" | "same" | "different";
+export type QueueFilter = "anyone" | "same" | "different" | DepartmentType;
 
 export interface ChatRoom {
   id: string;
