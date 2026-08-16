@@ -1,10 +1,20 @@
 import React, { useState, useRef } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CoinMascot } from './CoinMascot';
-import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft, Menu, MapPin } from 'lucide-react';
+import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft, Menu, MapPin, ExternalLink } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 import { WallNotification } from '../lib/types';
+
+const FacebookIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      fillRule="evenodd"
+      d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
 
 export const Navbar: React.FC = () => {
   const {
@@ -290,15 +300,50 @@ export const Navbar: React.FC = () => {
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
-                        {currentUser ? 'Edit Profile' : 'Register Profile'}
+                    {currentUser ? 'Edit Profile' : 'Register Profile'}
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewState('privacy');
+                    setShowMenuDrawer(false);
+                  }}
+                  className={`w-full p-3 rounded-2xl border border-black/20 text-left font-bold text-xs flex items-center justify-between transition-all ${
+                    viewState === 'privacy'
+                      ? 'bg-[#fff1f3] text-[#701a31] border-black font-extrabold'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    🛡️ Privacy &amp; Data Policy
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-semibold">Disclaimer</span>
+                </button>
+
+                <a
+                  href="https://www.facebook.com/share/17PF9MvuSC/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowMenuDrawer(false)}
+                  className="w-full p-3 rounded-2xl border border-black/20 bg-[#1877f2]/10 hover:bg-[#1877f2]/20 text-[#1877f2] font-black text-xs flex items-center justify-between transition-all"
+                >
+                  <span className="flex items-center gap-2">
+                    <FacebookIcon className="w-4 h-4 fill-[#1877f2]" />
+                    Official Facebook Page
+                  </span>
+                  <span className="text-[10px] bg-[#1877f2] text-white px-2 py-0.5 rounded-full font-bold">Follow ↗</span>
+                </a>
               </div>
             </div>
 
-            <div className="pt-4 border-t-2 border-black/20 space-y-3">
+            <div className="pt-3 border-t-2 border-black/20 space-y-1">
               <p className="text-[10px] text-center text-gray-500 font-bold">
-                CapiTalk — Capitol University Student Network
+                CapiTalk — Capitol University Student Community
+              </p>
+              <p className="text-[9px] text-center text-gray-400">
+                Independent platform • Not affiliated with Capitol University
               </p>
             </div>
           </div>

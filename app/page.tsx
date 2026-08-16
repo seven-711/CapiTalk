@@ -12,6 +12,7 @@ import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
 import { CampusMap } from '../components/CampusMap';
 import { BannedScreen } from '../components/BannedScreen';
+import { PrivacyPolicy } from '../components/PrivacyPolicy';
 import {
   Sparkles,
   ShieldCheck,
@@ -23,7 +24,18 @@ import {
   ChevronDown,
   X,
   Radio,
+  ExternalLink,
 } from 'lucide-react';
+
+const FacebookIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      fillRule="evenodd"
+      d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
 
 export default function Home() {
   const {
@@ -115,6 +127,7 @@ export default function Home() {
         {viewState === 'freedom_wall' && <FreedomWall />}
         {viewState === 'music_wall' && <MusicWall />}
         {viewState === 'campus_map' && <CampusMap />}
+        {viewState === 'privacy' && <PrivacyPolicy />}
 
         {viewState === 'landing' && (
           <div className="w-full">
@@ -175,10 +188,18 @@ export default function Home() {
                   </a>
                 </div>
 
-                {/* Micro Guarantee Label */}
-                <p className="mt-4 text-xs font-medium text-[#242423]">
-                  No real names or student IDs are ever shared inside chats.
-                </p>
+                {/* Micro Guarantee Label & Privacy Link */}
+                <div className="mt-4 flex flex-col items-center gap-1.5 text-xs font-medium text-[#242423]">
+                  <p>No real names, student numbers, or university logins are ever collected.</p>
+                  <button
+                    type="button"
+                    onClick={() => setViewState('privacy')}
+                    className="text-[11px] sm:text-xs font-black text-[#701a31] hover:underline flex items-center gap-1 transition-colors"
+                  >
+                    <span>🛡️ Read our Privacy &amp; Data Transparency Guarantee</span>
+                    <span>→</span>
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -307,6 +328,115 @@ export default function Home() {
               </div>
             </section>
 
+            {/* OFFICIAL FACEBOOK COMMUNITY SHOWCASE */}
+            <section className="py-8 sm:py-12 px-3 sm:px-8 max-w-[1200px] mx-auto">
+              <div className="bg-white border-3 border-black rounded-3xl p-6 sm:p-10 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left">
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+                  {/* Left Info Column */}
+                  <div className="max-w-xl flex-1">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1877f2]/10 border border-[#1877f2]/30 text-[#1877f2] font-black text-xs rounded-full mb-3 shadow-2xs">
+                      <FacebookIcon className="w-3.5 h-3.5 fill-[#1877f2]" />
+                      <span>Official Facebook Page</span>
+                    </div>
+
+                    <h2 className="text-2xl sm:text-4xl font-black text-black tracking-tight leading-tight">
+                      Follow CapiTalk on Facebook
+                    </h2>
+
+                    <p className="text-xs sm:text-sm text-[#242423] font-medium mt-3 leading-relaxed">
+                      Stay connected with the latest campus updates, featured Freedom Wall confessions, platform news, maintenance notices, and student community announcements.
+                    </p>
+
+                    <div className="mt-4 p-3.5 bg-[#fbf9f5] border border-black/15 rounded-2xl space-y-1.5 text-xs text-gray-700 font-semibold">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📍</span>
+                        <span>Capitol University, Cagayan de Oro, Philippines, 9000</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💬</span>
+                        <span>Direct inquiries via Facebook Messenger</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+                      <a
+                        href="https://www.facebook.com/share/17PF9MvuSC/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-gumroad-primary w-full sm:w-auto text-xs sm:text-sm px-6 py-3.5 bg-[#1877f2] hover:bg-[#166fe5] text-white flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-full"
+                      >
+                        <FacebookIcon className="w-4 h-4 fill-white" />
+                        <span>Visit Facebook Page</span>
+                        <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Right Visual Card — Phone / Screenshot Showcase */}
+                  <div className="w-full lg:w-[360px] shrink-0 flex justify-center">
+                    <a
+                      href="https://www.facebook.com/share/17PF9MvuSC/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block group relative rounded-2xl overflow-hidden border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-[1.02] active:scale-[0.99] transition-all bg-[#701a31] max-w-[300px] sm:max-w-[330px]"
+                    >
+                      {/* Top banner image */}
+                      <div className="relative aspect-[3/1] w-full overflow-hidden bg-[#701a31] border-b-2 border-black">
+                        <img
+                          src="/images/fb-cover-banner.png"
+                          alt="CapiTalk Facebook Banner"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+
+                      {/* Main Mobile Screenshot Mockup */}
+                      <div className="relative bg-[#1c1c1e] p-2 text-white">
+                        <img
+                          src="/images/fb-page-preview.png"
+                          alt="CapiTalk Facebook Page Preview"
+                          className="w-full h-auto rounded-xl object-contain shadow-md"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-xs">
+                          <span className="px-4 py-2 bg-white text-black font-extrabold text-xs rounded-full border-2 border-black shadow-lg flex items-center gap-1.5">
+                            <FacebookIcon className="w-3.5 h-3.5 fill-[#1877f2]" />
+                            <span>Open Page on Facebook ↗</span>
+                          </span>
+                        </div>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* DATA PRIVACY & NON-AFFILIATION DISCLAIMER BANNER */}
+            <section className="py-8 sm:py-12 px-3 sm:px-8 max-w-[1200px] mx-auto">
+              <div className="bg-[#fff8e6] border-3 border-black rounded-3xl p-6 sm:p-10 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="max-w-2xl">
+                  <span className="bg-[#ffc900] text-black text-[10px] sm:text-xs font-black px-3 py-1 rounded-full border border-black uppercase tracking-wider shadow-2xs mb-3 inline-block">
+                    Student Data Guarantee &amp; Disclaimer
+                  </span>
+                  <h3 className="text-xl sm:text-3xl font-black text-black tracking-tight">
+                    Zero Data Harvested. Built Exclusively for CU Students.
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#242423] font-medium mt-2 leading-relaxed">
+                    CapiTalk is an independent, student-led community project. We do not collect student IDs, university portal logins, or personal details, and chats disappear when sessions end.
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-gray-600 font-semibold mt-2">
+                    * Note: CapiTalk is an independent platform and not officially affiliated with Capitol University.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewState('privacy')}
+                  className="btn-gumroad-primary text-xs sm:text-sm px-6 py-3.5 whitespace-nowrap bg-[#701a31] hover:bg-[#4d0d1f] text-white shrink-0 self-start md:self-center"
+                >
+                  <span>Read Data Policy &amp; Disclaimer →</span>
+                </button>
+              </div>
+            </section>
+
             {/* COMMUNITY GUIDELINES SECTION */}
             <section className="bg-white border-t border-[#d1d5dc] py-16 px-4 sm:px-8">
               <div className="max-w-4xl mx-auto">
@@ -365,20 +495,39 @@ export default function Home() {
       {/* FOOTER — hidden during active chat & full screen campus map */}
       {viewState !== 'chat' && viewState !== 'campus_map' && (
         <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] py-8 px-4 sm:px-8 mt-auto">
-          <div className="max-w-[1200px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <CoinMascot size={28} tiltAngle={-6} />
-              <span className="font-bold text-sm text-black">CapiTalk</span>
-              <span className="text-xs text-[#242423]">© 2026 CapiTalk Student Community</span>
+          <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">
+              <div className="flex items-center gap-2">
+                <CoinMascot size={28} tiltAngle={-6} />
+                <span className="font-extrabold text-sm text-black">CapiTalk</span>
+              </div>
+              <span className="text-xs text-[#242423] font-medium">
+                Independent student community platform • Not affiliated with Capitol University
+              </span>
             </div>
 
-            <div className="flex items-center gap-4 text-xs font-medium text-[#242423]">
-              <button onClick={() => setViewState('landing')} className="hover:text-black">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-[#242423]">
+              <button onClick={() => setViewState('landing')} className="hover:text-black transition-colors">
                 Home
               </button>
-              <button onClick={() => setViewState('register')} className="hover:text-black">
+              <button onClick={() => setViewState('register')} className="hover:text-black transition-colors">
                 Register
               </button>
+              <button onClick={() => setViewState('freedom_wall')} className="hover:text-black transition-colors">
+                Freedom Wall
+              </button>
+              <button onClick={() => setViewState('privacy')} className="text-[#701a31] hover:underline font-extrabold transition-colors">
+                Privacy Policy
+              </button>
+              <a
+                href="https://www.facebook.com/share/17PF9MvuSC/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1877f2] hover:bg-[#166fe5] text-white rounded-full font-extrabold text-xs shadow-2xs border border-black transition-all hover:scale-105 active:scale-95"
+              >
+                <FacebookIcon className="w-3.5 h-3.5 fill-white" />
+                <span>Facebook Page</span>
+              </a>
             </div>
           </div>
         </footer>
