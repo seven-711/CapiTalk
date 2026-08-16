@@ -6,7 +6,7 @@ import { supabase, isSupabaseConfigured } from '../supabase/client';
 export type MessageCallback = (message: ChatMessage) => void;
 export type TypingCallback = (isTyping: boolean) => void;
 export type SkipCallback = (reason?: string) => void;
-export type ThemeCallback = (isDarkMode: boolean) => void;
+export type ThemeCallback = (theme: string) => void;
 export type StatusCallback = (status: 'online' | 'idle' | 'offline') => void;
 
 const MSG_STORAGE_PREFIX = 'capitalk_msgs_v4_';
@@ -85,7 +85,7 @@ class RoomManager {
               } else if (signal.type === 'SKIP') {
                 this.skipCallbacks.forEach((cb) => cb(signal.reason));
               } else if (signal.type === 'THEME') {
-                this.themeCallbacks.forEach((cb) => cb(signal.isDarkMode));
+                this.themeCallbacks.forEach((cb) => cb(signal.theme || (signal.isDarkMode ? 'black' : 'maroon')));
               } else if (signal.type === 'STATUS') {
                 this.statusCallbacks.forEach((cb) => cb(signal.status));
               }
@@ -125,9 +125,9 @@ class RoomManager {
               this.skipCallbacks.forEach((cb) => cb(payload.reason));
             }
           })
-          .on('broadcast', { event: 'theme' }, ({ payload }: { payload: { senderId: string; isDarkMode: boolean } }) => {
+          .on('broadcast', { event: 'theme' }, ({ payload }: { payload: { senderId: string; theme?: string; isDarkMode?: boolean } }) => {
             if (payload && payload.senderId !== user.id) {
-              this.themeCallbacks.forEach((cb) => cb(payload.isDarkMode));
+              this.themeCallbacks.forEach((cb) => cb(payload.theme || (payload.isDarkMode ? 'black' : 'maroon')));
             }
           })
           .on('broadcast', { event: 'status' }, ({ payload }: { payload: { senderId: string; status: 'online' | 'idle' | 'offline' } }) => {
@@ -201,7 +201,7 @@ class RoomManager {
         break;
       }
       case 'THEME': {
-        this.themeCallbacks.forEach((cb) => cb(data.isDarkMode));
+        this.themeCallbacks.forEach((cb) => cb(data.theme || (data.isDarkMode ? 'black' : 'maroon')));
         break;
       }
       case 'STATUS': {
@@ -215,10 +215,11 @@ class RoomManager {
     }
   }
 
-  public sendThemeSignal(isDarkMode: boolean) {
+  public sendThemeSignal(theme: string | boolean) {
     if (!this.currentRoomId) return;
 
-    const signal = { type: 'THEME', isDarkMode, senderId: this.currentUserId, t: Date.now() };
+    const themeVal = typeof theme === 'boolean' ? (theme ? 'black' : 'maroon') : theme;
+    const signal = { type: 'THEME', theme: themeVal, senderId: this.currentUserId, t: Date.now() };
 
     // Broadcast 1: LocalStorage signal
     if (typeof window !== 'undefined') {
@@ -231,7 +232,7 @@ class RoomManager {
       ws.send(JSON.stringify({
         type: 'THEME',
         roomId: this.currentRoomId,
-        isDarkMode,
+        theme,
       }));
     }
 
@@ -241,7 +242,7 @@ class RoomManager {
         this.supabaseChannel.send({
           type: 'broadcast',
           event: 'theme',
-          payload: { senderId: this.currentUserId, isDarkMode },
+          payload: { senderId: this.currentUserId, theme },
         });
       } catch (e) {}
     }

@@ -31,11 +31,11 @@ import {
   AlertTriangle,
   Hourglass,
   Sparkles,
-  Moon,
-  Sun,
+  Palette,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
+import { ThemeModal, getThemeConfig } from './ThemeModal';
 
 const ADMIN_LINES_GRADIENT = ['#ffc900', '#701a31', '#00f2fe', '#e11d48'];
 
@@ -231,6 +231,17 @@ export const ChatRoom: React.FC = () => {
     return false;
   });
 
+  // Chat Color Theme State (defaults to 'maroon' as CapiTalk brand identity)
+  const [chatTheme, setChatTheme] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('capitalk_chat_theme_name');
+      if (saved) return saved;
+    }
+    return 'maroon';
+  });
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const activeThemeConfig = getThemeConfig(chatTheme);
+
   // Alive Status State: 'online' | 'idle' | 'offline'
   const [partnerStatus, setPartnerStatus] = useState<'online' | 'idle' | 'offline'>('online');
   const myStatusRef = useRef<'online' | 'idle' | 'offline'>('online');
@@ -240,10 +251,10 @@ export const ChatRoom: React.FC = () => {
 
   // Listen to realtime theme & status sync signals from partner
   useEffect(() => {
-    const unsubTheme = roomManager.onThemeChange((newIsDarkMode) => {
-      setIsDarkMode(newIsDarkMode);
+    const unsubTheme = roomManager.onThemeChange((newTheme) => {
+      setChatTheme(newTheme);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('capitalk_chat_theme', newIsDarkMode ? 'dark' : 'light');
+        localStorage.setItem('capitalk_chat_theme_name', newTheme);
       }
     });
 
@@ -390,16 +401,7 @@ export const ChatRoom: React.FC = () => {
     }
   }, [messages, partnerLeft, currentUser]);
 
-  const toggleDarkMode = () => {
-    setIsDarkMode((prev) => {
-      const next = !prev;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('capitalk_chat_theme', next ? 'dark' : 'light');
-      }
-      roomManager.sendThemeSignal(next);
-      return next;
-    });
-  };
+
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -670,9 +672,16 @@ export const ChatRoom: React.FC = () => {
       )}
 
       {/* Top Header Bar */}
-      <div className={`px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20 transition-colors duration-300 ${
-        isAdminRoom ? 'bg-slate-950/80 border-b border-slate-800/80 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-b border-[#27272a] text-white' : 'bg-white border-b border-[#d1d5dc] text-black'
-      }`}>
+      <div
+        style={{
+          backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerBg,
+          color: isAdminRoom ? undefined : activeThemeConfig.headerText,
+          borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
+        }}
+        className={`px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20 transition-all duration-300 border-b ${
+          isAdminRoom ? 'bg-slate-950/80 border-slate-800/80 text-white backdrop-blur-md' : ''
+        }`}
+      >
         {/* Partner Info */}
         <div className="flex items-center gap-2.5">
           <div className="relative">
@@ -683,23 +692,15 @@ export const ChatRoom: React.FC = () => {
                 partnerLeft ? 'border-red-400 opacity-50 grayscale' : isDarkMode ? 'border-[#3f3f46]' : 'border-black'
               }`}
             />
-            <span
-              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 ${
-                isDarkMode ? 'border-[#18181b]' : 'border-white'
-              } ${
-                (partnerLeft || partnerStatus === 'offline')
-                  ? 'bg-zinc-400'
-                  : partnerStatus === 'idle'
-                  ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]'
-                  : 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]'
-              }`}
-            />
           </div>
           <div className="flex flex-col justify-center">
             <div className="flex items-center gap-1.5 leading-none">
-              <h3 className={`font-extrabold text-sm sm:text-base leading-tight transition-colors duration-300 ${
-                partnerLeft ? 'text-gray-400 line-through' : isAdminRoom ? 'text-white' : isDarkMode ? 'text-white' : 'text-black'
-              }`}>
+              <h3
+                style={{ color: isAdminRoom ? undefined : activeThemeConfig.headerText }}
+                className={`font-extrabold text-sm sm:text-base leading-tight transition-colors duration-300 ${
+                  partnerLeft ? 'line-through opacity-70' : ''
+                }`}
+              >
                 {partner.username}
               </h3>
               {(partner.is_admin || partner.id === 'bot_admin') && (
@@ -772,34 +773,38 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Buttons: Dark Mode Toggle, Report, Block, Exit, Next */}
+        {/* Action Buttons: Theme Modal, Report, Block, Exit, Next */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Dark Mode Toggle Button */}
+          {/* Theme Chooser Modal Trigger Button */}
           <button
             type="button"
-            onClick={toggleDarkMode}
-            className={`p-1.5 sm:p-2 rounded border transition-colors ${
-              isAdminRoom
-                ? 'text-amber-400 border-slate-700 hover:bg-slate-800'
-                : isDarkMode
-                ? 'text-amber-400 border-[#3f3f46] hover:bg-[#27272a]'
-                : 'text-gray-600 hover:text-black hover:bg-gray-100 border-[#d1d5dc]'
-            }`}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            onClick={() => setShowThemeModal(true)}
+            style={{
+              backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+              color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+              borderColor: isAdminRoom ? undefined : activeThemeConfig.id === 'yellow' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
+            }}
+            className="p-1.5 sm:p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 flex items-center justify-center shadow-2xs"
+            title="Choose Chat Theme"
           >
-            {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-600" />}
+            <div className="relative flex items-center justify-center">
+              <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span
+                className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/40 shadow-xs"
+                style={{ backgroundColor: activeThemeConfig.dotColor }}
+              />
+            </div>
           </button>
 
           <button
             type="button"
             onClick={() => setShowReportModal(true)}
-            className={`p-1.5 sm:p-2 rounded border transition-colors ${
-              isAdminRoom
-                ? 'text-slate-300 border-slate-700 hover:text-red-400 hover:bg-slate-800'
-                : isDarkMode
-                ? 'text-zinc-300 border-[#3f3f46] hover:text-red-400 hover:bg-[#27272a]'
-                : 'text-gray-600 hover:text-red-600 hover:bg-red-50 border-[#d1d5dc]'
-            }`}
+            style={{
+              backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+              color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+              borderColor: isAdminRoom ? undefined : activeThemeConfig.id === 'yellow' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
+            }}
+            className="p-1.5 sm:p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 shadow-2xs"
             title="Report User"
           >
             <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -808,13 +813,12 @@ export const ChatRoom: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowBlockModal(true)}
-            className={`p-1.5 sm:p-2 rounded border transition-colors ${
-              isAdminRoom
-                ? 'text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800'
-                : isDarkMode
-                ? 'text-zinc-300 border-[#3f3f46] hover:text-white hover:bg-[#27272a]'
-                : 'text-gray-600 hover:text-black hover:bg-gray-100 border-[#d1d5dc]'
-            }`}
+            style={{
+              backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+              color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+              borderColor: isAdminRoom ? undefined : activeThemeConfig.id === 'yellow' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
+            }}
+            className="p-1.5 sm:p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 shadow-2xs"
             title="Block User"
           >
             <UserX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -823,12 +827,25 @@ export const ChatRoom: React.FC = () => {
           <button
             type="button"
             onClick={handleExitClick}
-            className={`p-1.5 sm:p-2 rounded border flex items-center gap-1 transition-all ${
-              confirmExit
-                ? 'bg-red-600 text-white border-red-600 font-bold scale-105 animate-pulse'
-                : isDarkMode
-                ? 'text-red-400 hover:text-red-300 hover:bg-red-950/40 border-red-900/60'
-                : 'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
+            style={{
+              backgroundColor: confirmExit
+                ? '#dc2626'
+                : isAdminRoom
+                ? undefined
+                : activeThemeConfig.headerButtonBg,
+              color: confirmExit
+                ? '#ffffff'
+                : isAdminRoom
+                ? undefined
+                : activeThemeConfig.headerButtonText,
+              borderColor: confirmExit
+                ? '#b91c1c'
+                : isAdminRoom
+                ? undefined
+                : activeThemeConfig.id === 'yellow' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
+            }}
+            className={`p-1.5 sm:p-2 rounded-lg border flex items-center gap-1 transition-all shadow-2xs ${
+              confirmExit ? 'font-bold scale-105 animate-pulse' : 'hover:scale-105 active:scale-95'
             }`}
             title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
           >
@@ -859,8 +876,11 @@ export const ChatRoom: React.FC = () => {
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
       <div
         onClick={() => activePickerMsgId && setActivePickerMsgId(null)}
+        style={{
+          backgroundColor: isAdminRoom ? undefined : activeThemeConfig.chatFeedBg || '#fbf9f5',
+        }}
         className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain transition-colors duration-300 ${
-          isAdminRoom ? 'bg-transparent text-white' : isDarkMode ? 'bg-[#121212] text-zinc-100' : 'bg-[#fbf9f5]'
+          isAdminRoom ? 'bg-transparent text-white' : ''
         }`}
       >
         <div className="space-y-3 sm:space-y-4">
@@ -961,13 +981,20 @@ export const ChatRoom: React.FC = () => {
                 <div className={`flex items-center gap-1.5 w-fit max-w-[85%] sm:max-w-[75%] ${isMe ? 'flex-row-reverse ml-auto' : 'flex-row mr-auto'}`}>
                   {/* Main Message Content */}
                   <div
+                    style={
+                      isMe && !msg.is_profane
+                        ? {
+                            backgroundColor: activeThemeConfig.bubbleBg,
+                            color: activeThemeConfig.bubbleText,
+                            borderColor: isDarkMode ? '#3f3f46' : activeThemeConfig.bubbleBorder || '#000000',
+                          }
+                        : undefined
+                    }
                     className={`p-3 sm:p-3.5 rounded-[16px] border text-sm relative cursor-pointer w-fit max-w-full min-w-0 ${
                       isMe
                         ? msg.is_profane
                           ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
-                          : isDarkMode
-                          ? 'bg-[#ffc900] text-black border-[#ffc900] font-semibold rounded-tr-none shadow-xs'
-                          : 'bg-black text-white border-black rounded-tr-none'
+                          : 'rounded-tr-none font-bold shadow-xs'
                         : msg.is_profane
                         ? isDarkMode
                           ? 'bg-red-950/80 text-white border-red-700 rounded-tl-none'
@@ -1191,9 +1218,16 @@ export const ChatRoom: React.FC = () => {
 
       {/* Disconnected action bar — replaces input when partner leaves */}
       {partnerLeft ? (
-        <div className={`p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-colors ${
-          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-t border-[#27272a] text-white' : 'bg-white border-t border-[#d1d5dc] text-black'
-        }`}>
+        <div
+          style={{
+            backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerBg,
+            borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
+            color: isAdminRoom ? undefined : activeThemeConfig.headerText,
+          }}
+          className={`p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t ${
+            isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
+          }`}
+        >
           <div className="flex items-center gap-2 text-sm">
             {partnerLeftReason === 'inactivity' ? (
               <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
@@ -1209,7 +1243,11 @@ export const ChatRoom: React.FC = () => {
             <button
               type="button"
               onClick={leaveRoom}
-              className={`btn-gumroad-ghost text-xs px-4 py-2 ${isDarkMode ? 'text-zinc-200 border-[#3f3f46] hover:bg-[#27272a]' : ''}`}
+              style={{
+                backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+                color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+              }}
+              className="btn-gumroad-ghost text-xs px-4 py-2 border border-black/20"
             >
               <span>Stay Here</span>
             </button>
@@ -1224,9 +1262,16 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className={`p-2 sm:p-2.5 relative shrink-0 z-20 transition-colors duration-300 ${
-          isAdminRoom ? 'bg-slate-950/95 border-t border-slate-800 text-white backdrop-blur-md' : isDarkMode ? 'bg-[#18181b] border-t border-[#27272a] text-white' : 'bg-white border-t border-[#d1d5dc] text-black'
-        }`}>
+        <div
+          style={{
+            backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerBg,
+            borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
+            color: isAdminRoom ? undefined : activeThemeConfig.headerText,
+          }}
+          className={`p-2 sm:p-2.5 relative shrink-0 z-20 transition-all duration-300 border-t ${
+            isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
+          }`}
+        >
           {/* Emoji Picker Dropdown */}
           {showEmojiPicker && (
             <div className={`absolute bottom-16 left-3 p-3 rounded-full flex items-center gap-2 flex-wrap shadow-lg z-30 ${
@@ -1261,14 +1306,25 @@ export const ChatRoom: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowMobileExtras((v) => !v)}
-              className={`sm:hidden p-2 transition-all duration-200 shrink-0 ${
-                showMobileExtras
-                  ? 'bg-black text-white border-black rounded-full rotate-45'
+              style={{
+                backgroundColor: showMobileExtras
+                  ? '#000000'
                   : isAdminRoom
-                  ? 'text-slate-300 border-slate-700'
-                  : isDarkMode
-                  ? 'text-zinc-300 border-[#3f3f46]'
-                  : 'text-[#242423] border-[#d1d5dc]'
+                  ? undefined
+                  : activeThemeConfig.headerButtonBg,
+                color: showMobileExtras
+                  ? '#ffffff'
+                  : isAdminRoom
+                  ? undefined
+                  : activeThemeConfig.headerButtonText,
+                borderColor: isAdminRoom
+                  ? undefined
+                  : activeThemeConfig.id === 'yellow'
+                  ? 'rgba(0,0,0,0.3)'
+                  : 'rgba(255,255,255,0.3)',
+              }}
+              className={`sm:hidden p-2 rounded-lg border transition-all duration-200 shrink-0 shadow-2xs ${
+                showMobileExtras ? 'rotate-45' : ''
               }`}
               title="More options"
             >
@@ -1283,13 +1339,26 @@ export const ChatRoom: React.FC = () => {
               <button
                 type="button"
                 onClick={handleExitClick}
-                className={`p-2 rounded border flex items-center gap-1 transition-all shrink-0 ${
-                  confirmExit
-                    ? 'bg-red-600 text-white border-red-600 font-bold scale-105 animate-pulse'
-                    : isDarkMode
-                    ? 'text-red-400 hover:text-red-300 hover:bg-red-950/40 border-red-900/60'
-                    : 'text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200'
-                }`}
+                style={{
+                  backgroundColor: confirmExit
+                    ? '#dc2626'
+                    : isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.headerButtonBg,
+                  color: confirmExit
+                    ? '#ffffff'
+                    : isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.headerButtonText,
+                  borderColor: confirmExit
+                    ? '#b91c1c'
+                    : isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.id === 'yellow'
+                    ? 'rgba(0,0,0,0.3)'
+                    : 'rgba(255,255,255,0.3)',
+                }}
+                className="p-2 rounded-lg border flex items-center gap-1 transition-all shrink-0 shadow-2xs"
                 title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1303,9 +1372,16 @@ export const ChatRoom: React.FC = () => {
                 type="button"
                 disabled={isUploading}
                 onClick={() => fileInputRef.current?.click()}
-                className={`p-2 rounded shrink-0 transition-colors ${
-                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : isDarkMode ? 'text-zinc-300 hover:text-white hover:bg-zinc-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
-                }`}
+                style={{
+                  backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+                  color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+                  borderColor: isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.id === 'yellow'
+                    ? 'rgba(0,0,0,0.3)'
+                    : 'rgba(255,255,255,0.3)',
+                }}
+                className="p-2 rounded-lg border shrink-0 transition-colors shadow-2xs"
                 title="Upload Image (Max 10MB)"
               >
                 {isUploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -1315,9 +1391,16 @@ export const ChatRoom: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className={`p-2 rounded shrink-0 transition-colors ${
-                  isAdminRoom ? 'text-slate-300 hover:text-white hover:bg-slate-800' : isDarkMode ? 'text-zinc-300 hover:text-white hover:bg-zinc-800' : 'text-[#242423] hover:text-black hover:bg-gray-100'
-                }`}
+                style={{
+                  backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+                  color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+                  borderColor: isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.id === 'yellow'
+                    ? 'rgba(0,0,0,0.3)'
+                    : 'rgba(255,255,255,0.3)',
+                }}
+                className="p-2 rounded-lg border shrink-0 transition-colors shadow-2xs"
                 title="Add Emoji"
               >
                 <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1341,8 +1424,8 @@ export const ChatRoom: React.FC = () => {
               className={`flex-1 px-4 py-2.5 text-sm resize-none overflow-hidden leading-relaxed rounded-xl transition-colors duration-150 ${
                 isAdminRoom
                   ? 'bg-slate-900 border-2 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
-                  : isDarkMode
-                  ? 'bg-[#27272a] border-2 border-[#3f3f46] text-white placeholder-zinc-500 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
+                  : activeThemeConfig.id === 'black'
+                  ? 'bg-[#27272a] border-2 border-[#3f3f46] text-white placeholder-zinc-400 focus:border-[#ffc900]'
                   : 'bg-white border-2 border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
               }`}
               style={{ minHeight: '42px', maxHeight: '120px' }}
@@ -1352,12 +1435,19 @@ export const ChatRoom: React.FC = () => {
             <button
               type="submit"
               disabled={!text.trim() && !replyTo}
-              className={`p-2.5 sm:p-3 rounded-xl border-2 border-black font-extrabold flex items-center justify-center shrink-0 transition-all duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+              style={
                 text.trim() || replyTo
-                  ? 'bg-[#ffc900] text-black hover:scale-105 active:scale-95 cursor-pointer opacity-100'
-                  : isDarkMode
-                  ? 'bg-zinc-800 text-zinc-600 border-zinc-700 cursor-not-allowed opacity-50 shadow-none'
-                  : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-50 shadow-none'
+                  ? {
+                      backgroundColor: activeThemeConfig.btnBg || '#701a31',
+                      color: activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff',
+                      borderColor: activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff',
+                    }
+                  : undefined
+              }
+              className={`p-2.5 sm:p-3 rounded-xl border-2 font-extrabold flex items-center justify-center shrink-0 transition-all duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                text.trim() || replyTo
+                  ? 'hover:scale-105 active:scale-95 cursor-pointer opacity-100'
+                  : 'bg-black/20 text-white/50 border-transparent cursor-not-allowed opacity-50 shadow-none'
               }`}
               title="Send Message"
             >
@@ -1496,6 +1586,21 @@ export const ChatRoom: React.FC = () => {
           onClose={() => setShowBlockModal(false)}
         />
       )}
+
+      {/* Choose Your Theme Modal */}
+      <ThemeModal
+        isOpen={showThemeModal}
+        onClose={() => setShowThemeModal(false)}
+        currentTheme={chatTheme}
+        onApplyTheme={(themeId) => {
+          setChatTheme(themeId);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('capitalk_chat_theme_name', themeId);
+          }
+          roomManager.sendThemeSignal(themeId);
+        }}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };
