@@ -12,6 +12,7 @@ export const REACTION_KEYS: ReactionDefinition[] = [
   { key: 'like',  label: 'Like',  emoji: '👍' },
   { key: 'love',  label: 'Love',  emoji: '❤️' },
   { key: 'laugh', label: 'Haha',  emoji: '😆' },
+  { key: 'wow',   label: 'Wow',   emoji: '😮' },
   { key: 'sad',   label: 'Sad',   emoji: '😢' },
   { key: 'angry', label: 'Angry', emoji: '😡' },
 ];
@@ -47,7 +48,7 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
     <div
       ref={containerRef}
       className="inline-flex items-center bg-white border-2 border-black rounded-full shadow-2xl select-none relative z-50 filter-none"
-      style={{ boxShadow: '0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.9)', padding: '6px 10px', gap: '10px' }}
+      style={{ boxShadow: '0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.9)', padding: '5px 8px', gap: '6px' }}
       onClick={(e) => e.stopPropagation()}
     >
       {REACTION_KEYS.map((item) => (
@@ -61,9 +62,9 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
             onSelectReaction(item.key);
             if (onClose) onClose();
           }}
-          className="focus:outline-none active:scale-90 transition-transform"
+          className="focus:outline-none hover:scale-125 active:scale-90 transition-transform p-1 rounded-full hover:bg-black/5"
         >
-          <span className="text-2xl leading-none select-none">{item.emoji}</span>
+          <span className="text-xl sm:text-2xl leading-none select-none">{item.emoji}</span>
         </button>
       ))}
     </div>
