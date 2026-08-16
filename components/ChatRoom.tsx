@@ -220,7 +220,6 @@ export const ChatRoom: React.FC = () => {
   } = useChatStore();
 
   const [text, setText] = useState('');
-  const [showMobileExtras, setShowMobileExtras] = useState(false);
 
   // Dark Mode State with LocalStorage Persistence & Realtime Room Sync
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -408,21 +407,14 @@ export const ChatRoom: React.FC = () => {
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
-    const isDeleting = val.length < text.length;
     setText(val);
 
-    // Smooth auto-resize without layout shift or placeholder tweaking
+    // Butter-smooth auto-resize without layout shifts
     if (textareaRef.current) {
       const el = textareaRef.current;
-      if (!val) {
-        el.style.height = '42px';
-      } else {
-        if (isDeleting) {
-          el.style.height = '42px';
-        }
-        const targetH = Math.min(el.scrollHeight, 120);
-        el.style.height = `${Math.max(42, targetH)}px`;
-      }
+      el.style.height = 'auto';
+      const targetH = Math.min(el.scrollHeight, 130);
+      el.style.height = `${Math.max(40, targetH)}px`;
     }
 
     if (val.trim()) {
@@ -434,6 +426,21 @@ export const ChatRoom: React.FC = () => {
     } else {
       sendTypingSignal(false);
     }
+  };
+
+  const handleInsertEmoji = (emoji: string) => {
+    setText((prev) => {
+      const next = prev + emoji;
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          const targetH = Math.min(textareaRef.current.scrollHeight, 130);
+          textareaRef.current.style.height = `${Math.max(40, targetH)}px`;
+          textareaRef.current.focus();
+        }
+      }, 0);
+      return next;
+    });
   };
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -1194,23 +1201,40 @@ export const ChatRoom: React.FC = () => {
 
       {/* Reply Bar Overlay */}
       {replyTo && (
-        <div className={`border-x border-t p-2 text-xs font-medium flex items-center justify-between ${
-          isDarkMode ? 'bg-[#ffc900] text-black border-[#ffc900]' : 'bg-[#ffc900] border-black text-black'
-        }`}>
-          <div className="truncate">
-            Replying to <span className="font-bold">{replyTo.sender_username}</span>: "{replyTo.message}"
+        <div
+          style={{
+            backgroundColor: isDarkMode ? '#1e1e24' : '#fff9eb',
+            borderColor: activeThemeConfig.dotColor || '#ffc900',
+          }}
+          className="mx-2 sm:mx-4 mb-2 p-2.5 rounded-xl border-l-4 border-y border-r flex items-center justify-between gap-3 shadow-xs animate-in slide-in-from-bottom-2 duration-200 z-20"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <CornerUpLeft className="w-4 h-4 shrink-0 text-[#701a31] dark:text-[#ffc900]" />
+            <div className="text-xs truncate">
+              <span className="font-extrabold text-black dark:text-white">
+                Replying to {replyTo.sender_username}
+              </span>
+              <span className="text-gray-500 dark:text-zinc-400 ml-1.5 truncate">
+                "{replyTo.message}"
+              </span>
+            </div>
           </div>
-          <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-black/10 rounded">
-            <X className="w-3.5 h-3.5" />
+          <button
+            type="button"
+            onClick={() => setReplyTo(null)}
+            className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors shrink-0 text-gray-500 hover:text-black dark:hover:text-white"
+            title="Cancel reply"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* Upload Error Alert */}
       {uploadError && (
-        <div className="bg-[#dc341e] text-white p-2 text-xs font-semibold flex items-center justify-between">
+        <div className="bg-[#dc341e] text-white p-2.5 text-xs font-semibold flex items-center justify-between mx-2 sm:mx-4 mb-2 rounded-xl shadow-xs z-20">
           <span>⚠️ {uploadError}</span>
-          <button onClick={() => setUploadError(null)}>
+          <button onClick={() => setUploadError(null)} className="p-1 hover:bg-white/20 rounded-full">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -1224,7 +1248,7 @@ export const ChatRoom: React.FC = () => {
             borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
             color: isAdminRoom ? undefined : activeThemeConfig.headerText,
           }}
-          className={`p-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t ${
+          className={`p-3 sm:px-4 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
             isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
           }`}
         >
@@ -1238,8 +1262,17 @@ export const ChatRoom: React.FC = () => {
             ) : (
               <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
             )}
+            <span className="font-semibold text-xs sm:text-sm opacity-90">
+              {partnerLeftReason === 'inactivity'
+                ? 'Partner timed out due to inactivity.'
+                : partnerLeftReason === 'exited'
+                ? 'Partner exited the conversation.'
+                : partnerLeftReason === 'skipped'
+                ? 'Partner skipped to next chat.'
+                : 'Partner disconnected.'}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={leaveRoom}
@@ -1247,14 +1280,14 @@ export const ChatRoom: React.FC = () => {
                 backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
                 color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
               }}
-              className="btn-gumroad-ghost text-xs px-4 py-2 border border-black/20"
+              className="btn-gumroad-ghost text-xs px-4 py-2 border border-black/20 flex-1 sm:flex-initial text-center justify-center"
             >
               <span>Stay Here</span>
             </button>
             <button
               type="button"
               onClick={nextMatch}
-              className="btn-gumroad-primary text-xs px-4 py-2"
+              className="btn-gumroad-primary text-xs px-4 py-2 flex-1 sm:flex-initial justify-center"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Find Next Chat</span>
@@ -1268,27 +1301,39 @@ export const ChatRoom: React.FC = () => {
             borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
             color: isAdminRoom ? undefined : activeThemeConfig.headerText,
           }}
-          className={`p-2 sm:p-2.5 relative shrink-0 z-20 transition-all duration-300 border-t ${
+          className={`p-2 sm:p-3 relative shrink-0 z-20 transition-all duration-300 border-t pb-[max(0.6rem,env(safe-area-inset-bottom))] ${
             isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
           }`}
         >
-          {/* Emoji Picker Dropdown */}
+          {/* Emoji Picker Popover */}
           {showEmojiPicker && (
-            <div className={`absolute bottom-16 left-3 p-3 rounded-full flex items-center gap-2 flex-wrap shadow-lg z-30 ${
-              isAdminRoom ? 'bg-slate-900 border-2 border-slate-700 text-white' : isDarkMode ? 'bg-[#27272a] border-2 border-[#3f3f46] text-white' : 'bg-white border-2 border-black text-black'
-            }`}>
+            <div
+              className={`absolute bottom-full left-2 sm:left-4 mb-2 p-2 rounded-2xl flex items-center gap-1.5 flex-wrap max-w-[320px] sm:max-w-md shadow-xl z-30 border-2 animate-in slide-in-from-bottom-2 duration-150 backdrop-blur-md ${
+                isAdminRoom
+                  ? 'bg-slate-900/95 border-slate-700 text-white'
+                  : isDarkMode
+                  ? 'bg-[#1e1e24]/95 border-[#3f3f46] text-white'
+                  : 'bg-white/95 border-black text-black'
+              }`}
+            >
               {EMOJI_PRESETS.map((emoji) => (
                 <button
                   key={emoji}
-                  onClick={() => {
-                    setText((prev) => prev + emoji);
-                    setShowEmojiPicker(false);
-                  }}
-                  className="text-lg hover:scale-125 transition-transform p-1"
+                  type="button"
+                  onClick={() => handleInsertEmoji(emoji)}
+                  className="text-xl sm:text-2xl hover:scale-125 active:scale-95 transition-transform p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 leading-none"
                 >
                   {emoji}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(false)}
+                className="p-1.5 ml-auto text-gray-400 hover:text-black dark:hover:text-white rounded-lg transition-colors"
+                title="Close picker"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           )}
 
@@ -1301,73 +1346,9 @@ export const ChatRoom: React.FC = () => {
             className="hidden"
           />
 
-          <form onSubmit={handleSend} className="flex items-end rounded-full gap-2">
-            {/* Mobile: toggle button to show/hide extra actions */}
-            <button
-              type="button"
-              onClick={() => setShowMobileExtras((v) => !v)}
-              style={{
-                backgroundColor: showMobileExtras
-                  ? '#000000'
-                  : isAdminRoom
-                  ? undefined
-                  : activeThemeConfig.headerButtonBg,
-                color: showMobileExtras
-                  ? '#ffffff'
-                  : isAdminRoom
-                  ? undefined
-                  : activeThemeConfig.headerButtonText,
-                borderColor: isAdminRoom
-                  ? undefined
-                  : activeThemeConfig.id === 'yellow'
-                  ? 'rgba(0,0,0,0.3)'
-                  : 'rgba(255,255,255,0.3)',
-              }}
-              className={`sm:hidden p-2 rounded-lg border transition-all duration-200 shrink-0 shadow-2xs ${
-                showMobileExtras ? 'rotate-45' : ''
-              }`}
-              title="More options"
-            >
-              <span className="text-xl leading-none font-bold">+</span>
-            </button>
-
-            {/* Extra action buttons — always visible on desktop (sm+), hidden on mobile unless toggled */}
-            <div className={`flex items-center gap-1 sm:gap-2 shrink-0 overflow-hidden transition-all duration-200 ${
-              showMobileExtras ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 sm:max-w-none sm:opacity-100'
-            }`}>
-              {/* Exit / Leave Chat Button */}
-              <button
-                type="button"
-                onClick={handleExitClick}
-                style={{
-                  backgroundColor: confirmExit
-                    ? '#dc2626'
-                    : isAdminRoom
-                    ? undefined
-                    : activeThemeConfig.headerButtonBg,
-                  color: confirmExit
-                    ? '#ffffff'
-                    : isAdminRoom
-                    ? undefined
-                    : activeThemeConfig.headerButtonText,
-                  borderColor: confirmExit
-                    ? '#b91c1c'
-                    : isAdminRoom
-                    ? undefined
-                    : activeThemeConfig.id === 'yellow'
-                    ? 'rgba(0,0,0,0.3)'
-                    : 'rgba(255,255,255,0.3)',
-                }}
-                className="p-2 rounded-lg border flex items-center gap-1 transition-all shrink-0 shadow-2xs"
-                title={confirmExit ? 'Click again to confirm exit' : 'Exit Chat'}
-              >
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className={`text-xs font-bold ${confirmExit ? 'inline' : 'hidden md:inline'}`}>
-                  {confirmExit ? 'Sure?' : 'Exit'}
-                </span>
-              </button>
-
-              {/* File Upload Button */}
+          <form onSubmit={handleSend} className="flex items-end gap-1.5 sm:gap-2 max-w-4xl mx-auto w-full">
+            {/* Left Action Buttons (Upload Image + Emoji) */}
+            <div className="flex items-center gap-1 shrink-0 mb-0.5">
               <button
                 type="button"
                 disabled={isUploading}
@@ -1381,57 +1362,65 @@ export const ChatRoom: React.FC = () => {
                     ? 'rgba(0,0,0,0.3)'
                     : 'rgba(255,255,255,0.3)',
                 }}
-                className="p-2 rounded-lg border shrink-0 transition-colors shadow-2xs"
+                className="w-10 h-10 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-90 shadow-2xs shrink-0 disabled:opacity-50"
                 title="Upload Image (Max 10MB)"
               >
-                {isUploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
 
-              {/* Emoji Picker Toggle */}
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 style={{
-                  backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
-                  color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+                  backgroundColor: showEmojiPicker
+                    ? (activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff')
+                    : isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.headerButtonBg,
+                  color: showEmojiPicker
+                    ? (activeThemeConfig.id === 'yellow' ? '#ffffff' : '#000000')
+                    : isAdminRoom
+                    ? undefined
+                    : activeThemeConfig.headerButtonText,
                   borderColor: isAdminRoom
                     ? undefined
                     : activeThemeConfig.id === 'yellow'
                     ? 'rgba(0,0,0,0.3)'
                     : 'rgba(255,255,255,0.3)',
                 }}
-                className="p-2 rounded-lg border shrink-0 transition-colors shadow-2xs"
+                className="w-10 h-10 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-90 shadow-2xs shrink-0"
                 title="Add Emoji"
               >
                 <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
 
-            {/* Input field */}
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={handleTextChange}
-              onFocus={() => setShowMobileExtras(false)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Type a message here..."
-              rows={1}
-              className={`flex-1 px-4 py-2.5 text-sm resize-none overflow-hidden leading-relaxed rounded-xl transition-colors duration-150 ${
-                isAdminRoom
-                  ? 'bg-slate-900 border-2 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900] focus:ring-1 focus:ring-[#ffc900]'
-                  : activeThemeConfig.id === 'black'
-                  ? 'bg-[#27272a] border-2 border-[#3f3f46] text-white placeholder-zinc-400 focus:border-[#ffc900]'
-                  : 'bg-white border-2 border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
-              }`}
-              style={{ minHeight: '42px', maxHeight: '120px' }}
-            />
+            {/* Center Textarea Pill Capsule */}
+            <div className="flex-1 min-w-0 relative flex items-center">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleTextChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Type a message..."
+                rows={1}
+                className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 text-[16px] sm:text-sm leading-relaxed rounded-2xl border-2 transition-colors duration-150 resize-none overflow-y-auto focus:outline-none ${
+                  isAdminRoom
+                    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900]'
+                    : activeThemeConfig.id === 'black'
+                    ? 'bg-[#27272a] border-[#3f3f46] text-white placeholder-zinc-400 focus:border-[#ffc900]'
+                    : 'bg-white border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
+                }`}
+                style={{ minHeight: '40px', maxHeight: '130px' }}
+              />
+            </div>
 
-            {/* Standalone Unwrapped Send Button */}
+            {/* Right Send Button */}
             <button
               type="submit"
               disabled={!text.trim() && !replyTo}
@@ -1444,14 +1433,14 @@ export const ChatRoom: React.FC = () => {
                     }
                   : undefined
               }
-              className={`p-2.5 sm:p-3 rounded-xl border-2 font-extrabold flex items-center justify-center shrink-0 transition-all duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 font-black flex items-center justify-center shrink-0 transition-all duration-200 mb-0.5 ${
                 text.trim() || replyTo
-                  ? 'hover:scale-105 active:scale-95 cursor-pointer opacity-100'
-                  : 'bg-black/20 text-white/50 border-transparent cursor-not-allowed opacity-50 shadow-none'
+                  ? 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-90 cursor-pointer opacity-100'
+                  : 'bg-black/20 text-white/40 border-transparent cursor-not-allowed opacity-40 shadow-none'
               }`}
               title="Send Message"
             >
-              <Send className="w-4 h-4 sm:w-4 sm:h-4 stroke-[2.5]" />
+              <Send className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
             </button>
           </form>
         </div>
