@@ -144,14 +144,8 @@ export const PrivacyPolicy: React.FC = () => {
         {/* PROMINENT INSTITUTIONAL NON-AFFILIATION DISCLAIMER */}
         <div className="p-5 sm:p-8 bg-[#fff8e6] border-3 border-black rounded-3xl shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-left relative overflow-hidden">
           <div className="flex items-start gap-4 sm:gap-5">
-            <div className="p-3 bg-[#ffc900] border-2 border-black rounded-2xl text-black shrink-0 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
-            </div>
 
             <div className="min-w-0 flex-1">
-              <div className="inline-block px-3 py-0.5 bg-black text-white text-[10px] sm:text-[11px] font-black rounded uppercase tracking-wider mb-2">
-                Official Institutional Notice
-              </div>
               <h2 className="text-base sm:text-xl font-black text-black tracking-tight mb-2">
                 Capitol University (CU) Non-Affiliation Disclaimer
               </h2>
@@ -175,7 +169,6 @@ export const PrivacyPolicy: React.FC = () => {
                   rel="noopener noreferrer"
                   className="btn-gumroad-primary text-xs px-4 py-2 bg-[#1877f2] hover:bg-[#166fe5] text-white flex items-center justify-center gap-2 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0 self-start sm:self-center"
                 >
-                  <FacebookIcon className="w-3.5 h-3.5 fill-white" />
                   <span>@CapiTalk on Facebook</span>
                   <ExternalLink className="w-3 h-3 ml-0.5" />
                 </a>
