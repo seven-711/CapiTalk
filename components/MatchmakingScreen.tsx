@@ -414,7 +414,7 @@ export const MatchmakingScreen: React.FC = () => {
       {/* 35s Queue Timeout Modal */}
       {showQueueTimeoutModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white border-4 border-black p-4 sm:p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white border-4 border-black p-5 sm:p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200 box-border overflow-hidden">
             <div className="w-12 h-12 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto mb-3 text-xl shadow-xs">
               ⏱️
             </div>
@@ -425,14 +425,14 @@ export const MatchmakingScreen: React.FC = () => {
               You've been in the queue for 35 seconds. No active student match was found right now. Would you like to rejoin the queue or return to the main dashboard?
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="flex flex-col gap-2 w-full">
               <button
                 type="button"
                 onClick={() => {
                   setShowQueueTimeoutModal(false);
                   startSearch();
                 }}
-                className="btn-gumroad-primary w-full py-2 sm:py-2.5 text-xs justify-center"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#701a31] hover:bg-[#4d0d1f] text-white border-2 border-black font-extrabold text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all text-center flex items-center justify-center gap-1.5"
               >
                 <span>Rejoin Queue</span>
               </button>
@@ -442,7 +442,7 @@ export const MatchmakingScreen: React.FC = () => {
                   setShowQueueTimeoutModal(false);
                   setViewState('queue');
                 }}
-                className="btn-gumroad-ghost w-full py-2 sm:py-2.5 text-xs justify-center"
+                className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-gray-50 text-black border-2 border-black font-bold text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all text-center flex items-center justify-center"
               >
                 <span>Return to Dashboard</span>
               </button>

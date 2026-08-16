@@ -43,7 +43,6 @@ interface SwipeableMessageRowProps {
   msg: ChatMessage;
   isMe: boolean;
   onReply: (msg: ChatMessage) => void;
-  onLongPress: (msgId: string) => void;
   children: React.ReactNode;
 }
 
@@ -51,14 +50,12 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   msg,
   isMe,
   onReply,
-  onLongPress,
   children,
 }) => {
   const [dragOffset, setDragOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const isHorizontalSwipeRef = useRef<boolean | null>(null);
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasVibratedRef = useRef(false);
 
   const SWIPE_THRESHOLD = 35;
@@ -67,16 +64,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
     touchStartRef.current = { x: clientX, y: clientY };
     isHorizontalSwipeRef.current = null;
     hasVibratedRef.current = false;
-
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = setTimeout(() => {
-      if (!isHorizontalSwipeRef.current) {
-        onLongPress(msg.id);
-        if (typeof window !== 'undefined' && window.navigator?.vibrate) {
-          window.navigator.vibrate(40);
-        }
-      }
-    }, 380);
   };
 
   const handleMove = (clientX: number, clientY: number) => {
@@ -86,12 +73,8 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
     const deltaY = clientY - touchStartRef.current.y;
 
     if (isHorizontalSwipeRef.current === null) {
-      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
-        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
-        if (isHorizontalSwipeRef.current && longPressTimerRef.current) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
+      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.3;
       }
     }
 
@@ -123,11 +106,6 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   };
 
   const handleEnd = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-
     if (dragOffset >= SWIPE_THRESHOLD) {
       onReply(msg);
     }
@@ -484,19 +462,44 @@ export const ChatRoom: React.FC = () => {
   };
 
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const handleTouchStart = (msgId: string) => {
+  const handleBubbleTouchStart = (msgId: string, e: React.TouchEvent) => {
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
     longPressTimerRef.current = setTimeout(() => {
       setActivePickerMsgId(msgId);
-    }, 380);
+      touchStartPosRef.current = null;
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        window.navigator.vibrate(40);
+      }
+    }, 420);
   };
 
-  const handleTouchEnd = () => {
+  const handleBubbleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+
+    // Cancel long press immediately if finger moves more than 4px (e.g. scrolling, backreading)
+    if (dx > 4 || dy > 4) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      touchStartPosRef.current = null;
+    }
+  };
+
+  const handleBubbleTouchEnd = () => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    touchStartPosRef.current = null;
   };
 
   // Image Preview & Caption state
@@ -678,6 +681,15 @@ export const ChatRoom: React.FC = () => {
         </div>
       )}
 
+      {/* Blurry Backdrop Overlay across whole chatroom (including header & text area) when reacting */}
+      {activePickerMsgId && (
+        <div
+          onClick={() => setActivePickerMsgId(null)}
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-xs transition-all duration-200 cursor-pointer animate-in fade-in"
+          title="Click anywhere to close reaction picker"
+        />
+      )}
+
       {/* Top Header Bar */}
       <div
         style={{
@@ -687,7 +699,7 @@ export const ChatRoom: React.FC = () => {
         }}
         className={`px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20 transition-all duration-300 border-b ${
           isAdminRoom ? 'bg-slate-950/80 border-slate-800/80 text-white backdrop-blur-md' : ''
-        }`}
+        } ${activePickerMsgId ? 'filter blur-[3px] opacity-40 pointer-events-none' : ''}`}
       >
         {/* Partner Info */}
         <div className="flex items-center gap-2.5">
@@ -886,7 +898,7 @@ export const ChatRoom: React.FC = () => {
         style={{
           backgroundColor: isAdminRoom ? undefined : activeThemeConfig.chatFeedBg || '#fbf9f5',
         }}
-        className={`relative z-10 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain transition-colors duration-300 ${
+        className={`relative z-30 flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain transition-colors duration-300 ${
           isAdminRoom ? 'bg-transparent text-white' : ''
         }`}
       >
@@ -904,7 +916,7 @@ export const ChatRoom: React.FC = () => {
               return (
                 <div key={msg.id} className={`my-3 p-3.5 border-2 rounded-2xl shadow-sm animate-in fade-in zoom-in-95 duration-200 ${
                   isDarkMode ? 'bg-red-950/40 border-red-700 text-white' : 'bg-[#dc341e]/10 border-[#dc341e] text-black'
-                }`}>
+                } ${activePickerMsgId ? 'filter blur-[3px] opacity-30 pointer-events-none' : ''}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-[#dc341e] text-white text-[10px] font-extrabold rounded uppercase tracking-wider">
                       ⚠️ Profanity Warning
@@ -920,7 +932,9 @@ export const ChatRoom: React.FC = () => {
 
             if (msg.message?.includes('Account Suspended')) {
               return (
-                <div key={msg.id} className="my-3 p-4 bg-red-600 text-white border-2 border-black rounded-2xl shadow-lg animate-in fade-in duration-300">
+                <div key={msg.id} className={`my-3 p-4 bg-red-600 text-white border-2 border-black rounded-2xl shadow-lg animate-in fade-in duration-300 ${
+                  activePickerMsgId ? 'filter blur-[3px] opacity-30 pointer-events-none' : ''
+                }`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-black text-white text-[10px] font-extrabold rounded uppercase tracking-wider">
                       ⛔ Account Banned
@@ -932,7 +946,7 @@ export const ChatRoom: React.FC = () => {
             }
 
             return (
-              <div key={msg.id} className="text-center my-4">
+              <div key={msg.id} className={`text-center my-4 ${activePickerMsgId ? 'filter blur-[3px] opacity-30 pointer-events-none' : ''}`}>
                 <span className={`inline-block border text-xs font-semibold px-4 py-1.5 rounded-full ${
                   isDarkMode ? 'bg-[#27272a] border-[#3f3f46] text-zinc-200' : 'bg-white border-[#d1d5dc] text-black'
                 }`}>
@@ -942,10 +956,18 @@ export const ChatRoom: React.FC = () => {
             );
           }
 
+          const isActivePicker = activePickerMsgId === msg.id;
+
           return (
             <div
               key={msg.id}
-              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
+              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group transition-all duration-200 ${
+                isActivePicker
+                  ? 'relative z-50 filter-none opacity-100 scale-[1.02]'
+                  : activePickerMsgId
+                  ? 'filter blur-[3px] opacity-30 pointer-events-none'
+                  : ''
+              }`}
             >
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-[11px] font-bold ${isDarkMode ? 'text-zinc-300' : 'text-[#242423]'}`}>
@@ -965,9 +987,9 @@ export const ChatRoom: React.FC = () => {
                 </div>
               )}
 
-              {/* iOS-style Floating Reaction Picker — above blur layer (z-40) */}
-              {activePickerMsgId === msg.id && (
-                <div className="mb-2 relative z-40 animate-in fade-in slide-in-from-bottom-3 zoom-in-90 duration-200">
+              {/* iOS-style Floating Reaction Picker — 100% EXCLUDED FROM BLUR, ELEVATED (z-50) */}
+              {isActivePicker && (
+                <div className="mb-2 relative z-50 filter-none opacity-100 animate-in fade-in slide-in-from-bottom-3 zoom-in-95 duration-200 drop-shadow-2xl">
                   <AnimatedReactionPicker
                     onSelectReaction={(key) => {
                       toggleReaction(msg.id, key);
@@ -983,11 +1005,18 @@ export const ChatRoom: React.FC = () => {
                 msg={msg}
                 isMe={isMe}
                 onReply={(m) => setReplyTo(m)}
-                onLongPress={(mId) => setActivePickerMsgId(mId)}
               >
                 <div className={`flex items-center gap-1.5 w-fit max-w-[85%] sm:max-w-[75%] ${isMe ? 'flex-row-reverse ml-auto' : 'flex-row mr-auto'}`}>
-                  {/* Main Message Content */}
+                  {/* Main Message Content — Long Press specifically on bubble */}
                   <div
+                    onTouchStart={(e) => handleBubbleTouchStart(msg.id, e)}
+                    onTouchMove={handleBubbleTouchMove}
+                    onTouchEnd={handleBubbleTouchEnd}
+                    onTouchCancel={handleBubbleTouchEnd}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setActivePickerMsgId(msg.id);
+                    }}
                     style={
                       isMe && !msg.is_profane
                         ? {
@@ -998,6 +1027,8 @@ export const ChatRoom: React.FC = () => {
                         : undefined
                     }
                     className={`p-3 sm:p-3.5 rounded-[16px] border text-sm relative cursor-pointer w-fit max-w-full min-w-0 ${
+                      isActivePicker ? 'filter-none opacity-100 shadow-2xl ring-2 ring-black/20' : ''
+                    } ${
                       isMe
                         ? msg.is_profane
                           ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
@@ -1250,12 +1281,12 @@ export const ChatRoom: React.FC = () => {
           }}
           className={`p-3 sm:px-4 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
             isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
-          }`}
+          } ${activePickerMsgId ? 'filter blur-[3px] opacity-40 pointer-events-none' : ''}`}
         >
           <div className="flex items-center gap-2 text-sm">
             {partnerLeftReason === 'inactivity' ? (
               <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
-            ) : partnerLeftReason === 'exited' ? (
+            ) : partnerLeftReason === 'exited' || partnerLeftReason === 'left' ? (
               <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
             ) : partnerLeftReason === 'skipped' ? (
               <FastForward className="w-4 h-4 text-purple-500 shrink-0" />
@@ -1265,7 +1296,7 @@ export const ChatRoom: React.FC = () => {
             <span className="font-semibold text-xs sm:text-sm opacity-90">
               {partnerLeftReason === 'inactivity'
                 ? 'Partner timed out due to inactivity.'
-                : partnerLeftReason === 'exited'
+                : partnerLeftReason === 'exited' || partnerLeftReason === 'left'
                 ? 'Partner exited the conversation.'
                 : partnerLeftReason === 'skipped'
                 ? 'Partner skipped to next chat.'
@@ -1303,7 +1334,7 @@ export const ChatRoom: React.FC = () => {
           }}
           className={`p-2 sm:p-3 relative shrink-0 z-20 transition-all duration-300 border-t pb-[max(0.6rem,env(safe-area-inset-bottom))] ${
             isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
-          }`}
+          } ${activePickerMsgId ? 'filter blur-[3px] opacity-40 pointer-events-none' : ''}`}
         >
           {/* Emoji Picker Popover */}
           {showEmojiPicker && (

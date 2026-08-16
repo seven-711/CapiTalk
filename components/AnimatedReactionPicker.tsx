@@ -46,8 +46,8 @@ export const AnimatedReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect
   return (
     <div
       ref={containerRef}
-      className="inline-flex items-center bg-white/95 backdrop-blur-xl border border-black/10 rounded-full shadow-xl select-none"
-      style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.9)', padding: '6px 10px', gap: '10px' }}
+      className="inline-flex items-center bg-white border-2 border-black rounded-full shadow-2xl select-none relative z-50 filter-none"
+      style={{ boxShadow: '0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.9)', padding: '6px 10px', gap: '10px' }}
       onClick={(e) => e.stopPropagation()}
     >
       {REACTION_KEYS.map((item) => (
