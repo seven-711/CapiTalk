@@ -1245,17 +1245,6 @@ export const ChatRoom: React.FC = () => {
           }}
           className="mx-2 sm:mx-4 mb-2 p-2.5 rounded-xl border-l-4 border-y border-r flex items-center justify-between gap-3 shadow-xs animate-in slide-in-from-bottom-2 duration-200 z-20"
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <CornerUpLeft className="w-4 h-4 shrink-0 text-[#701a31] dark:text-[#ffc900]" />
-            <div className="text-xs truncate">
-              <span className="font-extrabold text-black dark:text-white">
-                Replying to {replyTo.sender_username}
-              </span>
-              <span className="text-gray-500 dark:text-zinc-400 ml-1.5 truncate">
-                "{replyTo.message}"
-              </span>
-            </div>
-          </div>
           <button
             type="button"
             onClick={() => setReplyTo(null)}

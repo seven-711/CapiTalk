@@ -185,7 +185,9 @@ export const RAW_WYR_QUESTIONS: WYRQuestion[] = [
   }
 ];
 
-// Deterministic pair-specific shuffle so both chatting users mirror the exact same random order
+export const QUESTIONS_PER_ROUND = 7;
+
+// Deterministic pair-specific shuffle that rotates 7 unique questions from the 20-question deck
 export function getShuffledQuestionsForPair(userId1: string, userId2: string): WYRQuestion[] {
   const seedString = [userId1 || 'u1', userId2 || 'u2'].sort().join(':');
   let hash = 0;
@@ -207,7 +209,7 @@ export function getShuffledQuestionsForPair(userId1: string, userId2: string): W
     const j = Math.floor(random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return copy;
+  return copy.slice(0, QUESTIONS_PER_ROUND);
 }
 
 export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
@@ -238,7 +240,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [tttWinner, setTttWinner] = useState<number | 'draw' | null>(null);
   const [tttScores, setTttScores] = useState({ p1: 0, p2: 0 });
 
-  // ─── WOULD YOU RATHER STATE (Randomized & Mirrored Per Pair) ───────────────
+  // ─── WOULD YOU RATHER STATE (7 Questions per match) ────────────────────────
   const [wyrQuestions, setWyrQuestions] = useState<WYRQuestion[]>(() =>
     getShuffledQuestionsForPair(currentUser.id, partner.id)
   );
@@ -255,6 +257,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [wyrAutoSkipNotice, setWyrAutoSkipNotice] = useState(false);
   const wyrTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wyrAutoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastEvaluatedQRef = useRef<number>(-1);
 
   // ─── ROCK PAPER SCISSORS STATE ──────────────────────────────────────────────
   const [rpsMyChoice, setRpsMyChoice] = useState<'rock' | 'paper' | 'scissors' | null>(null);
@@ -284,6 +287,15 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setRpsMyChoice(null);
     setRpsPartnerChoice(null);
     setRpsResult(null);
+
+    // Fresh Would You Rather state
+    setWyrIndex(0);
+    setWyrMyChoice(null);
+    setWyrPartnerChoice(null);
+    setWyrTimerSeconds(10);
+    setWyrStats({ matches: 0, totalAnswered: 0 });
+    setWyrAutoSkipNotice(false);
+    lastEvaluatedQRef.current = -1;
 
     // Return to game selection menu for fresh next match
     setActiveGame('menu');
@@ -394,6 +406,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           setWyrPartnerChoice(null);
           setWyrTimerSeconds(10);
           setWyrAutoSkipNotice(false);
+          lastEvaluatedQRef.current = -1;
           if (data.stats) setWyrStats(data.stats);
           break;
 
@@ -427,21 +440,35 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     if (wyrMyChoice && wyrPartnerChoice) {
       if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
 
-      // Check if both matched
-      const isMatch = wyrMyChoice === wyrPartnerChoice;
+      if (lastEvaluatedQRef.current !== wyrIndex) {
+        lastEvaluatedQRef.current = wyrIndex;
+        const isMatch = wyrMyChoice === wyrPartnerChoice;
 
-      if (isHost) {
-        const nextStats = {
-          matches: wyrStats.matches + (isMatch ? 1 : 0),
-          totalAnswered: wyrStats.totalAnswered + 1,
-        };
-        setWyrStats(nextStats);
+        setWyrStats((prev) => {
+          const nextStats = {
+            matches: prev.matches + (isMatch ? 1 : 0),
+            totalAnswered: prev.totalAnswered + 1,
+          };
 
-        // Auto-advance after 3.5s
-        if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
-        wyrAutoAdvanceTimerRef.current = setTimeout(() => {
-          advanceWyrQuestion(nextStats);
-        }, 3500);
+          if (isHost) {
+            if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
+            wyrAutoAdvanceTimerRef.current = setTimeout(() => {
+              if (wyrIndex + 1 >= QUESTIONS_PER_ROUND) {
+                // All 7 questions complete! Conclude match and crown synergy score
+                const finalSynergy = Math.round((nextStats.matches / QUESTIONS_PER_ROUND) * 100);
+                triggerVictory(
+                  myPlayerId,
+                  `Would You Rather (${finalSynergy}% Synergy • ${nextStats.matches}/${QUESTIONS_PER_ROUND} Matches)`
+                );
+              } else {
+                // Continue to next question even if there's a disagreement
+                advanceWyrQuestion(nextStats);
+              }
+            }, 2500);
+          }
+
+          return nextStats;
+        });
       }
       return;
     }
@@ -454,11 +481,22 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
           setWyrAutoSkipNotice(true);
 
-          // Auto-skip question when 10 seconds expire
-          if (isHost) {
+          if (isHost && lastEvaluatedQRef.current !== wyrIndex) {
+            lastEvaluatedQRef.current = wyrIndex;
             if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
             wyrAutoAdvanceTimerRef.current = setTimeout(() => {
-              advanceWyrQuestion(wyrStats);
+              setWyrStats((prev) => {
+                if (wyrIndex + 1 >= QUESTIONS_PER_ROUND) {
+                  const finalSynergy = prev.totalAnswered > 0 ? Math.round((prev.matches / prev.totalAnswered) * 100) : 0;
+                  triggerVictory(
+                    myPlayerId,
+                    `Would You Rather (${finalSynergy}% Synergy • ${prev.matches}/${QUESTIONS_PER_ROUND} Matches)`
+                  );
+                } else {
+                  advanceWyrQuestion(prev);
+                }
+                return prev;
+              });
             }, 1500);
           }
           return 0;
@@ -471,15 +509,16 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
       if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
       if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
     };
-  }, [activeGame, wyrIndex, wyrMyChoice, wyrPartnerChoice, isHost, wyrStats]);
+  }, [activeGame, wyrIndex, wyrMyChoice, wyrPartnerChoice, isHost, myPlayerId]);
 
-  const advanceWyrQuestion = (statsToBroadcast = wyrStats) => {
-    const nextIdx = (wyrIndex + 1) % wyrQuestions.length;
+  const advanceWyrQuestion = (statsToBroadcast?: { matches: number; totalAnswered: number }) => {
+    const nextIdx = (wyrIndex + 1) % QUESTIONS_PER_ROUND;
     setWyrIndex(nextIdx);
     setWyrMyChoice(null);
     setWyrPartnerChoice(null);
     setWyrTimerSeconds(10);
     setWyrAutoSkipNotice(false);
+    lastEvaluatedQRef.current = -1;
 
     roomManager.sendGameSignal({
       action: 'WYR_NEXT_QUESTION',
@@ -687,10 +726,10 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-black tracking-tight leading-tight">
-                Campus Games &amp; Icebreakers
+                Games &amp; Icebreakers
               </h3>
               <p className="text-[10px] font-bold opacity-85">
-                Live 2-Player Sync with {partner.username}
+                Playing with {partner.username}
               </p>
             </div>
           </div>
@@ -725,11 +764,8 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           {activeGame === 'menu' && (
             <div className="w-full space-y-4 max-w-lg mx-auto py-2">
               <div className="text-center space-y-1">
-                <span className="px-3 py-1 bg-[#00e599] text-black font-extrabold text-xs rounded-full border border-black uppercase tracking-wider inline-block">
-                  ✨ Instant Match Games
-                </span>
                 <h4 className="text-lg sm:text-xl font-black">Choose a Game to Play Together</h4>
-                <p className="text-xs text-[#242423] font-medium">
+                <p className="text-xs text-[#fffff] font-medium">
                   Both of you will be synced in realtime automatically!
                 </p>
               </div>
