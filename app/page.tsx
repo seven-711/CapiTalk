@@ -25,6 +25,11 @@ import {
   X,
   Radio,
   ExternalLink,
+  Music,
+  MapPin,
+  Compass,
+  Heart,
+  MessageCircle,
 } from 'lucide-react';
 
 const FacebookIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
@@ -50,6 +55,8 @@ export default function Home() {
     clearToast,
     systemAnnouncement,
     dismissAnnouncement,
+    freedomPosts,
+    mapPins,
   } = useChatStore();
 
   React.useEffect(() => {
@@ -144,59 +151,109 @@ export default function Home() {
                 <CoinMascot size={54} tiltAngle={-8} symbol="CU" />
               </div>
 
-              <div className="text-center max-w-3xl mx-auto relative z-10">
+              <div className="text-center max-w-4xl mx-auto relative z-10">
                 {/* School Tagline Pill */}
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border-2 border-black rounded-full text-xs font-extrabold text-black mb-6 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border-2 border-black rounded-full text-xs font-extrabold text-black mb-4 sm:mb-6 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#c41e3a] animate-pulse" />
-                  <span>Campus-Wide Student Chat</span>
+                  <span>Capitol University Student Hub</span>
                 </div>
 
                 {/* Oversized Display Headline */}
-                <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.02] text-black">
+                <h1 className="text-3xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.05] text-black">
                   Connect Beyond Your Department.
                 </h1>
 
                 {/* Subtitle */}
-                <p className="mt-6 text-lg sm:text-xl text-[#242423] max-w-2xl mx-auto font-normal leading-relaxed">
-                  The anonymous, real-time campus chat built for students. Meet new friends from Computer Studies, Nursing, Engineering, and more.
+                <p className="mt-4 sm:mt-6 text-base sm:text-xl text-[#242423] max-w-2xl mx-auto font-normal leading-relaxed">
+                  The anonymous, real-time campus platform built for CU students. Chat, share confessions on the Freedom Wall, dedicate songs, or drop memories on the campus map.
                 </p>
 
+                {/* Mobile & Desktop Quick Feature Jump Bar */}
+                <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 max-w-2xl mx-auto w-full">
+                  <button
+                    type="button"
+                    onClick={() => setViewState(currentUser ? 'queue' : 'register')}
+                    className="p-3 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#701a31] text-white flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
+                      <MessageSquare className="w-4 h-4 stroke-[2.5]" />
+                    </div>
+                    <span className="text-xs font-black text-black leading-tight">1-on-1 Chat</span>
+                    <span className="text-[10px] text-gray-600 font-bold">Live Match</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewState('freedom_wall')}
+                    className="p-3 bg-white hover:bg-[#fff1f3] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#ffc900] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
+                      <Radio className="w-4 h-4 stroke-[2.5]" />
+                    </div>
+                    <span className="text-xs font-black text-black leading-tight">Freedom Wall</span>
+                    <span className="text-[10px] text-gray-600 font-bold">{freedomPosts.length > 0 ? `${freedomPosts.length} Posts` : 'Confessions'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewState('music_wall')}
+                    className="p-3 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#ff90e8] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
+                      <Music className="w-4 h-4 stroke-[2.5]" />
+                    </div>
+                    <span className="text-xs font-black text-black leading-tight">Music Wall</span>
+                    <span className="text-[10px] text-gray-600 font-bold">Dedications</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewState('campus_map')}
+                    className="p-3 bg-white hover:bg-[#e2f9eb] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#00e599] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
+                      <MapPin className="w-4 h-4 stroke-[2.5]" />
+                    </div>
+                    <span className="text-xs font-black text-black leading-tight">Silip Map</span>
+                    <span className="text-[10px] text-gray-600 font-bold">{mapPins.length > 0 ? `${mapPins.length} Pins` : 'CU Pins'}</span>
+                  </button>
+                </div>
+
                 {/* Main CTA Controls */}
-                <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
                   {currentUser ? (
                     <button
                       onClick={() => setViewState('queue')}
-                      className="btn-gumroad-primary text-lg px-8 py-4 w-full sm:w-auto shadow-lg"
+                      className="btn-gumroad-primary text-base sm:text-lg px-8 py-3.5 sm:py-4 w-full sm:w-auto shadow-lg flex items-center justify-center gap-2"
                     >
                       <span>Start Chatting Now</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => setViewState('register')}
-                      className="btn-gumroad-primary text-lg px-8 py-4 w-full sm:w-auto shadow-lg"
+                      className="btn-gumroad-primary text-base sm:text-lg px-8 py-3.5 sm:py-4 w-full sm:w-auto shadow-lg flex items-center justify-center gap-2"
                     >
                       <span>Join CapiTalk — It's Free</span>
                     </button>
                   )}
 
                   <a
-                    href="#features"
-                    className="btn-gumroad-ghost text-base px-6 py-4 w-full sm:w-auto"
+                    href="#campus-features"
+                    className="btn-gumroad-ghost text-sm sm:text-base px-6 py-3.5 sm:py-4 w-full sm:w-auto flex items-center justify-center gap-1.5"
                   >
-                    <span>Explore Features</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
+                    <span>View All Features</span>
                   </a>
                 </div>
 
                 {/* Micro Guarantee Label & Privacy Link */}
-                <div className="mt-4 flex flex-col items-center gap-1.5 text-xs font-medium text-[#242423]">
-                  <p>No real names, student numbers, or university logins are ever collected.</p>
+                <div className="mt-4 flex flex-col items-center gap-1 text-xs font-medium text-[#242423]">
+                  <p className="text-[11px] sm:text-xs">No real names, student numbers, or university logins are ever collected.</p>
                   <button
                     type="button"
                     onClick={() => setViewState('privacy')}
                     className="text-[11px] sm:text-xs font-black text-[#701a31] hover:underline flex items-center gap-1 transition-colors"
                   >
-                    <span>🛡️ Read our Privacy &amp; Data Transparency Guarantee</span>
+                    <span>Read our Privacy &amp; Data Transparency Guarantee</span>
                     <span>→</span>
                   </button>
                 </div>
@@ -330,7 +387,7 @@ export default function Home() {
 
             {/* OFFICIAL FACEBOOK COMMUNITY SHOWCASE */}
             <section className="py-8 sm:py-12 px-3 sm:px-8 max-w-[1200px] mx-auto">
-              <div className="bg-white border-3 border-black rounded-3xl p-6 sm:p-10 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left">
+              <div className="p-6 sm:p-10 text-left">
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                   {/* Left Info Column */}
                   <div className="max-w-xl flex-1">

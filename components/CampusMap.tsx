@@ -16,6 +16,48 @@ const customClusterRenderer = {
     const bgColor = count >= 10 ? '#701a31' : '#ffc900';
     const textColor = count >= 10 ? '#ffffff' : '#000000';
 
+    const div = document.createElement('div');
+    div.style.cursor = 'pointer';
+    div.className = 'cursor-pointer transform hover:scale-110 transition-transform';
+    div.innerHTML = `
+<svg width="48" height="48" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shadow -->
+  <circle cx="34" cy="34" r="28" fill="#000000" />
+
+  <!-- Main circle -->
+  <circle
+    cx="30"
+    cy="30"
+    r="28"
+    fill="${bgColor}"
+    stroke="#000000"
+    stroke-width="3"
+  />
+
+  <text
+    x="30"
+    y="38"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-weight="900"
+    font-size="22"
+    fill="${textColor}"
+    text-anchor="middle"
+  >
+    ${count}
+  </text>
+</svg>
+    `;
+
+    if (typeof google !== 'undefined' && google.maps?.marker?.AdvancedMarkerElement) {
+      return new google.maps.marker.AdvancedMarkerElement({
+        position,
+        content: div,
+        title: `${count} Pinpoint Notes Capsulized (Click to breakdown)`,
+        zIndex: 1000 + count,
+        gmpClickable: true,
+      });
+    }
+
     const svgCapsule = `
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
   <!-- Shadow -->
@@ -53,7 +95,7 @@ const customClusterRenderer = {
         anchor: new google.maps.Point(34, 17),
       },
       title: `${count} Pinpoint Notes Capsulized (Click to breakdown)`,
-      zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
+      zIndex: Number(google.maps.Marker?.MAX_ZINDEX || 10000) + count,
     });
   },
 };
@@ -190,7 +232,7 @@ export const CampusMap: React.FC = () => {
     if (!existingScript) {
       const script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`;
       script.async = true;
       script.defer = true;
       script.onload = () => setIsMapLoaded(true);
@@ -228,6 +270,7 @@ export const CampusMap: React.FC = () => {
       const map = new google.maps.Map(mapRef.current, {
         center: CAPITOL_UNIV_CENTER,
         zoom: 17,
+        mapId: 'CAPITALK_CAMPUS_MAP',
         styles: MAP_STYLES,
         disableDefaultUI: false,
         zoomControl: true,
@@ -271,7 +314,13 @@ export const CampusMap: React.FC = () => {
       });
     }
 
-    markersRef.current.forEach((m) => m.setMap(null));
+    markersRef.current.forEach((m) => {
+      if (m.setMap) {
+        m.setMap(null);
+      } else if ('map' in m) {
+        m.map = null;
+      }
+    });
     markersRef.current = [];
 
     const visiblePins = mapPins.filter((pin) => {
@@ -283,6 +332,40 @@ export const CampusMap: React.FC = () => {
 
     const newMarkers = visiblePins.map((pin) => {
       const pinColor = pin.color || '#ffc900';
+
+      if (typeof google !== 'undefined' && google.maps?.marker?.AdvancedMarkerElement) {
+        const pinDiv = document.createElement('div');
+        pinDiv.className = 'cursor-pointer transform hover:scale-115 transition-transform drop-shadow-md';
+        pinDiv.style.cursor = 'pointer';
+        pinDiv.innerHTML = `
+          <svg width="34" height="42" viewBox="0 0 34 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17 0C7.61 0 0 7.61 0 17C0 29.75 17 42 17 42C17 42 34 29.75 34 17C34 7.61 26.39 0 17 0Z" fill="${pinColor}" stroke="#000000" stroke-width="2.5" stroke-linejoin="round"/>
+            <circle cx="17" cy="16" r="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+          </svg>
+        `;
+
+        const marker = new google.maps.marker.AdvancedMarkerElement({
+          position: { lat: pin.lat, lng: pin.lng },
+          title: `${pin.spot_name} - ${pin.author_alias}`,
+          content: pinDiv,
+          gmpClickable: true,
+        });
+
+        const handleClick = () => {
+          setSelectedPin(pin);
+          setShowAddModal(false);
+
+          if (googleMapInstance.current) {
+            googleMapInstance.current.panTo({ lat: pin.lat, lng: pin.lng });
+          }
+        };
+
+        marker.addListener('click', handleClick);
+        marker.addListener('gmp-click', handleClick);
+
+        return marker;
+      }
+
       const svgMarker = {
         path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
         fillColor: pinColor,
@@ -408,7 +491,7 @@ export const CampusMap: React.FC = () => {
     const coords = clickCoords || CAPITOL_UNIV_CENTER;
 
     addMapPin({
-      spot_name: '  Landmark Spot',
+      spot_name: spotName.trim() || 'Capitol Univ Landmark',
       message: message.trim(),
       lat: coords.lat,
       lng: coords.lng,
@@ -418,6 +501,7 @@ export const CampusMap: React.FC = () => {
     });
 
     setMessage('');
+    setSpotName('');
     setShowAddModal(false);
     setClickCoords(null);
   };
@@ -545,9 +629,14 @@ export const CampusMap: React.FC = () => {
               className="w-4 h-4 rounded-full border-2 border-black shrink-0"
               style={{ backgroundColor: activeSelectedPin.color || '#ffc900' }}
             />
-            <h3 className="text-base sm:text-lg font-black text-black truncate pr-6">
+            <h3 className="text-base sm:text-lg font-black text-black truncate pr-2">
               {activeSelectedPin.spot_name}
             </h3>
+            {activeSelectedPin.status === 'pending' && (
+              <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-400 text-black border border-black rounded-md uppercase tracking-wider shrink-0">
+                ⏳ Pending
+              </span>
+            )}
           </div>
 
           <div className="p-3 bg-[#f4f4f0] rounded-2xl border-2 border-black/20 mb-3">
@@ -686,6 +775,11 @@ export const CampusMap: React.FC = () => {
                       <span className="font-black text-xs text-black truncate group-hover:text-[#701a31]">
                         {pin.spot_name}
                       </span>
+                      {pin.status === 'pending' && (
+                        <span className="text-[8px] font-black px-1 py-0.2 bg-amber-400 text-black border border-black rounded uppercase shrink-0">
+                          ⏳ Pending
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-[10px] font-bold text-gray-600 shrink-0">
                       <span>❤️ {pin.likes_count}</span>
@@ -730,6 +824,7 @@ export const CampusMap: React.FC = () => {
               type="button"
               onClick={() => {
                 setShowAddModal(false);
+                setSpotName('');
                 setClickCoords(null);
               }}
               className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
@@ -761,13 +856,42 @@ export const CampusMap: React.FC = () => {
             )}
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
+              {/* Spot / Landmark Name */}
+              <div>
+                <label className="block text-xs font-bold text-black uppercase mb-1">
+                  Location / Spot Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={spotName}
+                  onChange={(e) => setSpotName(e.target.value)}
+                  placeholder="e.g. Main Library, Engineering Building, Cafeteria"
+                  className="gumroad-input w-full text-xs font-bold mb-1.5"
+                  maxLength={40}
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {['Main Library', 'Engineering Bldg', 'Main Canteen', 'Admin Hall', 'Gymnasium', 'Student Gazebo', 'Computer Lab'].map((spot) => (
+                    <button
+                      key={spot}
+                      type="button"
+                      onClick={() => setSpotName(spot)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border border-black transition-all ${
+                        spotName === spot ? 'bg-[#ffc900] text-black shadow-xs font-extrabold' : 'bg-[#f4f4f0] text-gray-700 hover:bg-[#ffe3e8]'
+                      }`}
+                    >
+                      {spot}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-black uppercase mb-1">
                   Memory Note <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
-                  autoFocus
                   rows={3}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
