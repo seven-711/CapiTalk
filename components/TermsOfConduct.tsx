@@ -48,7 +48,6 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
       icon: <Users className="w-5 h-5 text-white" />,
       iconBg: 'bg-[#701a31]',
       title: '1. Safe, Inclusive & Respectful Space',
-      badge: 'Zero Tolerance',
       badgeColor: 'bg-[#dc341e] text-white',
       points: [
         'Treat every student with kindness, empathy, and dignity regardless of college or department.',
@@ -60,7 +59,6 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
       icon: <Lock className="w-5 h-5 text-black" />,
       iconBg: 'bg-[#ffc900]',
       title: '2. Ephemeral Chat & Data Privacy',
-      badge: 'Privacy-First',
       badgeColor: 'bg-[#00e599] text-black',
       points: [
         'Chats are temporary in-memory sessions — messages automatically disappear forever when conversations end.',
@@ -72,7 +70,6 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
       icon: <Ban className="w-5 h-5 text-white" />,
       iconBg: 'bg-[#dc341e]',
       title: '3. Prohibited Content & Media',
-      badge: 'Strict Policy',
       badgeColor: 'bg-black text-white',
       points: [
         'Sharing explicit, pornographic, lewd, or NSFW media is strictly prohibited.',
@@ -84,7 +81,6 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
       icon: <Scale className="w-5 h-5 text-black" />,
       iconBg: 'bg-[#00e599]',
       title: '4. Student-Led Project & Non-Affiliation',
-      badge: 'Transparency',
       badgeColor: 'bg-[#ffe3e8] text-black',
       points: [
         'CapiTalk is an independent, student-led community project built exclusively for Capitol University students.',
@@ -96,7 +92,6 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
       icon: <ShieldCheck className="w-5 h-5 text-black" />,
       iconBg: 'bg-[#ff90e8]',
       title: '5. Moderation & Platform Enforcement',
-      badge: 'Instant Action',
       badgeColor: 'bg-[#ffc900] text-black',
       points: [
         'Users can instantly report inappropriate behavior or block partners during any live chat.',
@@ -111,7 +106,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
       <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
         
         {/* TOP HERO BANNER */}
-        <div className="bg-white border-3 sm:border-4 border-black rounded-3xl p-6 sm:p-10 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden text-center sm:text-left">
+        <div className="p-6 sm:p-10 relative overflow-hidden text-center sm:text-left">
           {/* Decorative Background Coin Mascot */}
           <div className="absolute top-4 right-4 pointer-events-none opacity-20 sm:opacity-90 hidden sm:block">
             <CoinMascot size={88} tiltAngle={15} symbol="TOC" />
@@ -123,7 +118,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
             </h1>
 
             <p className="mt-3 text-xs sm:text-base text-[#242423] font-medium leading-relaxed">
-              Welcome to CapiTalk! To keep our campus community safe, respectful, and enjoyable for all Capitol University students, you must review and confirm our Terms and Conditions before participating.
+              Welcome to CapiTalk! To keep our campus community safe, respectful, and enjoyable for all students, you must review and confirm our Terms and Conditions before participating.
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-2 pt-2 border-t border-black/10 text-xs text-gray-700 font-bold">
@@ -146,7 +141,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
         </div>
 
         {/* TOP CONFIRMATION & AGREEMENT CARD (Immediately Visible at a Glance) */}
-        <div className="bg-[#fff8e6] border-3 sm:border-4 border-black rounded-3xl p-5 sm:p-7 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-4">
+        <div className="bg-[#fff8e6] rounded-3xl p-5 sm:p-7 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-4">
           <div className="flex items-start gap-3">
             <input
               type="checkbox"
@@ -198,7 +193,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
             {conductPillars.map((pillar, idx) => (
               <div
                 key={idx}
-                className="bg-white border-2 sm:border-3 border-black rounded-2xl p-4 sm:p-5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                className="rounded-2xl p-4 sm:p-5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
               >
                 <div className="flex items-start justify-between gap-3 mb-2.5">
                   <div className="flex items-center gap-3">
@@ -209,9 +204,6 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
                       {pillar.title}
                     </h3>
                   </div>
-                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border border-black uppercase tracking-wider shrink-0 ${pillar.badgeColor}`}>
-                    {pillar.badge}
-                  </span>
                 </div>
 
                 <ul className="space-y-1.5 pl-3 sm:pl-4 border-l-2 border-black/15 ml-4 sm:ml-5 text-xs sm:text-sm text-[#242423] font-medium leading-relaxed">
