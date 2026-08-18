@@ -11,10 +11,12 @@ import { ReportModal } from './ReportModal';
 import { FeedbackModal } from './FeedbackModal';
 import { BlockUserModal } from './BlockUserModal';
 import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
+import { CampusGamesModal } from './CampusGamesModal';
 import {
   Send,
   Image as ImageIcon,
   Smile,
+  Gamepad2,
   ShieldAlert,
   UserX,
   FastForward,
@@ -240,9 +242,19 @@ export const ChatRoom: React.FC = () => {
       setPartnerStatus(newStatus);
     });
 
+    const unsubGame = roomManager.onGameSignal((data) => {
+      if (!data) return;
+      if (data.action === 'OPEN_DRAWER' || data.action === 'CHANGE_GAME') {
+        setShowGamesModal(true);
+      } else if (data.action === 'CLOSE_DRAWER') {
+        setShowGamesModal(false);
+      }
+    });
+
     return () => {
       unsubTheme();
       unsubStatus();
+      unsubGame();
     };
   }, []);
 
@@ -422,8 +434,14 @@ export const ChatRoom: React.FC = () => {
   };
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGamesModal, setShowGamesModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
+
+  const handleOpenGames = () => {
+    setShowGamesModal(true);
+    roomManager.sendGameSignal({ action: 'OPEN_DRAWER', game: 'menu' });
+  };
   const [replyTo, setReplyTo] = useState<any | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -502,9 +520,8 @@ export const ChatRoom: React.FC = () => {
     touchStartPosRef.current = null;
   };
 
-  // Image Preview & Caption state
+  // Image Preview state
   const [pendingImage, setPendingImage] = useState<{ previewUrl: string } | null>(null);
-  const [captionText, setCaptionText] = useState('');
 
   // 20s Inactivity Timeout Alert state
   const [showInactivityAlert, setShowInactivityAlert] = useState(false);
@@ -604,17 +621,18 @@ export const ChatRoom: React.FC = () => {
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!text.trim() && !replyTo) return;
+    if (!text.trim() && !replyTo && !pendingImage) return;
 
-    const { cleanText } = filterProfanity(text);
+    const cleanText = text.trim() ? filterProfanity(text).cleanText : '';
 
     sendMessage(
-      cleanText,
-      undefined,
+      cleanText || undefined,
+      pendingImage ? pendingImage.previewUrl : undefined,
       replyTo ? { id: replyTo.id, sender_username: replyTo.sender_username, message: replyTo.message } : undefined
     );
 
     setText('');
+    setPendingImage(null);
     setReplyTo(null);
     setShowEmojiPicker(false);
     // Reset textarea height
@@ -633,28 +651,16 @@ export const ChatRoom: React.FC = () => {
     try {
       const processed = await processUploadedImage(file);
       setPendingImage({ previewUrl: processed.fullDataUrl });
+      // Focus textarea so user can immediately type a caption if desired
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
     } catch (err: any) {
       setUploadError(err.message || 'Failed to process image.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  };
-
-  const handleSendPendingImage = () => {
-    if (!pendingImage) return;
-
-    const cleanCaption = captionText.trim() ? filterProfanity(captionText).cleanText : undefined;
-
-    sendMessage(
-      cleanCaption,
-      pendingImage.previewUrl,
-      replyTo ? { id: replyTo.id, sender_username: replyTo.sender_username, message: replyTo.message } : undefined
-    );
-
-    setPendingImage(null);
-    setCaptionText('');
-    setReplyTo(null);
   };
 
   const copyMessageText = (msgId: string, content?: string) => {
@@ -1401,14 +1407,14 @@ export const ChatRoom: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                onClick={handleOpenGames}
                 style={{
-                  backgroundColor: showEmojiPicker
-                    ? (activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff')
+                  backgroundColor: showGamesModal
+                    ? (activeThemeConfig.id === 'yellow' ? '#000000' : '#ffc900')
                     : isAdminRoom
                     ? undefined
                     : activeThemeConfig.headerButtonBg,
-                  color: showEmojiPicker
+                  color: showGamesModal
                     ? (activeThemeConfig.id === 'yellow' ? '#ffffff' : '#000000')
                     : isAdminRoom
                     ? undefined
@@ -1419,15 +1425,76 @@ export const ChatRoom: React.FC = () => {
                     ? 'rgba(0,0,0,0.3)'
                     : 'rgba(255,255,255,0.3)',
                 }}
-                className="w-10 h-10 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-90 shadow-2xs shrink-0"
-                title="Add Emoji"
+                className="w-10 h-10 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
+                title="Play Campus Games & Icebreakers with Partner"
               >
-                <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
 
-            {/* Center Textarea Pill Capsule */}
-            <div className="flex-1 min-w-0 relative flex items-center">
+            {/* Center Textarea Pill Capsule with Attached Image Preview & Reply Banner */}
+            <div
+              className={`flex-1 min-w-0 relative flex flex-col rounded-2xl border-2 transition-colors duration-150 overflow-hidden ${
+                isAdminRoom
+                  ? 'bg-slate-900 border-slate-700 text-white focus-within:border-[#ffc900]'
+                  : activeThemeConfig.id === 'black'
+                  ? 'bg-[#27272a] border-[#3f3f46] text-white focus-within:border-[#ffc900]'
+                  : 'bg-white border-black text-black focus-within:border-[#701a31]'
+              }`}
+            >
+              {/* Reply Preview Header if Active */}
+              {replyTo && (
+                <div
+                  className={`px-3 py-1.5 border-b flex items-center justify-between text-xs gap-2 ${
+                    isAdminRoom
+                      ? 'bg-slate-800/90 border-slate-700 text-slate-200'
+                      : activeThemeConfig.id === 'black'
+                      ? 'bg-zinc-800 border-zinc-700 text-zinc-200'
+                      : 'bg-[#fff1f3] border-black/10 text-[#701a31]'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <CornerUpLeft className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+                    <span className="font-extrabold truncate">Replying to {replyTo.sender_username || 'Student'}:</span>
+                    <span className="truncate opacity-80 italic font-medium">"{replyTo.message}"</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo(null)}
+                    className="p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full shrink-0 cursor-pointer"
+                    title="Cancel reply"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Embedded Attached Image Thumbnail Preview inside the Capsule */}
+              {pendingImage && (
+                <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
+                  <div className="relative group inline-block">
+                    <img
+                      src={pendingImage.previewUrl}
+                      alt="Attachment preview"
+                      className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-gray-100 dark:bg-zinc-800"
+                    />
+                    {/* Discard Image Button */}
+                    <button
+                      type="button"
+                      onClick={() => setPendingImage(null)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#dc341e] hover:bg-black text-white rounded-full border border-black flex items-center justify-center shadow-xs transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                      title="Remove attached image"
+                    >
+                      <X className="w-3 h-3 stroke-[3]" />
+                    </button>
+                  </div>
+                  <span className="text-[11px] font-bold opacity-60 italic hidden xs:inline">
+                    Image attached • Add a caption below
+                  </span>
+                </div>
+              )}
+
+              {/* Textarea inside the capsule */}
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -1438,14 +1505,14 @@ export const ChatRoom: React.FC = () => {
                     handleSend();
                   }
                 }}
-                placeholder="Type a message..."
+                placeholder={pendingImage ? "Add a caption (optional)..." : "Type a message..."}
                 rows={1}
-                className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 text-[16px] sm:text-sm leading-relaxed rounded-2xl border-2 transition-colors duration-150 resize-none overflow-y-auto focus:outline-none ${
+                className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 text-[16px] sm:text-sm leading-relaxed bg-transparent resize-none overflow-y-auto focus:outline-none border-none ${
                   isAdminRoom
-                    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-400 focus:border-[#ffc900]'
+                    ? 'text-white placeholder-slate-400'
                     : activeThemeConfig.id === 'black'
-                    ? 'bg-[#27272a] border-[#3f3f46] text-white placeholder-zinc-400 focus:border-[#ffc900]'
-                    : 'bg-white border-black text-black placeholder-gray-400 focus:border-[#ffc900]'
+                    ? 'text-white placeholder-zinc-400'
+                    : 'text-black placeholder-gray-400'
                 }`}
                 style={{ minHeight: '40px', maxHeight: '130px' }}
               />
@@ -1454,9 +1521,9 @@ export const ChatRoom: React.FC = () => {
             {/* Right Send Button */}
             <button
               type="submit"
-              disabled={!text.trim() && !replyTo}
+              disabled={!text.trim() && !replyTo && !pendingImage}
               style={
-                text.trim() || replyTo
+                text.trim() || replyTo || pendingImage
                   ? {
                       backgroundColor: activeThemeConfig.btnBg || '#701a31',
                       color: activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff',
@@ -1465,7 +1532,7 @@ export const ChatRoom: React.FC = () => {
                   : undefined
               }
               className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 font-black flex items-center justify-center shrink-0 transition-all duration-200 mb-0.5 ${
-                text.trim() || replyTo
+                text.trim() || replyTo || pendingImage
                   ? 'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-90 cursor-pointer opacity-100'
                   : 'bg-black/20 text-white/40 border-transparent cursor-not-allowed opacity-40 shadow-none'
               }`}
@@ -1485,77 +1552,15 @@ export const ChatRoom: React.FC = () => {
         />
       )}
 
-      {/* Image Preview & Confirmation Modal */}
-      {pendingImage && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className={`border-2 rounded-[16px] max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 ${
-            isDarkMode ? 'bg-[#18181b] border-[#3f3f46] text-white' : 'bg-white border-black text-black'
-          }`}>
-            <div className={`flex items-center justify-between border-b pb-3 ${isDarkMode ? 'border-[#3f3f46]' : 'border-[#d1d5dc]'}`}>
-              <h3 className={`font-extrabold text-base flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                <ImageIcon className="w-5 h-5 text-[#ffc900]" />
-                Image Preview
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingImage(null);
-                  setCaptionText('');
-                }}
-                className={`p-1 rounded-full transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-gray-100 text-black'}`}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Campus Games & Icebreakers Bottom Sheet Modal */}
+      <CampusGamesModal
+        isOpen={showGamesModal}
+        onClose={() => setShowGamesModal(false)}
+        currentUser={currentUser}
+        partner={partner}
+        isDarkMode={isDarkMode || isAdminRoom}
+      />
 
-            <div className={`rounded-xl p-2 flex items-center justify-center border ${isDarkMode ? 'bg-[#27272a] border-[#3f3f46]' : 'bg-[#f4f4f0] border-[#d1d5dc]'}`}>
-              <img
-                src={pendingImage.previewUrl}
-                alt="Image Preview"
-                className="max-h-64 sm:max-h-80 w-auto max-w-full rounded-lg object-contain shadow-sm"
-              />
-            </div>
-
-            <div>
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-zinc-400' : 'text-[#242423]'}`}>
-                Caption (Optional)
-              </label>
-              <input
-                type="text"
-                value={captionText}
-                onChange={(e) => setCaptionText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSendPendingImage();
-                }}
-                placeholder="Write a caption to go with your image..."
-                className={`gumroad-input w-full py-2.5 px-3 text-sm ${isDarkMode ? 'bg-[#27272a] border-[#3f3f46] text-white placeholder-zinc-500' : ''}`}
-                autoFocus
-              />
-            </div>
-
-            <div className={`flex items-center justify-end gap-2 pt-2 border-t ${isDarkMode ? 'border-[#3f3f46]' : 'border-[#d1d5dc]'}`}>
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingImage(null);
-                  setCaptionText('');
-                }}
-                className={`btn-gumroad-ghost text-xs px-4 py-2.5 ${isDarkMode ? 'text-zinc-300 border-[#3f3f46] hover:bg-[#27272a]' : ''}`}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSendPendingImage}
-                className="btn-gumroad-primary text-xs px-5 py-2.5 flex items-center gap-2"
-              >
-                <Send className="w-4 h-4" />
-                <span>Send Image</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 60s Inactivity Timeout Warning Modal */}
       {showInactivityAlert && (

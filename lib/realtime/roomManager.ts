@@ -28,6 +28,7 @@ class RoomManager {
   private skipCallbacks: Set<SkipCallback> = new Set();
   private themeCallbacks: Set<ThemeCallback> = new Set();
   private statusCallbacks: Set<StatusCallback> = new Set();
+  private gameCallbacks: Set<(data: any) => void> = new Set();
 
   private getSocket(): WebSocket | null {
     try {
@@ -40,12 +41,17 @@ class RoomManager {
 
   public onThemeChange(cb: ThemeCallback) {
     this.themeCallbacks.add(cb);
-    return () => this.themeCallbacks.delete(cb);
+    return () => { this.themeCallbacks.delete(cb); };
   }
 
   public onStatusChange(cb: StatusCallback) {
     this.statusCallbacks.add(cb);
-    return () => this.statusCallbacks.delete(cb);
+    return () => { this.statusCallbacks.delete(cb); };
+  }
+
+  public onGameSignal(cb: (data: any) => void) {
+    this.gameCallbacks.add(cb);
+    return () => { this.gameCallbacks.delete(cb); };
   }
 
   public joinRoom(
@@ -88,6 +94,8 @@ class RoomManager {
                 this.themeCallbacks.forEach((cb) => cb(signal.theme || (signal.isDarkMode ? 'black' : 'maroon')));
               } else if (signal.type === 'STATUS') {
                 this.statusCallbacks.forEach((cb) => cb(signal.status));
+              } else if (signal.type === 'GAME') {
+                this.gameCallbacks.forEach((cb) => cb(signal.gameData));
               }
             }
           } catch (err) {}
@@ -133,6 +141,11 @@ class RoomManager {
           .on('broadcast', { event: 'status' }, ({ payload }: { payload: { senderId: string; status: 'online' | 'idle' | 'offline' } }) => {
             if (payload && payload.senderId !== user.id) {
               this.statusCallbacks.forEach((cb) => cb(payload.status));
+            }
+          })
+          .on('broadcast', { event: 'game' }, ({ payload }: { payload: { senderId: string; gameData: any } }) => {
+            if (payload && payload.senderId !== user.id) {
+              this.gameCallbacks.forEach((cb) => cb(payload.gameData));
             }
           })
           .subscribe();
@@ -208,10 +221,46 @@ class RoomManager {
         this.statusCallbacks.forEach((cb) => cb(data.status));
         break;
       }
+      case 'GAME': {
+        this.gameCallbacks.forEach((cb) => cb(data.gameData));
+        break;
+      }
       case 'PARTNER_LEFT': {
         this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
         break;
       }
+    }
+  }
+
+  public sendGameSignal(gameData: any) {
+    if (!this.currentRoomId) return;
+
+    const signal = { type: 'GAME', gameData, senderId: this.currentUserId, t: Date.now() + Math.random() };
+
+    // Broadcast 1: LocalStorage signal
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify(signal));
+    }
+
+    // Broadcast 2: WebSocket server
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'GAME',
+        roomId: this.currentRoomId,
+        gameData,
+      }));
+    }
+
+    // Broadcast 3: Supabase Realtime
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'game',
+          payload: { senderId: this.currentUserId, gameData },
+        });
+      } catch (e) {}
     }
   }
 
