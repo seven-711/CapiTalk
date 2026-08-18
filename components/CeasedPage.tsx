@@ -8,7 +8,6 @@ import {
   Lock,
   MessageSquare,
   Radio,
-  MapPin,
   Users,
   CheckCircle2,
   AlertTriangle,
@@ -87,7 +86,7 @@ export const CeasedPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
           {/* Card 1: Anonymous Chat */}
           <div
             onClick={() => handleServiceClick('chat')}
@@ -154,31 +153,6 @@ export const CeasedPage: React.FC = () => {
             <h3 className="text-lg font-extrabold text-black">Music Dedications</h3>
             <p className="text-xs text-gray-600 mt-2 leading-relaxed">
               Spotify song dedications and departmental jams.
-            </p>
-            <div className="mt-4 pt-3 border-t border-gray-200 flex items-center justify-between text-xs font-bold text-gray-500">
-              <span className="flex items-center gap-1">
-                <XCircle className="w-3.5 h-3.5 text-[#dc341e]" /> Disabled
-              </span>
-              <span className="group-hover:underline text-black">Ceased →</span>
-            </div>
-          </div>
-
-          {/* Card 4: Silip Campus Map */}
-          <div
-            onClick={() => handleServiceClick('campus_map')}
-            className="p-6 bg-white border-2 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] relative opacity-75 hover:opacity-100 transition-all cursor-not-allowed group"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gray-200 border-2 border-black flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-gray-700" />
-              </div>
-              <span className="px-2.5 py-1 bg-[#dc341e] text-white text-[10px] font-black rounded-full border border-black uppercase">
-                Offline
-              </span>
-            </div>
-            <h3 className="text-lg font-extrabold text-black">Silip Campus Map</h3>
-            <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-              Interactive memory map pins around Capitol University campus.
             </p>
             <div className="mt-4 pt-3 border-t border-gray-200 flex items-center justify-between text-xs font-bold text-gray-500">
               <span className="flex items-center gap-1">

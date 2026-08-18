@@ -10,7 +10,6 @@ import { ChatRoom } from '../components/ChatRoom';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
-import { CampusMap } from '../components/CampusMap';
 import { BannedScreen } from '../components/BannedScreen';
 import { PrivacyPolicy } from '../components/PrivacyPolicy';
 import {
@@ -26,7 +25,6 @@ import {
   Radio,
   ExternalLink,
   Music,
-  MapPin,
   Compass,
   Heart,
   MessageCircle,
@@ -56,7 +54,6 @@ export default function Home() {
     systemAnnouncement,
     dismissAnnouncement,
     freedomPosts,
-    mapPins,
   } = useChatStore();
 
   React.useEffect(() => {
@@ -133,7 +130,6 @@ export default function Home() {
 
         {viewState === 'freedom_wall' && <FreedomWall />}
         {viewState === 'music_wall' && <MusicWall />}
-        {viewState === 'campus_map' && <CampusMap />}
         {viewState === 'privacy' && <PrivacyPolicy />}
 
         {viewState === 'landing' && (
@@ -165,11 +161,11 @@ export default function Home() {
 
                 {/* Subtitle */}
                 <p className="mt-4 sm:mt-6 text-base sm:text-xl text-[#242423] max-w-2xl mx-auto font-normal leading-relaxed">
-                  The anonymous, real-time campus platform built for CU students. Chat, share confessions on the Freedom Wall, dedicate songs, or drop memories on the campus map.
+                  The anonymous, real-time campus platform built for CU students. Chat, share confessions on the Freedom Wall, and dedicate songs.
                 </p>
 
                 {/* Mobile & Desktop Quick Feature Jump Bar */}
-                <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 max-w-2xl mx-auto w-full">
+                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 max-w-xl mx-auto w-full">
                   <button
                     type="button"
                     onClick={() => setViewState(currentUser ? 'queue' : 'register')}
@@ -204,18 +200,6 @@ export default function Home() {
                     </div>
                     <span className="text-xs font-black text-black leading-tight">Music Wall</span>
                     <span className="text-[10px] text-gray-600 font-bold">Dedications</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setViewState('campus_map')}
-                    className="p-3 bg-white hover:bg-[#e2f9eb] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-[#00e599] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                      <MapPin className="w-4 h-4 stroke-[2.5]" />
-                    </div>
-                    <span className="text-xs font-black text-black leading-tight">Silip Map</span>
-                    <span className="text-[10px] text-gray-600 font-bold">{mapPins.length > 0 ? `${mapPins.length} Pins` : 'CU Pins'}</span>
                   </button>
                 </div>
 
@@ -549,8 +533,8 @@ export default function Home() {
         )}
       </main>
 
-      {/* FOOTER — hidden during active chat & full screen campus map */}
-      {viewState !== 'chat' && viewState !== 'campus_map' && (
+      {/* FOOTER — hidden during active chat */}
+      {viewState !== 'chat' && (
         <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] py-8 px-4 sm:px-8 mt-auto">
           <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">

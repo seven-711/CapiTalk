@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, CampusMapPin } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -17,15 +17,13 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   } catch (e) {}
 }
 
-export const DEMO_MAP_PINS: CampusMapPin[] = [];
-
 
 interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map' | 'privacy';
-  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map' | 'privacy') => void;
+  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy';
+  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy') => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -45,11 +43,6 @@ interface ChatStoreState {
   profanityStrikes: number;
   bayotCount: number;
   freedomPosts: FreedomPost[];
-  mapPins: CampusMapPin[];
-  addMapPin: (pinData: { spot_name: string; message: string; lat: number; lng: number; color?: string; author_alias?: string; department?: string }) => void;
-  deleteMapPin: (pinId: string) => void;
-  approveMapPin: (pinId: string) => void;
-  likeMapPin: (pinId: string) => void;
   feedbackList: UserFeedback[];
   wallNotifications: WallNotification[];
   myPostIds: string[];
@@ -116,15 +109,14 @@ export const useChatStore = create<ChatStoreState>()(
     (set, get) => ({
       // existing state fields ...
       // ... (no change to previous lines up to here)
-      // Clear all demo data (freedom posts, map pins, localStorage)
+      // Clear all demo data (freedom posts, localStorage)
       clearAllDemoData: () => {
         // Reset state arrays
-        set({ freedomPosts: [], mapPins: [] });
+        set({ freedomPosts: [] });
         // Remove from localStorage
         if (typeof window !== 'undefined') {
           try {
             localStorage.removeItem('capitalk_freedom_wall_v1');
-            localStorage.removeItem('capitalk_map_pins_v1');
             // Remove any comment entries
             Object.keys(localStorage).forEach((key) => {
               if (key.startsWith('capitalk_comments_')) {
@@ -139,7 +131,7 @@ export const useChatStore = create<ChatStoreState>()(
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
       viewState: 'landing',
-      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'campus_map' | 'privacy') => {
+      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy') => {
         set({ viewState: view });
       },
 
@@ -265,7 +257,6 @@ export const useChatStore = create<ChatStoreState>()(
       profanityStrikes: 0,
       bayotCount: 0,
       freedomPosts: [],
-      mapPins: [],
 
       actionToast: null,
       systemAnnouncement: null,
@@ -345,17 +336,11 @@ export const useChatStore = create<ChatStoreState>()(
             const rawFreedom = localStorage.getItem('capitalk_freedom_wall_v1');
             const loadedFreedom: FreedomPost[] = rawFreedom ? JSON.parse(rawFreedom) : DEMO_FREEDOM_POSTS;
 
-            const rawMapPins = localStorage.getItem('capitalk_map_pins_v1');
-            const loadedMapPins: CampusMapPin[] = rawMapPins ? JSON.parse(rawMapPins) : DEMO_MAP_PINS;
-
-            set({ reports: mergedReports, bannedUserIds: mergedBans, systemAnnouncement: loadedAnnouncement, freedomPosts: loadedFreedom, mapPins: loadedMapPins });
+            set({ reports: mergedReports, bannedUserIds: mergedBans, systemAnnouncement: loadedAnnouncement, freedomPosts: loadedFreedom });
             localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(mergedReports));
             localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(mergedBans));
             if (!rawFreedom) {
               localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(DEMO_FREEDOM_POSTS));
-            }
-            if (!rawMapPins) {
-              localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(DEMO_MAP_PINS));
             }
 
             // Sync Freedom Wall posts from Supabase PostgreSQL Database across all devices
@@ -414,99 +399,6 @@ export const useChatStore = create<ChatStoreState>()(
                       localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
                     }
                   }, () => {});
-              } catch (e) {}
-
-              // Sync Campus Map Pins from Supabase Database across all devices
-              try {
-                supabase
-                  .from('campus_map_pins')
-                  .select('*')
-                  .order('created_at', { ascending: false })
-                  .then(({ data, error }) => {
-                    if (data && data.length > 0 && !error) {
-                      const loadedFromDb: CampusMapPin[] = data.map((row: any) => ({
-                        id: row.id,
-                        author_id: row.author_id,
-                        author_alias: row.author_alias || 'Anon Student',
-                        department: row.department || 'General',
-                        spot_name: row.spot_name || 'Capitol Univ Spot',
-                        message: row.message,
-                        lat: Number(row.lat),
-                        lng: Number(row.lng),
-                        color: row.color || '#ffc900',
-                        likes_count: Number(row.likes_count) || 0,
-                        liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
-                        liked_by_profiles: typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {},
-                        status: row.status || 'approved',
-                        created_at: row.created_at || new Date().toISOString(),
-                      }));
-                      set({ mapPins: loadedFromDb });
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(loadedFromDb));
-                      }
-                    }
-                  }, () => {});
-
-                // Supabase Realtime subscription to campus_map_pins table for instant sync
-                supabase
-                  .channel('public:campus_map_pins')
-                  .on('postgres_changes', { event: '*', schema: 'public', table: 'campus_map_pins' }, (payload: any) => {
-                    const { eventType, new: newRecord, old: oldRecord } = payload;
-                    const currentPins = get().mapPins;
-
-                    if (eventType === 'INSERT' && newRecord) {
-                      const parsedPin: CampusMapPin = {
-                        id: newRecord.id,
-                        author_id: newRecord.author_id,
-                        author_alias: newRecord.author_alias || 'Anon Student',
-                        department: newRecord.department || 'General',
-                        spot_name: newRecord.spot_name || 'Capitol Univ Spot',
-                        message: newRecord.message,
-                        lat: Number(newRecord.lat),
-                        lng: Number(newRecord.lng),
-                        color: newRecord.color || '#ffc900',
-                        likes_count: Number(newRecord.likes_count) || 0,
-                        liked_by_users: Array.isArray(newRecord.liked_by_users) ? newRecord.liked_by_users : [],
-                        liked_by_profiles: typeof newRecord.liked_by_profiles === 'object' && newRecord.liked_by_profiles !== null ? newRecord.liked_by_profiles : {},
-                        status: newRecord.status || 'approved',
-                        created_at: newRecord.created_at || new Date().toISOString(),
-                      };
-                      if (!currentPins.some((p) => p.id === parsedPin.id)) {
-                        const updated = [parsedPin, ...currentPins];
-                        set({ mapPins: updated });
-                        if (typeof window !== 'undefined') {
-                          localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-                        }
-                      }
-                    } else if (eventType === 'UPDATE' && newRecord) {
-                      const updated = currentPins.map((p) => {
-                        if (p.id === newRecord.id) {
-                          return {
-                            ...p,
-                            spot_name: newRecord.spot_name || p.spot_name,
-                            message: newRecord.message || p.message,
-                            color: newRecord.color || p.color,
-                            likes_count: Number(newRecord.likes_count) || 0,
-                            liked_by_users: Array.isArray(newRecord.liked_by_users) ? newRecord.liked_by_users : p.liked_by_users,
-                            liked_by_profiles: typeof newRecord.liked_by_profiles === 'object' && newRecord.liked_by_profiles !== null ? newRecord.liked_by_profiles : p.liked_by_profiles,
-                            status: newRecord.status || p.status,
-                          };
-                        }
-                        return p;
-                      });
-                      set({ mapPins: updated });
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-                      }
-                    } else if (eventType === 'DELETE' && oldRecord) {
-                      const updated = currentPins.filter((p) => p.id !== oldRecord.id);
-                      set({ mapPins: updated });
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-                      }
-                    }
-                  })
-                  .subscribe();
               } catch (e) {}
 
               // Sync bidirectional block list from Supabase Database
@@ -660,8 +552,6 @@ export const useChatStore = create<ChatStoreState>()(
                   });
                 } else if (event.data?.type === 'FREEDOM_WALL_UPDATE') {
                   set({ freedomPosts: event.data.posts });
-                } else if (event.data?.type === 'MAP_PINS_UPDATE') {
-                  set({ mapPins: event.data.pins });
                 } else if (event.data?.type === 'WALL_NOTIFICATIONS_UPDATE') {
                   set({ wallNotifications: event.data.notifications });
                 } else if (event.data?.type === 'USER_BANNED') {
@@ -2332,201 +2222,6 @@ export const useChatStore = create<ChatStoreState>()(
         }
 
         set({ freedomPosts: updated });
-      },
-
-      addMapPin: (pinData) => {
-        const { currentUser, mapPins } = get();
-        const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
-        const isAdmin = (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') || currentUser?.username?.toLowerCase().includes('admin');
-        const initialStatus: 'pending' | 'approved' = isAdmin ? 'approved' : 'pending';
-
-        const newPin: CampusMapPin = {
-          id: 'pin_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-          author_id: currentUserId,
-          author_alias: pinData.author_alias || (currentUser ? currentUser.username : 'Anon Student'),
-          department: pinData.department || (currentUser ? currentUser.department : 'College of Engineering'),
-          spot_name: pinData.spot_name.trim(),
-          message: pinData.message.trim(),
-          lat: pinData.lat,
-          lng: pinData.lng,
-          color: pinData.color || '#ffc900',
-          likes_count: 0,
-          liked_by_users: [],
-          status: initialStatus,
-          created_at: new Date().toISOString(),
-        };
-
-        const updated = [newPin, ...mapPins];
-
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-          } catch (e) {}
-        }
-
-        if (broadcastChannel) {
-          try {
-            broadcastChannel.postMessage({ type: 'MAP_PINS_UPDATE', pins: updated });
-          } catch (e) {}
-        }
-
-        if (supabase && isSupabaseConfigured) {
-          try {
-            supabase
-              .from('campus_map_pins')
-              .insert({
-                id: newPin.id,
-                author_id: newPin.author_id,
-                author_alias: newPin.author_alias,
-                department: newPin.department,
-                spot_name: newPin.spot_name,
-                message: newPin.message,
-                lat: newPin.lat,
-                lng: newPin.lng,
-                color: newPin.color,
-                likes_count: 0,
-                liked_by_users: [],
-                status: initialStatus,
-              })
-              .then(() => {}, () => {});
-          } catch (e) {}
-        }
-
-        set({
-          mapPins: updated,
-          actionToast: {
-            type: 'announcement',
-            message: isAdmin
-              ? `📍 Pinpoint added at ${newPin.spot_name}!`
-              : `⏳ Pinpoint submitted! Pending admin approval before appearing live.`,
-          },
-        });
-      },
-
-      approveMapPin: (pinId) => {
-        const { mapPins } = get();
-        const updated = mapPins.map((p) =>
-          p.id === pinId ? { ...p, status: 'approved' as const } : p
-        );
-
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-          } catch (e) {}
-        }
-
-        if (broadcastChannel) {
-          try {
-            broadcastChannel.postMessage({ type: 'MAP_PINS_UPDATE', pins: updated });
-          } catch (e) {}
-        }
-
-        if (supabase && isSupabaseConfigured) {
-          try {
-            supabase.from('campus_map_pins').update({ status: 'approved' }).eq('id', pinId).then(() => {}, () => {});
-          } catch (e) {}
-        }
-
-        set({
-          mapPins: updated,
-          actionToast: {
-            type: 'announcement',
-            message: '🟢 Campus map pinpoint approved & published live!',
-          },
-        });
-      },
-
-      deleteMapPin: (pinId) => {
-        const { mapPins } = get();
-        const updated = mapPins.filter((p) => p.id !== pinId);
-
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-          } catch (e) {}
-        }
-
-        if (broadcastChannel) {
-          try {
-            broadcastChannel.postMessage({ type: 'MAP_PINS_UPDATE', pins: updated });
-          } catch (e) {}
-        }
-
-        if (supabase && isSupabaseConfigured) {
-          try {
-            supabase.from('campus_map_pins').delete().eq('id', pinId).then(() => {}, () => {});
-          } catch (e) {}
-        }
-
-        set({
-          mapPins: updated,
-          actionToast: {
-            type: 'announcement',
-            message: '🗑️ Campus map pin removed.',
-          },
-        });
-      },
-
-      likeMapPin: (pinId) => {
-        const { currentUser, mapPins } = get();
-        const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
-
-        const updated = mapPins.map((pin) => {
-          if (pin.id !== pinId) return pin;
-          const likedUsers = pin.liked_by_users || [];
-          const hasLiked = likedUsers.includes(currentUserId);
-          const newLiked = hasLiked
-            ? likedUsers.filter((id) => id !== currentUserId)
-            : [...likedUsers, currentUserId];
-
-          const profiles = { ...(pin.liked_by_profiles || {}) };
-          if (hasLiked) {
-            delete profiles[currentUserId];
-          } else {
-            profiles[currentUserId] = {
-              username: currentUser?.username || 'Anon Student',
-              department: currentUser?.department || 'College of Engineering',
-            };
-          }
-
-          return {
-            ...pin,
-            likes_count: Math.max(0, newLiked.length),
-            liked_by_users: newLiked,
-            liked_by_profiles: profiles,
-          };
-        });
-
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('capitalk_map_pins_v1', JSON.stringify(updated));
-          } catch (e) {}
-        }
-
-        if (broadcastChannel) {
-          try {
-            broadcastChannel.postMessage({ type: 'MAP_PINS_UPDATE', pins: updated });
-          } catch (e) {}
-        }
-
-        if (supabase && isSupabaseConfigured) {
-          try {
-            const target = updated.find((p) => p.id === pinId);
-            if (target) {
-              supabase
-                .from('campus_map_pins')
-                .update({
-                  likes_count: target.likes_count,
-                  liked_by_users: target.liked_by_users,
-                  liked_by_profiles: target.liked_by_profiles || {},
-                })
-                .eq('id', pinId)
-                .then(() => {}, () => {});
-            }
-          } catch (e) {}
-        }
-
-        set({ mapPins: updated });
       },
 
       clearToast: () => set({ actionToast: null }),

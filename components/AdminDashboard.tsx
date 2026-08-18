@@ -32,9 +32,6 @@ export const AdminDashboard: React.FC = () => {
     bannedUserIds,
     freedomPosts,
     deleteFreedomPost,
-    mapPins,
-    deleteMapPin,
-    approveMapPin,
     approveFreedomPost,
     togglePinFreedomPost,
     resolveReport,
@@ -52,7 +49,7 @@ export const AdminDashboard: React.FC = () => {
   });
   const [authError, setAuthError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'reports' | 'wall_notes' | 'map_pins' | 'users' | 'announcements' | 'feedback'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'wall_notes' | 'users' | 'announcements' | 'feedback'>('reports');
   const [selectedReportForRemark, setSelectedReportForRemark] = useState<{
     reportId: string;
     action: 'dismiss' | 'ban' | 'delete_post';
@@ -226,16 +223,6 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           📜 Campus Wall Notes ({freedomPosts.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('map_pins')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all border ${
-            activeTab === 'map_pins'
-              ? 'bg-black text-white border-black shadow-sm'
-              : 'bg-white text-[#242423] border-[#d1d5dc] hover:border-black'
-          }`}
-        >
-          📍 Campus Map Pins ({mapPins.length})
         </button>
         <button
           onClick={() => setActiveTab('users')}
@@ -674,83 +661,6 @@ export const AdminDashboard: React.FC = () => {
       )}
 
 
-      {/* Tab: Campus Map Pins Moderation */}
-      {activeTab === 'map_pins' && (
-        <div className="gumroad-card overflow-hidden">
-          <div className="p-4 bg-[#f4f4f0] border-b border-[#d1d5dc] flex items-center justify-between">
-            <h3 className="font-extrabold text-sm text-black">Campus Map Pinpoints Moderation</h3>
-            <span className="text-xs font-bold px-3 py-1 bg-[#ffc900] text-black border border-black rounded-full">
-              {mapPins.length} Active Pins
-            </span>
-          </div>
-
-          {mapPins.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              <p className="text-sm font-bold text-black">No campus map pinpoints dropped yet.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-[#d1d5dc]">
-              {mapPins.map((pin) => (
-                <div key={pin.id} className="p-4 bg-white hover:bg-[#fff1f3]/50 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className="w-3.5 h-3.5 rounded-full border border-black shrink-0"
-                        style={{ backgroundColor: pin.color || '#ffc900' }}
-                      />
-                      <h4 className="font-extrabold text-sm text-black truncate">{pin.spot_name}</h4>
-                      <span className="text-[10px] font-bold px-2 py-0.5 bg-[#f4f4f0] border border-black rounded-full text-black">
-                        by {pin.author_alias} ({pin.department.replace('College of ', '')})
-                      </span>
-                      {pin.status === 'pending' ? (
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-amber-400 text-black border border-black rounded-full uppercase tracking-wider">
-                          ⏳ Pending Approval
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-500 text-white border border-black rounded-full uppercase tracking-wider">
-                          ✓ Live
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[#242423] font-medium leading-relaxed italic bg-[#fbf9f5] p-2.5 rounded-xl border border-[#d1d5dc]">
-                      "{pin.message}"
-                    </p>
-                    <div className="text-[10px] font-bold text-gray-500 mt-1 flex items-center gap-3">
-                      <span>❤️ {pin.likes_count} likes</span>
-                      <span>📍 ({pin.lat.toFixed(4)}, {pin.lng.toFixed(4)})</span>
-                      <span>Created {new Date(pin.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {pin.status === 'pending' && (
-                      <button
-                        type="button"
-                        onClick={() => approveMapPin(pin.id)}
-                        className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs rounded-xl border border-black shadow-xs flex items-center gap-1 active:scale-95"
-                        title="Approve Map Pinpoint"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Approve</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => deleteMapPin(pin.id)}
-                      className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white font-extrabold text-xs rounded-xl border border-black shadow-xs flex items-center gap-1 active:scale-95"
-                      title="Delete Map Pinpoint"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Tab 4: Student Feedback & Suggestions */}
       {activeTab === 'feedback' && (

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CoinMascot } from './CoinMascot';
-import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft, Menu, MapPin, ExternalLink } from 'lucide-react';
+import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft, Menu, ExternalLink } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 import { WallNotification } from '../lib/types';
@@ -116,19 +116,6 @@ export const Navbar: React.FC = () => {
               title="Campus Music Dedications"
             >
               <span> Music Wall</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewState('campus_map')}
-              className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${
-                viewState === 'campus_map'
-                  ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                  : 'bg-[#ffc900] text-black hover:bg-black hover:text-white'
-              }`}
-              title="Campus Memory Map"
-            >
-              <span> Silip</span>
             </button>
           </div>
 
@@ -249,24 +236,6 @@ export const Navbar: React.FC = () => {
                     Music Wall
                   </span>
                   <span className="text-xs opacity-75 font-semibold">Dedications</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewState('campus_map');
-                    setShowMenuDrawer(false);
-                  }}
-                  className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
-                    viewState === 'campus_map'
-                      ? 'bg-[#701a31] text-white scale-[1.02]'
-                      : 'bg-[#ffc900] text-black hover:bg-black hover:text-white'
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                  Campus Memory Map
-                  </span>
-                  <span className="text-xs font-extrabold uppercase bg-black text-white px-2 py-0.5 rounded-full">New</span>
                 </button>
 
                 <button
