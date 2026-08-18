@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { roomManager } from '../lib/realtime/roomManager';
 import { UserProfile } from '../lib/types';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import confetti from 'canvas-confetti';
 import {
   Gamepad2,
   X,
@@ -31,69 +33,182 @@ interface CampusGamesModalProps {
   isDarkMode?: boolean;
 }
 
-// ─── Would You Rather Questions (Campus Edition) ──────────────────────────────
-const WYR_QUESTIONS = [
+export interface WYRQuestion {
+  id: number;
+  category: string;
+  questionA: string;
+  questionB: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+// ─── Would You Rather Questions (20 Unique Curated Questions) ─────────────────
+export const RAW_WYR_QUESTIONS: WYRQuestion[] = [
   {
     id: 1,
-    optionA: 'Always have 7:30 AM Monday morning classes',
-    optionB: 'Have 4-hour evening night classes on Fridays',
+    category: "Lifestyle",
+    questionA: "Have unlimited free food forever",
+    questionB: "Travel anywhere for free forever",
+    difficulty: "easy"
   },
   {
     id: 2,
-    optionA: 'Unlimited free campus coffee & snacks forever',
-    optionB: 'Never have to carry a group project alone again',
+    category: "Technology",
+    questionA: "Lose your phone for a year",
+    questionB: "Lose your laptop for a year",
+    difficulty: "medium"
   },
   {
     id: 3,
-    optionA: 'Ace every single exam without reviewing',
-    optionB: 'Get ₱5,000 allowance every single week',
+    category: "Funny",
+    questionA: "Talk like a robot forever",
+    questionB: "Walk backwards forever",
+    difficulty: "hard"
   },
   {
     id: 4,
-    optionA: 'Blazing 500Mbps campus WiFi in all corridors',
-    optionB: 'Air-conditioned private study lounge with nap pods',
+    category: "School",
+    questionA: "Never take exams again",
+    questionB: "Never do assignments again",
+    difficulty: "easy"
   },
   {
     id: 5,
-    optionA: 'Fast-forward and graduate college right now',
-    optionB: 'Re-live the best college semester with your barkada',
+    category: "Money",
+    questionA: "Receive ₱100,000 now",
+    questionB: "Receive ₱1,000 every day forever",
+    difficulty: "medium"
   },
   {
     id: 6,
-    optionA: 'Rank #1 top student with highest department GPA',
-    optionB: 'Be the most well-known, loved student campus leader',
+    category: "Gaming",
+    questionA: "Play only mobile games forever",
+    questionB: "Play only PC games forever",
+    difficulty: "easy"
   },
   {
     id: 7,
-    optionA: 'Free 100% university tuition scholarship',
-    optionB: 'Free meals & milk tea delivered to campus every day',
+    category: "Superpower",
+    questionA: "Be invisible",
+    questionB: "Read minds",
+    difficulty: "hard"
   },
   {
     id: 8,
-    optionA: 'Always speak in strict formal English during recitations',
-    optionB: 'Always sing your answer in a melodic voice in class',
+    category: "Food",
+    questionA: "Eat only spicy food",
+    questionB: "Eat only sweet food",
+    difficulty: "easy"
   },
   {
     id: 9,
-    optionA: 'Extremely tough open-notes analysis exam',
-    optionB: 'Super easy pure memorization closed-book quiz',
+    category: "Social",
+    questionA: "Have 1 million followers",
+    questionB: "Have 10 real best friends",
+    difficulty: "medium"
   },
   {
     id: 10,
-    optionA: 'Win championship MVP for your college during Intramurals',
-    optionB: 'Star as lead performer in the campus foundation concert',
+    category: "Travel",
+    questionA: "Live in the mountains",
+    questionB: "Live near the beach",
+    difficulty: "easy"
   },
   {
     id: 11,
-    optionA: 'Never get called for unexpected surprise recitations',
-    optionB: 'Never have homework deadlines on weekends or holidays',
+    category: "Technology",
+    questionA: "Use only dark mode forever",
+    questionB: "Use only light mode forever",
+    difficulty: "easy"
   },
   {
     id: 12,
-    optionA: 'Campus cafeteria serves 5-star restaurant food daily',
-    optionB: 'All professors allow 15-minute power naps in class',
+    category: "Funny",
+    questionA: "Have a duck as your pet",
+    questionB: "Have a monkey as your pet",
+    difficulty: "medium"
   },
+  {
+    id: 13,
+    category: "Entertainment",
+    questionA: "Watch only movies forever",
+    questionB: "Watch only series forever",
+    difficulty: "easy"
+  },
+  {
+    id: 14,
+    category: "School",
+    questionA: "Attend classes at 7 AM forever",
+    questionB: "Attend classes until 8 PM forever",
+    difficulty: "hard"
+  },
+  {
+    id: 15,
+    category: "Superpower",
+    questionA: "Teleport anywhere",
+    questionB: "Stop time",
+    difficulty: "hard"
+  },
+  {
+    id: 16,
+    category: "Food",
+    questionA: "Never eat rice again",
+    questionB: "Never eat bread again",
+    difficulty: "medium"
+  },
+  {
+    id: 17,
+    category: "Social",
+    questionA: "Always know when someone lies",
+    questionB: "Always know what someone feels",
+    difficulty: "hard"
+  },
+  {
+    id: 18,
+    category: "Lifestyle",
+    questionA: "Live without WiFi",
+    questionB: "Live without air conditioning",
+    difficulty: "hard"
+  },
+  {
+    id: 19,
+    category: "Gaming",
+    questionA: "Have unlimited game skins",
+    questionB: "Have unlimited in-game currency",
+    difficulty: "easy"
+  },
+  {
+    id: 20,
+    category: "Funny",
+    questionA: "Have a theme song whenever you enter a room",
+    questionB: "Have confetti fall whenever you laugh",
+    difficulty: "medium"
+  }
 ];
+
+// Deterministic pair-specific shuffle so both chatting users mirror the exact same random order
+export function getShuffledQuestionsForPair(userId1: string, userId2: string): WYRQuestion[] {
+  const seedString = [userId1 || 'u1', userId2 || 'u2'].sort().join(':');
+  let hash = 0;
+  for (let i = 0; i < seedString.length; i++) {
+    hash = ((hash << 5) - hash) + seedString.charCodeAt(i);
+    hash |= 0;
+  }
+
+  let seed = Math.abs(hash) || 123456789;
+  const random = () => {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  const copy = [...RAW_WYR_QUESTIONS];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   isOpen,
@@ -123,7 +238,15 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [tttWinner, setTttWinner] = useState<number | 'draw' | null>(null);
   const [tttScores, setTttScores] = useState({ p1: 0, p2: 0 });
 
-  // ─── WOULD YOU RATHER STATE ─────────────────────────────────────────────────
+  // ─── WOULD YOU RATHER STATE (Randomized & Mirrored Per Pair) ───────────────
+  const [wyrQuestions, setWyrQuestions] = useState<WYRQuestion[]>(() =>
+    getShuffledQuestionsForPair(currentUser.id, partner.id)
+  );
+
+  useEffect(() => {
+    setWyrQuestions(getShuffledQuestionsForPair(currentUser.id, partner.id));
+  }, [currentUser.id, partner.id]);
+
   const [wyrIndex, setWyrIndex] = useState(0);
   const [wyrMyChoice, setWyrMyChoice] = useState<'A' | 'B' | null>(null);
   const [wyrPartnerChoice, setWyrPartnerChoice] = useState<'A' | 'B' | null>(null);
@@ -138,6 +261,69 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [rpsPartnerChoice, setRpsPartnerChoice] = useState<'rock' | 'paper' | 'scissors' | null>(null);
   const [rpsResult, setRpsResult] = useState<'win' | 'lose' | 'draw' | null>(null);
   const [rpsScores, setRpsScores] = useState({ me: 0, partner: 0 });
+
+  const [victoryData, setVictoryData] = useState<{
+    winnerUsername: string;
+    isMe: boolean;
+    gameName: string;
+  } | null>(null);
+  const victoryTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetAllGameBoards = () => {
+    // Fresh Connect 4 board
+    setC4Board(Array(6).fill(null).map(() => Array(7).fill(null)));
+    setC4Turn(1);
+    setC4Winner(null);
+
+    // Fresh Tic-Tac-Toe board
+    setTttBoard(Array(9).fill(null));
+    setTttTurn(1);
+    setTttWinner(null);
+
+    // Fresh RPS state
+    setRpsMyChoice(null);
+    setRpsPartnerChoice(null);
+    setRpsResult(null);
+
+    // Return to game selection menu for fresh next match
+    setActiveGame('menu');
+  };
+
+  const triggerVictory = (winnerPlayerId: number, gameName: string) => {
+    const isMe = winnerPlayerId === myPlayerId;
+    const winnerUsername = isMe ? currentUser.username : partner.username;
+
+    setVictoryData({
+      winnerUsername,
+      isMe,
+      gameName,
+    });
+
+    if (isMe) {
+      try {
+        confetti({
+          particleCount: 100,
+          spread: 80,
+          origin: { y: 0.5 },
+          colors: ['#ffc900', '#701a31', '#00e599', '#ff90e8', '#ffffff'],
+        });
+      } catch (e) {}
+    }
+
+    if (victoryTimerRef.current) clearTimeout(victoryTimerRef.current);
+    victoryTimerRef.current = setTimeout(() => {
+      setVictoryData(null);
+      resetAllGameBoards();
+      onClose();
+      roomManager.sendGameSignal({ action: 'AUTO_RESET_AND_CLOSE' });
+    }, 3800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (victoryTimerRef.current) clearTimeout(victoryTimerRef.current);
+    };
+  }, []);
 
   // ─── REALTIME GAME SIGNALS LISTENER ─────────────────────────────────────────
   useEffect(() => {
@@ -157,12 +343,21 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           onClose();
           break;
 
+        case 'AUTO_RESET_AND_CLOSE':
+          setVictoryData(null);
+          resetAllGameBoards();
+          onClose();
+          break;
+
         // Connect 4 signals
         case 'C4_MOVE':
           setC4Board(data.board);
           setC4Turn(data.nextTurn);
           setC4Winner(data.winner);
           if (data.scores) setC4Scores(data.scores);
+          if (data.winner === 1 || data.winner === 2) {
+            triggerVictory(data.winner, 'Connect 4');
+          }
           break;
 
         case 'C4_RESET':
@@ -177,6 +372,9 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           setTttTurn(data.nextTurn);
           setTttWinner(data.winner);
           if (data.scores) setTttScores(data.scores);
+          if (data.winner === 1 || data.winner === 2) {
+            triggerVictory(data.winner, 'Tic-Tac-Toe');
+          }
           break;
 
         case 'TTT_RESET':
@@ -215,7 +413,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     return () => {
       unsub();
     };
-  }, [onClose]);
+  }, [onClose, myPlayerId, currentUser.username, partner.username]);
 
   // ─── WOULD YOU RATHER 10-SECOND TIMER & SMART ACCUMULATION ──────────────────
   useEffect(() => {
@@ -276,7 +474,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   }, [activeGame, wyrIndex, wyrMyChoice, wyrPartnerChoice, isHost, wyrStats]);
 
   const advanceWyrQuestion = (statsToBroadcast = wyrStats) => {
-    const nextIdx = (wyrIndex + 1) % WYR_QUESTIONS.length;
+    const nextIdx = (wyrIndex + 1) % wyrQuestions.length;
     setWyrIndex(nextIdx);
     setWyrMyChoice(null);
     setWyrPartnerChoice(null);
@@ -312,9 +510,11 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
       ) {
         setRpsResult('win');
         setRpsScores((s) => ({ ...s, me: s.me + 1 }));
+        triggerVictory(myPlayerId, 'Rock Paper Scissors');
       } else {
         setRpsResult('lose');
         setRpsScores((s) => ({ ...s, partner: s.partner + 1 }));
+        triggerVictory(myPlayerId === 1 ? 2 : 1, 'Rock Paper Scissors');
       }
     }
   }, [activeGame, rpsMyChoice, rpsPartnerChoice, rpsResult]);
@@ -388,7 +588,10 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setC4Board(nextBoard);
     setC4Turn(nextTurn);
     setC4Winner(winnerResult);
-    if (winnerResult === 1 || winnerResult === 2) setC4Scores(updatedScores);
+    if (winnerResult === 1 || winnerResult === 2) {
+      setC4Scores(updatedScores);
+      triggerVictory(winnerResult, 'Connect 4');
+    }
 
     roomManager.sendGameSignal({
       action: 'C4_MOVE',
@@ -435,7 +638,10 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setTttBoard(nextBoard);
     setTttTurn(nextTurn);
     setTttWinner(winnerResult);
-    if (winnerResult === 1 || winnerResult === 2) setTttScores(updatedScores);
+    if (winnerResult === 1 || winnerResult === 2) {
+      setTttScores(updatedScores);
+      triggerVictory(winnerResult, 'Tic-Tac-Toe');
+    }
 
     roomManager.sendGameSignal({
       action: 'TTT_MOVE',
@@ -469,7 +675,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       {/* Bottom Sheet Modal Container */}
       <div
-        className={`w-full max-w-2xl mx-auto rounded-t-3xl border-t-3 border-x-3 border-black shadow-[0px_-8px_24px_rgba(0,0,0,0.3)] flex flex-col max-h-[88vh] overflow-hidden animate-in slide-in-from-bottom duration-300 ${
+        className={`w-full max-w-2xl mx-auto rounded-t-3xl border-t-3 border-x-3 border-black shadow-[0px_-8px_24px_rgba(0,0,0,0.3)] flex flex-col max-h-[88vh] overflow-hidden relative animate-in slide-in-from-bottom duration-300 ${
           isDarkMode ? 'bg-[#18181b] text-white' : 'bg-[#f4f4f0] text-black'
         }`}
       >
@@ -609,179 +815,193 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           {/* ═══════════════════════════════════════════════════════════════════
               VIEW: WOULD YOU RATHER (10s Timer + Smart Accumulation)
              ═══════════════════════════════════════════════════════════════════ */}
-          {activeGame === 'wouldyourather' && (
-            <div className="w-full max-w-md mx-auto space-y-4">
-              {/* Question Tracker & Stats Accumulator */}
-              <div className="flex items-center justify-between gap-2 p-2.5 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black">
-                <div className="flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 bg-[#701a31] text-white rounded-md">
-                    Q{wyrIndex + 1}/{WYR_QUESTIONS.length}
-                  </span>
-                  <span>Campus Dilemmas</span>
+          {activeGame === 'wouldyourather' && (() => {
+            const currentQ = wyrQuestions[wyrIndex] || RAW_WYR_QUESTIONS[0];
+            return (
+              <div className="w-full max-w-md mx-auto space-y-4">
+                {/* Question Tracker & Stats Accumulator */}
+                <div className="flex items-center justify-between gap-2 p-2.5 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 bg-[#701a31] text-white rounded-md">
+                      Q{wyrIndex + 1}/{wyrQuestions.length}
+                    </span>
+                    <span className="px-2 py-0.5 bg-[#fff8e6] text-black border border-black/30 rounded-md font-bold text-[10px] uppercase tracking-wide">
+                      {currentQ.category}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase border border-black/20 ${
+                      currentQ.difficulty === 'easy'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : currentQ.difficulty === 'medium'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {currentQ.difficulty}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="px-2 py-0.5 bg-[#00e599] text-black rounded-md flex items-center gap-1 border border-black shadow-2xs">
+                      <Sparkles className="w-3 h-3" />
+                      <span>{wyrStats.totalAnswered > 0 ? `${Math.round((wyrStats.matches / wyrStats.totalAnswered) * 100)}% Synergy` : '0% Synergy'}</span>
+                    </span>
+                    <span className="text-gray-500 font-bold">({wyrStats.matches} matches)</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-[#00e599] text-black rounded-md flex items-center gap-1 border border-black shadow-2xs">
-                    <Sparkles className="w-3 h-3" />
-                    <span>{wyrStats.totalAnswered > 0 ? `${Math.round((wyrStats.matches / wyrStats.totalAnswered) * 100)}% Synergy` : '0% Synergy'}</span>
-                  </span>
-                  <span className="text-gray-500 font-bold">({wyrStats.matches} matches)</span>
+                {/* 10-Second Animated Timer Bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs font-black">
+                    <span className="flex items-center gap-1 text-[#dc341e]">
+                      <Timer className="w-3.5 h-3.5" />
+                      <span>Time Remaining:</span>
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full border border-black ${
+                      wyrTimerSeconds <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffc900] text-black'
+                    }`}>
+                      {wyrTimerSeconds}s
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-gray-200 border-2 border-black rounded-full overflow-hidden p-0.5">
+                    <div
+                      className={`h-full rounded-full transition-all duration-1000 ${
+                        wyrTimerSeconds <= 3 ? 'bg-red-500' : 'bg-[#00e599]'
+                      }`}
+                      style={{ width: `${(wyrTimerSeconds / 10) * 100}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* 10-Second Animated Timer Bar */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs font-black">
-                  <span className="flex items-center gap-1 text-[#dc341e]">
-                    <Timer className="w-3.5 h-3.5" />
-                    <span>Time Remaining:</span>
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full border border-black ${
-                    wyrTimerSeconds <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffc900] text-black'
+                {/* Auto Skip Alert Notice */}
+                {wyrAutoSkipNotice && (
+                  <div className="p-2.5 bg-amber-200 border-2 border-black rounded-xl text-center text-xs font-extrabold animate-bounce">
+                    ⏳ 10 seconds expired! Skipping to next question...
+                  </div>
+                )}
+
+                {/* Both Answered: Smart Match Accumulation Reveal Banner */}
+                {wyrMyChoice && wyrPartnerChoice && (
+                  <div className={`p-3 border-2 border-black rounded-2xl text-center shadow-xs animate-in zoom-in-95 duration-200 ${
+                    wyrMyChoice === wyrPartnerChoice
+                      ? 'bg-[#00e599] text-black'
+                      : 'bg-[#ffe3e8] text-black'
                   }`}>
-                    {wyrTimerSeconds}s
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-gray-200 border-2 border-black rounded-full overflow-hidden p-0.5">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ${
-                      wyrTimerSeconds <= 3 ? 'bg-red-500' : 'bg-[#00e599]'
+                    {wyrMyChoice === wyrPartnerChoice ? (
+                      <div className="space-y-0.5">
+                        <div className="font-black text-sm flex items-center justify-center gap-1.5">
+                          <Sparkles className="w-4 h-4" />
+                          <span>✨ Match! You both picked the exact same option!</span>
+                        </div>
+                        <p className="text-xs font-bold opacity-90">
+                          Option {wyrMyChoice} • Great minds think alike!
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <div className="font-black text-sm">
+                          ⚡ You disagreed on this one!
+                        </div>
+                        <p className="text-xs font-bold">
+                          You picked <span className="underline font-black">Option {wyrMyChoice}</span>, {partner.username} picked <span className="underline font-black">Option {wyrPartnerChoice}</span>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Option Cards */}
+                <div className="grid grid-cols-1 gap-3">
+                  {/* Option A */}
+                  <button
+                    type="button"
+                    disabled={Boolean(wyrMyChoice) || wyrTimerSeconds === 0}
+                    onClick={() => handleWyrPick('A')}
+                    className={`p-4 rounded-2xl border-2 sm:border-3 border-black text-left transition-all relative overflow-hidden group cursor-pointer ${
+                      wyrMyChoice === 'A'
+                        ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02]'
+                        : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5'
                     }`}
-                    style={{ width: `${(wyrTimerSeconds / 10) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Auto Skip Alert Notice */}
-              {wyrAutoSkipNotice && (
-                <div className="p-2.5 bg-amber-200 border-2 border-black rounded-xl text-center text-xs font-extrabold animate-bounce">
-                  ⏳ 10 seconds expired! Skipping to next question...
-                </div>
-              )}
-
-              {/* Both Answered: Smart Match Accumulation Reveal Banner */}
-              {wyrMyChoice && wyrPartnerChoice && (
-                <div className={`p-3 border-2 border-black rounded-2xl text-center shadow-xs animate-in zoom-in-95 duration-200 ${
-                  wyrMyChoice === wyrPartnerChoice
-                    ? 'bg-[#00e599] text-black'
-                    : 'bg-[#ffe3e8] text-black'
-                }`}>
-                  {wyrMyChoice === wyrPartnerChoice ? (
-                    <div className="space-y-0.5">
-                      <div className="font-black text-sm flex items-center justify-center gap-1.5">
-                        <Sparkles className="w-4 h-4" />
-                        <span>✨ Match! You both picked the exact same option!</span>
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className={`w-8 h-8 rounded-xl border-2 border-black flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
+                        wyrMyChoice === 'A' ? 'bg-[#ffc900] text-black' : 'bg-[#701a31] text-white'
+                      }`}>
+                        A
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm sm:text-base font-extrabold leading-snug">
+                          {currentQ.questionA}
+                        </p>
+                        {wyrMyChoice === 'A' && (
+                          <span className="text-[11px] font-black text-amber-300 mt-1 inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Your Pick
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs font-bold opacity-90">
-                        Option {wyrMyChoice} • Great minds think alike at CU!
-                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-0.5">
-                      <div className="font-black text-sm">
-                        ⚡ You disagreed on this one!
+
+                    {/* Partner Pick Indicator after reveal */}
+                    {wyrMyChoice && wyrPartnerChoice === 'A' && (
+                      <div className="mt-2 pt-2 border-t border-white/20 text-xs font-black text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#00e599] animate-ping" />
+                        <span>{partner.username} chose this too!</span>
                       </div>
-                      <p className="text-xs font-bold">
-                        You picked <span className="underline font-black">Option {wyrMyChoice}</span>, {partner.username} picked <span className="underline font-black">Option {wyrPartnerChoice}</span>.
-                      </p>
+                    )}
+                  </button>
+
+                  {/* Option B */}
+                  <button
+                    type="button"
+                    disabled={Boolean(wyrMyChoice) || wyrTimerSeconds === 0}
+                    onClick={() => handleWyrPick('B')}
+                    className={`p-4 rounded-2xl border-2 sm:border-3 border-black text-left transition-all relative overflow-hidden group cursor-pointer ${
+                      wyrMyChoice === 'B'
+                        ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02]'
+                        : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className={`w-8 h-8 rounded-xl border-2 border-black flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
+                        wyrMyChoice === 'B' ? 'bg-[#ffc900] text-black' : 'bg-[#ffc900] text-black'
+                      }`}>
+                        B
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm sm:text-base font-extrabold leading-snug">
+                          {currentQ.questionB}
+                        </p>
+                        {wyrMyChoice === 'B' && (
+                          <span className="text-[11px] font-black text-amber-300 mt-1 inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Your Pick
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Partner Pick Indicator after reveal */}
+                    {wyrMyChoice && wyrPartnerChoice === 'B' && (
+                      <div className="mt-2 pt-2 border-t border-white/20 text-xs font-black text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#00e599] animate-ping" />
+                        <span>{partner.username} chose this too!</span>
+                      </div>
+                    )}
+                  </button>
+                </div>
+
+                {/* Status Note */}
+                <div className="text-center text-xs font-bold text-gray-500">
+                  {wyrMyChoice && !wyrPartnerChoice && (
+                    <span className="inline-flex items-center gap-1.5 text-[#701a31] font-extrabold animate-pulse">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Locked in! Waiting for {partner.username} to pick...
+                    </span>
+                  )}
+                  {!wyrMyChoice && (
+                    <span>Pick your choice before the 10-second timer runs out!</span>
                   )}
                 </div>
-              )}
-
-              {/* Option Cards */}
-              <div className="grid grid-cols-1 gap-3">
-                {/* Option A */}
-                <button
-                  type="button"
-                  disabled={Boolean(wyrMyChoice) || wyrTimerSeconds === 0}
-                  onClick={() => handleWyrPick('A')}
-                  className={`p-4 rounded-2xl border-2 sm:border-3 border-black text-left transition-all relative overflow-hidden group cursor-pointer ${
-                    wyrMyChoice === 'A'
-                      ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02]'
-                      : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className={`w-8 h-8 rounded-xl border-2 border-black flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
-                      wyrMyChoice === 'A' ? 'bg-[#ffc900] text-black' : 'bg-[#701a31] text-white'
-                    }`}>
-                      A
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm sm:text-base font-extrabold leading-snug">
-                        {WYR_QUESTIONS[wyrIndex].optionA}
-                      </p>
-                      {wyrMyChoice === 'A' && (
-                        <span className="text-[11px] font-black text-amber-300 mt-1 inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Your Pick
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Partner Pick Indicator after reveal */}
-                  {wyrMyChoice && wyrPartnerChoice === 'A' && (
-                    <div className="mt-2 pt-2 border-t border-white/20 text-xs font-black text-white flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#00e599] animate-ping" />
-                      <span>{partner.username} chose this too!</span>
-                    </div>
-                  )}
-                </button>
-
-                {/* Option B */}
-                <button
-                  type="button"
-                  disabled={Boolean(wyrMyChoice) || wyrTimerSeconds === 0}
-                  onClick={() => handleWyrPick('B')}
-                  className={`p-4 rounded-2xl border-2 sm:border-3 border-black text-left transition-all relative overflow-hidden group cursor-pointer ${
-                    wyrMyChoice === 'B'
-                      ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02]'
-                      : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className={`w-8 h-8 rounded-xl border-2 border-black flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
-                      wyrMyChoice === 'B' ? 'bg-[#ffc900] text-black' : 'bg-[#ffc900] text-black'
-                    }`}>
-                      B
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm sm:text-base font-extrabold leading-snug">
-                        {WYR_QUESTIONS[wyrIndex].optionB}
-                      </p>
-                      {wyrMyChoice === 'B' && (
-                        <span className="text-[11px] font-black text-amber-300 mt-1 inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Your Pick
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Partner Pick Indicator after reveal */}
-                  {wyrMyChoice && wyrPartnerChoice === 'B' && (
-                    <div className="mt-2 pt-2 border-t border-white/20 text-xs font-black text-white flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#00e599] animate-ping" />
-                      <span>{partner.username} chose this too!</span>
-                    </div>
-                  )}
-                </button>
               </div>
-
-              {/* Status Note */}
-              <div className="text-center text-xs font-bold text-gray-500">
-                {wyrMyChoice && !wyrPartnerChoice && (
-                  <span className="inline-flex items-center gap-1.5 text-[#701a31] font-extrabold animate-pulse">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    Locked in! Waiting for {partner.username} to pick...
-                  </span>
-                )}
-                {!wyrMyChoice && (
-                  <span>Pick your choice before the 10-second timer runs out!</span>
-                )}
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ═══════════════════════════════════════════════════════════════════
               VIEW: CONNECT 4 (4 IN A ROW)
@@ -1000,6 +1220,49 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           )}
 
         </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            VICTORY & DUEL WINNER CELEBRATION OVERLAY (DotLottie Animation)
+           ═══════════════════════════════════════════════════════════════════ */}
+        {victoryData && (
+          <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in zoom-in-95 fade-in duration-300">
+            {/* Animated Lottie Winner Cup */}
+            <div className="relative">
+              <DotLottieReact
+                src="/animated-reacts/winner.lottie"
+                loop={true}
+                autoplay={true}
+                className="w-48 h-48 sm:w-60 sm:h-60 mx-auto drop-shadow-2xl"
+              />
+            </div>
+
+            {/* Winner Title Badge */}
+            <div className="mt-1 space-y-2 max-w-sm mx-auto">
+              <div className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border-2 border-black font-black text-xs sm:text-sm uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                victoryData.isMe ? 'bg-[#00e599] text-black animate-bounce' : 'bg-[#ffc900] text-black'
+              }`}>
+                <Trophy className="w-4 h-4" />
+                <span>{victoryData.isMe ? 'Victory! You Won!' : `${victoryData.winnerUsername} Won!`}</span>
+              </div>
+
+              <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                {victoryData.isMe ? 'Campus Duel Champion!' : 'Better Luck Next Round!'}
+              </h3>
+
+              <p className="text-xs sm:text-sm text-gray-300 font-medium">
+                {victoryData.gameName} duel concluded. Returning to the chatroom...
+              </p>
+
+              {/* Pulsing countdown pill */}
+              <div className="pt-1.5">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-white/20 text-white rounded-full text-xs font-bold border border-white/30 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Switching to chatroom...</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
