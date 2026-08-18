@@ -82,11 +82,17 @@ export const PrivacyPolicy: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => setViewState('landing')}
+            onClick={() => {
+              if (typeof window !== 'undefined' && sessionStorage.getItem('capitalk_toc_accepted_session') !== 'true') {
+                setViewState('terms');
+              } else {
+                setViewState('landing');
+              }
+            }}
             className="btn-gumroad-ghost text-xs sm:text-sm px-3.5 py-2 flex items-center gap-1.5 hover:border-black rounded-xl shadow-2xs font-extrabold bg-white"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Home</span>
+            <span>Back</span>
           </button>
 
           <div className="flex items-center gap-2">

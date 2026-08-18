@@ -276,6 +276,24 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setViewState('terms');
+                    setShowMenuDrawer(false);
+                  }}
+                  className={`w-full p-3 rounded-2xl border border-black/20 text-left font-bold text-xs flex items-center justify-between transition-all ${
+                    viewState === 'terms'
+                      ? 'bg-[#fff1f3] text-[#701a31] border-black font-extrabold'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    📜 Terms of Conduct (TOC)
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-semibold">Rules</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setViewState('privacy');
                     setShowMenuDrawer(false);
                   }}

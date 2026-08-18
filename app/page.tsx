@@ -12,6 +12,7 @@ import { FreedomWall } from '../components/FreedomWall';
 import { MusicWall } from '../components/MusicWall';
 import { BannedScreen } from '../components/BannedScreen';
 import { PrivacyPolicy } from '../components/PrivacyPolicy';
+import { TermsOfConduct } from '../components/TermsOfConduct';
 import {
   Sparkles,
   ShieldCheck,
@@ -56,6 +57,25 @@ export default function Home() {
     freedomPosts,
   } = useChatStore();
 
+  const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sessionAccepted = sessionStorage.getItem('capitalk_toc_accepted_session') === 'true';
+      setHasAcceptedToc(sessionAccepted);
+    }
+  }, []);
+
+  const handleAcceptToc = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('capitalk_toc_accepted_session', 'true');
+    }
+    setHasAcceptedToc(true);
+    if (viewState === 'terms') {
+      setViewState('landing');
+    }
+  };
+
   React.useEffect(() => {
     if (actionToast) {
       const timer = setTimeout(() => {
@@ -87,6 +107,11 @@ export default function Home() {
 
   if (viewState === 'ceased') {
     return <BannedScreen />;
+  }
+
+  // Enforce Terms of Conduct (TOC) gate for the current browser session (allowing reading privacy policy)
+  if (hasAcceptedToc === false && viewState !== 'privacy') {
+    return <TermsOfConduct onAccept={handleAcceptToc} />;
   }
 
   return (
@@ -131,6 +156,7 @@ export default function Home() {
         {viewState === 'freedom_wall' && <FreedomWall />}
         {viewState === 'music_wall' && <MusicWall />}
         {viewState === 'privacy' && <PrivacyPolicy />}
+        {viewState === 'terms' && <TermsOfConduct onAccept={handleAcceptToc} isStandaloneView={true} />}
 
         {viewState === 'landing' && (
           <div className="w-full">
@@ -165,41 +191,55 @@ export default function Home() {
                 </p>
 
                 {/* Mobile & Desktop Quick Feature Jump Bar */}
-                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 max-w-xl mx-auto w-full">
+                <div className="mt-6 sm:mt-8 grid grid-cols-3 gap-2.5 sm:gap-4 max-w-lg mx-auto w-full">
                   <button
                     type="button"
                     onClick={() => setViewState(currentUser ? 'queue' : 'register')}
-                    className="p-3 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                    className="relative p-3 sm:p-4 bg-white hover:bg-[#ffe3e8] border-2 sm:border-3 border-black rounded-2xl flex flex-col items-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-center group cursor-pointer"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-[#701a31] text-white flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                      <MessageSquare className="w-4 h-4 stroke-[2.5]" />
+                    {/* Live Pulse Indicator */}
+                    <span className="absolute top-2 right-2 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00e599]"></span>
+                    </span>
+
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#701a31] text-white flex items-center justify-center border-2 border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 group-hover:rotate-[-4deg] transition-all">
+                      <MessageSquare className="w-5 h-5 stroke-[2.5]" />
                     </div>
-                    <span className="text-xs font-black text-black leading-tight">1-on-1 Chat</span>
-                    <span className="text-[10px] text-gray-600 font-bold">Live Match</span>
+                    <div className="min-w-0">
+                      <span className="block text-xs sm:text-sm font-black text-black leading-tight tracking-tight">1-on-1 Chat</span>
+                      <span className="inline-block text-[10px] sm:text-[11px] text-emerald-700 font-extrabold mt-0.5">Live Match</span>
+                    </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setViewState('freedom_wall')}
-                    className="p-3 bg-white hover:bg-[#fff1f3] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                    className="relative p-3 sm:p-4 bg-white hover:bg-[#fff1f3] border-2 sm:border-3 border-black rounded-2xl flex flex-col items-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-center group cursor-pointer"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-[#ffc900] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                      <Radio className="w-4 h-4 stroke-[2.5]" />
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#ffc900] text-black flex items-center justify-center border-2 border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 group-hover:rotate-[4deg] transition-all">
+                      <Radio className="w-5 h-5 stroke-[2.5]" />
                     </div>
-                    <span className="text-xs font-black text-black leading-tight">Freedom Wall</span>
-                    <span className="text-[10px] text-gray-600 font-bold">{freedomPosts.length > 0 ? `${freedomPosts.length} Posts` : 'Confessions'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-xs sm:text-sm font-black text-black leading-tight tracking-tight">Freedom Wall</span>
+                      <span className="inline-block text-[10px] sm:text-[11px] text-[#701a31] font-extrabold mt-0.5 truncate max-w-full">
+                        {freedomPosts.length > 0 ? `${freedomPosts.length} Posts` : 'Confessions'}
+                      </span>
+                    </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setViewState('music_wall')}
-                    className="p-3 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all text-center group cursor-pointer"
+                    className="relative p-3 sm:p-4 bg-white hover:bg-[#ffe3e8] border-2 sm:border-3 border-black rounded-2xl flex flex-col items-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-center group cursor-pointer"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-[#ff90e8] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                      <Music className="w-4 h-4 stroke-[2.5]" />
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#ff90e8] text-black flex items-center justify-center border-2 border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 group-hover:rotate-[-4deg] transition-all">
+                      <Music className="w-5 h-5 stroke-[2.5]" />
                     </div>
-                    <span className="text-xs font-black text-black leading-tight">Music Wall</span>
-                    <span className="text-[10px] text-gray-600 font-bold">Dedications</span>
+                    <div className="min-w-0">
+                      <span className="block text-xs sm:text-sm font-black text-black leading-tight tracking-tight">Music Wall</span>
+                      <span className="inline-block text-[10px] sm:text-[11px] text-[#242423] font-extrabold mt-0.5">Dedications</span>
+                    </div>
                   </button>
                 </div>
 
@@ -556,6 +596,9 @@ export default function Home() {
               </button>
               <button onClick={() => setViewState('freedom_wall')} className="hover:text-black transition-colors">
                 Freedom Wall
+              </button>
+              <button onClick={() => setViewState('terms')} className="hover:text-[#701a31] font-extrabold transition-colors">
+                Terms of Conduct (TOC)
               </button>
               <button onClick={() => setViewState('privacy')} className="text-[#701a31] hover:underline font-extrabold transition-colors">
                 Privacy Policy

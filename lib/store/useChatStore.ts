@@ -22,8 +22,8 @@ interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy';
-  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy') => void;
+  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms';
+  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms') => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -131,7 +131,7 @@ export const useChatStore = create<ChatStoreState>()(
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
       viewState: 'landing',
-      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy') => {
+      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms') => {
         set({ viewState: view });
       },
 
