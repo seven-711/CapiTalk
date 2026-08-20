@@ -1237,26 +1237,6 @@ export const ChatRoom: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Reply Bar Overlay */}
-      {replyTo && (
-        <div
-          style={{
-            backgroundColor: isDarkMode ? '#1e1e24' : '#fff9eb',
-            borderColor: activeThemeConfig.dotColor || '#ffc900',
-          }}
-          className="mx-2 sm:mx-4 mb-2 p-2.5 rounded-xl border-l-4 border-y border-r flex items-center justify-between gap-3 shadow-xs animate-in slide-in-from-bottom-2 duration-200 z-20"
-        >
-          <button
-            type="button"
-            onClick={() => setReplyTo(null)}
-            className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors shrink-0 text-gray-500 hover:text-black dark:hover:text-white"
-            title="Cancel reply"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Upload Error Alert */}
       {uploadError && (
         <div className="bg-[#dc341e] text-white p-2.5 text-xs font-semibold flex items-center justify-between mx-2 sm:mx-4 mb-2 rounded-xl shadow-xs z-20">
