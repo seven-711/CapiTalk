@@ -6,6 +6,7 @@ import { UserProfile } from '../lib/types';
 import { useChatStore } from '../lib/store/useChatStore';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import confetti from 'canvas-confetti';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2,
   X,
@@ -20,6 +21,9 @@ import {
   Timer,
   Award,
   ChevronRight,
+  ChevronLeft,
+  Play,
+  Pause,
   RefreshCw,
   Users,
   Flag,
@@ -82,7 +86,7 @@ export function computeFlagSmartFeedback(
   const matches = history.filter((h) => h.isMatch).length;
   const synergyScore = total > 0 ? Math.round((matches / total) * 100) : 0;
 
-  let archetypeTitle = "✨ Twin Flame Alignment";
+  let archetypeTitle = "Twin Flame Alignment";
   let archetypeBadge = "Uncanny Synergy 💖";
   let archetypeDescription = "You two operate on the exact same campus wavelength! Your boundaries, instincts, and green flags match up almost seamlessly. You'd either be an unstoppable duo or complete partners in crime.";
 
@@ -378,12 +382,42 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [flagAutoSkipNotice, setFlagAutoSkipNotice] = useState(false);
   const [flagHistory, setFlagHistory] = useState<FlagHistoryEntry[]>([]);
   const [flagIsFinished, setFlagIsFinished] = useState(false);
+  const [flagFeedbackStep, setFlagFeedbackStep] = useState<number>(0);
+  const [isAutoPlayingFeedback, setIsAutoPlayingFeedback] = useState<boolean>(true);
   const [flagSharedToChat, setFlagSharedToChat] = useState(false);
   const { sendMessage } = useChatStore();
 
   const flagTimerRef = useRef<NodeJS.Timeout | null>(null);
   const flagAutoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastEvaluatedQRef = useRef<number>(-1);
+  const scheduledAdvanceQRef = useRef<number>(-1);
+
+  // ─── RED FLAG OR GREEN FLAG AUTOMATIC SMART FEEDBACK ANIMATION SEQUENCE ─────
+  useEffect(() => {
+    if (!flagIsFinished || !isAutoPlayingFeedback) return;
+
+    // Time to display each section before smoothly fading to next:
+    // Step 0 (Archetype & Synergy): 4200ms
+    // Step 1 (Mutual Dealbreakers & Green Flags): 4000ms
+    // Step 2 (Debates & Standards Radar): 4000ms
+    // Step 3 (Round Breakdown): stops at breakdown for manual review & actions
+    const stepDurations = [4200, 4000, 4000, 5000];
+    const duration = stepDurations[flagFeedbackStep] || 4000;
+
+    const timer = setTimeout(() => {
+      setFlagFeedbackStep((prev) => {
+        if (prev < 3) {
+          return prev + 1;
+        } else {
+          // Reached final breakdown summary: pause auto-play so user can freely explore and share
+          setIsAutoPlayingFeedback(false);
+          return prev;
+        }
+      });
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [flagIsFinished, flagFeedbackStep, isAutoPlayingFeedback]);
 
   // ─── ROCK PAPER SCISSORS STATE ──────────────────────────────────────────────
   const [rpsMyChoice, setRpsMyChoice] = useState<'rock' | 'paper' | 'scissors' | null>(null);
@@ -423,8 +457,13 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setFlagAutoSkipNotice(false);
     setFlagHistory([]);
     setFlagIsFinished(false);
+    setFlagFeedbackStep(0);
+    setIsAutoPlayingFeedback(true);
     setFlagSharedToChat(false);
     lastEvaluatedQRef.current = -1;
+    scheduledAdvanceQRef.current = -1;
+    if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+    if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
 
     // Return to game selection menu for fresh next match
     setActiveGame('menu');
@@ -527,17 +566,22 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
         // Red Flag or Green Flag signals
         case 'FLAG_PICK':
         case 'WYR_PICK':
-          setFlagPartnerChoice(data.choice);
+          if (data.questionIndex === undefined || data.questionIndex === flagIndex) {
+            setFlagPartnerChoice(data.choice);
+          }
           break;
 
         case 'FLAG_NEXT_QUESTION':
         case 'WYR_NEXT_QUESTION':
+          if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+          scheduledAdvanceQRef.current = -1;
+          lastEvaluatedQRef.current = -1;
+
           setFlagIndex(data.nextIndex);
           setFlagMyChoice(null);
           setFlagPartnerChoice(null);
           setFlagTimerSeconds(10);
           setFlagAutoSkipNotice(false);
-          lastEvaluatedQRef.current = -1;
           if (data.stats) setFlagStats(data.stats);
           if (data.historyItem) {
             setFlagHistory((prev) => {
@@ -549,9 +593,14 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           break;
 
         case 'FLAG_FINISH':
+          if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+          scheduledAdvanceQRef.current = -1;
+          lastEvaluatedQRef.current = -1;
           if (data.stats) setFlagStats(data.stats);
           if (data.history) setFlagHistory(data.history);
           setFlagIsFinished(true);
+          setFlagFeedbackStep(0);
+          setIsAutoPlayingFeedback(true);
           try {
             confetti({
               particleCount: 120,
@@ -563,6 +612,11 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           break;
 
         case 'FLAG_RESTART_ROUND':
+          if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+          if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+          scheduledAdvanceQRef.current = -1;
+          lastEvaluatedQRef.current = -1;
+
           if (data.questions) setFlagQuestions(data.questions);
           setFlagIndex(0);
           setFlagMyChoice(null);
@@ -572,8 +626,9 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           setFlagAutoSkipNotice(false);
           setFlagHistory([]);
           setFlagIsFinished(false);
+          setFlagFeedbackStep(0);
+          setIsAutoPlayingFeedback(true);
           setFlagSharedToChat(false);
-          lastEvaluatedQRef.current = -1;
           setActiveGame('redgreenflag');
           break;
 
@@ -593,145 +648,32 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     return () => {
       unsub();
     };
-  }, [onClose, myPlayerId, currentUser.username, partner.username]);
+  }, [onClose, myPlayerId, currentUser.username, partner.username, flagIndex]);
 
-  // ─── RED FLAG OR GREEN FLAG 10-SECOND TIMER & SMART ACCUMULATION ────────────
+  // ─── RED FLAG OR GREEN FLAG 10-SECOND COUNTDOWN TIMER ───────────────────────
   useEffect(() => {
     if (activeGame !== 'redgreenflag' && activeGame !== 'wouldyourather') {
       if (flagTimerRef.current) clearInterval(flagTimerRef.current);
-      if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
       return;
     }
 
     if (flagIsFinished) {
       if (flagTimerRef.current) clearInterval(flagTimerRef.current);
-      if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
       return;
     }
 
-    // Both players have made a choice
+    // Stop countdown if both already picked
     if (flagMyChoice && flagPartnerChoice) {
       if (flagTimerRef.current) clearInterval(flagTimerRef.current);
-
-      if (lastEvaluatedQRef.current !== flagIndex) {
-        lastEvaluatedQRef.current = flagIndex;
-        const currentQ = flagQuestions[flagIndex] || RAW_FLAG_QUESTIONS[0];
-        const isMatch = flagMyChoice === flagPartnerChoice;
-
-        const historyItem: FlagHistoryEntry = {
-          question: currentQ,
-          myChoice: flagMyChoice,
-          partnerChoice: flagPartnerChoice,
-          isMatch,
-        };
-
-        setFlagHistory((prev) => {
-          const exists = prev.some((h) => h.question.id === currentQ.id);
-          return exists ? prev : [...prev, historyItem];
-        });
-
-        setFlagStats((prev) => {
-          const nextStats = {
-            matches: prev.matches + (isMatch ? 1 : 0),
-            totalAnswered: prev.totalAnswered + 1,
-          };
-
-          if (isHost) {
-            if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
-            flagAutoAdvanceTimerRef.current = setTimeout(() => {
-              if (flagIndex + 1 >= QUESTIONS_PER_ROUND) {
-                // All 7 questions complete! Conclude and display smart feedback conclusion
-                setFlagIsFinished(true);
-                try {
-                  confetti({
-                    particleCount: 120,
-                    spread: 90,
-                    origin: { y: 0.5 },
-                    colors: ['#ffc900', '#dc341e', '#00e599', '#ff90e8', '#ffffff'],
-                  });
-                } catch (e) {}
-
-                setFlagHistory((currentHistory) => {
-                  roomManager.sendGameSignal({
-                    action: 'FLAG_FINISH',
-                    stats: nextStats,
-                    history: currentHistory,
-                  });
-                  return currentHistory;
-                });
-              } else {
-                advanceFlagQuestion(nextStats, historyItem);
-              }
-            }, 2600);
-          }
-
-          return nextStats;
-        });
-      }
       return;
     }
 
-    // Countdown active
     if (flagTimerRef.current) clearInterval(flagTimerRef.current);
     flagTimerRef.current = setInterval(() => {
       setFlagTimerSeconds((prev) => {
         if (prev <= 1) {
           if (flagTimerRef.current) clearInterval(flagTimerRef.current);
           setFlagAutoSkipNotice(true);
-
-          if (isHost && lastEvaluatedQRef.current !== flagIndex) {
-            lastEvaluatedQRef.current = flagIndex;
-            const currentQ = flagQuestions[flagIndex] || RAW_FLAG_QUESTIONS[0];
-            const myPick = flagMyChoice || 'TIMEOUT';
-            const partnerPick = flagPartnerChoice || 'TIMEOUT';
-            const isMatch = myPick !== 'TIMEOUT' && myPick === partnerPick;
-
-            const historyItem: FlagHistoryEntry = {
-              question: currentQ,
-              myChoice: myPick,
-              partnerChoice: partnerPick,
-              isMatch,
-            };
-
-            setFlagHistory((prev) => {
-              const exists = prev.some((h) => h.question.id === currentQ.id);
-              return exists ? prev : [...prev, historyItem];
-            });
-
-            if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
-            flagAutoAdvanceTimerRef.current = setTimeout(() => {
-              setFlagStats((prevStats) => {
-                const nextStats = {
-                  matches: prevStats.matches + (isMatch ? 1 : 0),
-                  totalAnswered: prevStats.totalAnswered + 1,
-                };
-
-                if (flagIndex + 1 >= QUESTIONS_PER_ROUND) {
-                  setFlagIsFinished(true);
-                  try {
-                    confetti({
-                      particleCount: 120,
-                      spread: 90,
-                      origin: { y: 0.5 },
-                      colors: ['#ffc900', '#dc341e', '#00e599', '#ff90e8', '#ffffff'],
-                    });
-                  } catch (e) {}
-
-                  setFlagHistory((currentHistory) => {
-                    roomManager.sendGameSignal({
-                      action: 'FLAG_FINISH',
-                      stats: nextStats,
-                      history: currentHistory,
-                    });
-                    return currentHistory;
-                  });
-                } else {
-                  advanceFlagQuestion(nextStats, historyItem);
-                }
-                return nextStats;
-              });
-            }, 1500);
-          }
           return 0;
         }
         return prev - 1;
@@ -740,25 +682,114 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
 
     return () => {
       if (flagTimerRef.current) clearInterval(flagTimerRef.current);
-      if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
     };
-  }, [activeGame, flagIndex, flagMyChoice, flagPartnerChoice, flagIsFinished, isHost, myPlayerId, flagQuestions]);
+  }, [activeGame, flagIndex, flagIsFinished, flagMyChoice, flagPartnerChoice]);
+
+  // ─── RED FLAG OR GREEN FLAG EVALUATION & AUTO-ADVANCEMENT ───────────────────
+  useEffect(() => {
+    if (activeGame !== 'redgreenflag' && activeGame !== 'wouldyourather') return;
+    if (flagIsFinished) return;
+
+    const bothAnswered = Boolean(flagMyChoice && flagPartnerChoice);
+    const isTimeout = flagTimerSeconds === 0;
+
+    if (!bothAnswered && !isTimeout) return;
+
+    // Check if advancement has already been scheduled for this question index
+    if (scheduledAdvanceQRef.current === flagIndex) return;
+    scheduledAdvanceQRef.current = flagIndex;
+
+    const currentQ = flagQuestions[flagIndex] || RAW_FLAG_QUESTIONS[0];
+    const myPick = flagMyChoice || 'TIMEOUT';
+    const partnerPick = flagPartnerChoice || 'TIMEOUT';
+    const isMatch = myPick !== 'TIMEOUT' && myPick === partnerPick;
+
+    const historyItem: FlagHistoryEntry = {
+      question: currentQ,
+      myChoice: myPick,
+      partnerChoice: partnerPick,
+      isMatch,
+    };
+
+    setFlagHistory((prev) => {
+      const exists = prev.some((h) => h.question.id === currentQ.id);
+      return exists ? prev : [...prev, historyItem];
+    });
+
+    setFlagStats((prev) => {
+      const nextStats = {
+        matches: prev.matches + (isMatch ? 1 : 0),
+        totalAnswered: prev.totalAnswered + 1,
+      };
+
+      const nextQIndex = flagIndex + 1;
+      const isFinalQuestion = nextQIndex >= QUESTIONS_PER_ROUND;
+      const advanceDelay = isTimeout ? 1800 : 2500;
+
+      if (isHost) {
+        if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+        flagAutoAdvanceTimerRef.current = setTimeout(() => {
+          if (isFinalQuestion) {
+            setFlagIsFinished(true);
+            setFlagFeedbackStep(0);
+            setIsAutoPlayingFeedback(true);
+            try {
+              confetti({
+                particleCount: 120,
+                spread: 90,
+                origin: { y: 0.5 },
+                colors: ['#ffc900', '#dc341e', '#00e599', '#ff90e8', '#ffffff'],
+              });
+            } catch (e) {}
+
+            setFlagHistory((currentHistory) => {
+              roomManager.sendGameSignal({
+                action: 'FLAG_FINISH',
+                stats: nextStats,
+                history: currentHistory,
+              });
+              return currentHistory;
+            });
+          } else {
+            advanceFlagQuestion(nextQIndex, nextStats, historyItem);
+          }
+        }, advanceDelay);
+      } else {
+        // Guest Fallback Timer: in case Host packet is dropped, smoothly advance to next question
+        if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+        flagAutoAdvanceTimerRef.current = setTimeout(() => {
+          if (isFinalQuestion) {
+            setFlagIsFinished(true);
+            setFlagFeedbackStep(0);
+            setIsAutoPlayingFeedback(true);
+          } else {
+            advanceFlagQuestion(nextQIndex, nextStats, historyItem);
+          }
+        }, advanceDelay + 2000);
+      }
+
+      return nextStats;
+    });
+  }, [activeGame, flagIndex, flagMyChoice, flagPartnerChoice, flagTimerSeconds, flagIsFinished, isHost, flagQuestions]);
 
   const advanceFlagQuestion = (
+    targetIndex: number,
     statsToBroadcast?: { matches: number; totalAnswered: number },
     historyItem?: FlagHistoryEntry
   ) => {
-    const nextIdx = (flagIndex + 1) % QUESTIONS_PER_ROUND;
-    setFlagIndex(nextIdx);
+    if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+    scheduledAdvanceQRef.current = -1;
+    lastEvaluatedQRef.current = -1;
+
+    setFlagIndex(targetIndex);
     setFlagMyChoice(null);
     setFlagPartnerChoice(null);
     setFlagTimerSeconds(10);
     setFlagAutoSkipNotice(false);
-    lastEvaluatedQRef.current = -1;
 
     roomManager.sendGameSignal({
       action: 'FLAG_NEXT_QUESTION',
-      nextIndex: nextIdx,
+      nextIndex: targetIndex,
       stats: statsToBroadcast,
       historyItem,
     });
@@ -770,11 +801,17 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     roomManager.sendGameSignal({
       action: 'FLAG_PICK',
       choice,
+      questionIndex: flagIndex,
     });
   };
 
   const handleRestartFlagRound = () => {
     const newQuestions = [...RAW_FLAG_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, QUESTIONS_PER_ROUND);
+    if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+    if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+    scheduledAdvanceQRef.current = -1;
+    lastEvaluatedQRef.current = -1;
+
     setFlagQuestions(newQuestions);
     setFlagIndex(0);
     setFlagMyChoice(null);
@@ -784,8 +821,9 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setFlagAutoSkipNotice(false);
     setFlagHistory([]);
     setFlagIsFinished(false);
+    setFlagFeedbackStep(0);
+    setIsAutoPlayingFeedback(true);
     setFlagSharedToChat(false);
-    lastEvaluatedQRef.current = -1;
     setActiveGame('redgreenflag');
 
     roomManager.sendGameSignal({
@@ -796,16 +834,64 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
 
   const handleShareFlagFeedbackToChat = (feedback: SmartFeedbackData) => {
     if (flagSharedToChat) return;
-    const msg = `🚩 *Red Flag or Green Flag Results* 🟢\n` +
-      `✨ Alignment: ${feedback.synergyScore}% (${feedback.matchCount}/${feedback.totalQuestions} Matches)\n` +
-      `🎭 Archetype: ${feedback.archetypeTitle} (${feedback.archetypeBadge})\n` +
-      `💡 Verdict: ${feedback.strictnessVerdict}\n` +
-      (feedback.biggestRedFlagAlliance ? `🚩 Mutual Dealbreaker: "${feedback.biggestRedFlagAlliance}"\n` : '') +
-      (feedback.biggestGreenFlagAlliance ? `🟢 Shared Green Flag: "${feedback.biggestGreenFlagAlliance}"\n` : '') +
-      (feedback.spiciestDebate ? `⚡ Spiciest Debate: "${feedback.spiciestDebate.scenario}" (You: ${feedback.spiciestDebate.myChoice} vs Partner: ${feedback.spiciestDebate.partnerChoice})` : '');
+
+    // Visual alignment bar: e.g. 🟩🟩🟩🟩🟩🟩⬜⬜ 75%
+    const filledCount = Math.round((feedback.synergyScore / 100) * 8);
+    const emptyCount = 8 - filledCount;
+    const visualBar = `${'🟩'.repeat(Math.max(0, Math.min(8, filledCount)))}${'⬜'.repeat(Math.max(0, Math.min(8, emptyCount)))}`;
+
+    const lines: string[] = [
+      `🚩 RED FLAG OR GREEN FLAG 🟢`,
+      `✦ CAMPUS VIBE REPORT ✦`,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `${feedback.archetypeTitle}`,
+      `${feedback.archetypeBadge}`,
+      ``,
+      `📊 Vibe Alignment: ${feedback.synergyScore}% (${feedback.matchCount}/${feedback.totalQuestions} Matched)`,
+      `${visualBar}`,
+    ];
+
+    if (feedback.biggestRedFlagAlliance) {
+      lines.push(``);
+      lines.push(`🚩 Mutual Dealbreaker:`);
+      lines.push(`"${feedback.biggestRedFlagAlliance}"`);
+    }
+
+    if (feedback.biggestGreenFlagAlliance) {
+      lines.push(``);
+      lines.push(`🟢 Shared Green Flag:`);
+      lines.push(`"${feedback.biggestGreenFlagAlliance}"`);
+    }
+
+    if (feedback.spiciestDebate) {
+      lines.push(``);
+      lines.push(`⚡ Spiciest Debate:`);
+      lines.push(`"${feedback.spiciestDebate.scenario}"`);
+      lines.push(`↳ You: ${feedback.spiciestDebate.myChoice} • Partner: ${feedback.spiciestDebate.partnerChoice}`);
+    }
+
+    lines.push(``);
+    lines.push(`⚖️ Standards Radar: ${feedback.strictnessVerdict}`);
+    lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+    lines.push(`💬 Drop your takes in the chat below!`);
+
+    const msg = lines.join('\n');
+
+    const gameData = {
+      game_id: 'redgreenflag',
+      game_name: 'Red Flag or Green Flag',
+      game_emoji: '🚩',
+      session_id: `flag_${Date.now()}`,
+      status: 'completed' as const,
+      scores: {
+        [currentUser.id]: feedback.matchCount,
+        [partner.id]: feedback.matchCount,
+      },
+      game_state: feedback,
+    };
 
     try {
-      sendMessage(msg);
+      sendMessage(msg, undefined, undefined, gameData);
       setFlagSharedToChat(true);
     } catch (e) {
       console.error(e);
@@ -1131,177 +1217,328 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
             // If the 7 questions are finished, render the Smart Feedback conclusion screen!
             if (flagIsFinished) {
               const feedback = computeFlagSmartFeedback(flagHistory, currentUser.username, partner.username);
+
+              const FEEDBACK_TABS = [
+                { id: 0, label: 'Synergy & Vibe', short: '✨ Synergy', icon: Sparkles },
+                { id: 1, label: 'Flag Alliances', short: '🚩 Alliances', icon: Flag },
+                { id: 2, label: 'Debates & Radar', short: '⚡ Radar', icon: Flame },
+                { id: 3, label: 'Round Breakdown', short: '📋 Full Log', icon: Scale },
+              ];
+
               return (
-                <div className="w-full max-w-lg mx-auto space-y-4 py-2 animate-in zoom-in-95 duration-300">
-                  {/* Top Trophy & Synergy Archetype Card */}
-                  <div className="p-5 bg-gradient-to-br from-[#ffc900] via-[#ffe3e8] to-[#00e599]/30 border-3 border-black rounded-3xl shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-[#00e599] border-2 border-black rounded-full font-black text-xs uppercase tracking-wider mb-2 shadow-2xs">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>{feedback.archetypeBadge}</span>
-                    </div>
-
-                    <h3 className="text-2xl sm:text-3xl font-black text-black tracking-tight leading-tight">
-                      {feedback.archetypeTitle}
-                    </h3>
-
-                    <div className="my-3 flex items-center justify-center gap-3">
-                      <div className="px-3.5 py-1.5 bg-white border-2 border-black rounded-2xl shadow-xs">
-                        <span className="text-2xl sm:text-3xl font-black text-black">
-                          {feedback.synergyScore}%
-                        </span>
-                        <span className="block text-[10px] font-black uppercase text-gray-600">
-                          Alignment
-                        </span>
-                      </div>
-                      <div className="px-3.5 py-1.5 bg-white border-2 border-black rounded-2xl shadow-xs">
-                        <span className="text-2xl sm:text-3xl font-black text-[#dc341e]">
-                          {feedback.matchCount} / {feedback.totalQuestions}
-                        </span>
-                        <span className="block text-[10px] font-black uppercase text-gray-600">
-                          Matched Flags
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="text-xs sm:text-sm font-bold text-gray-800 leading-relaxed px-2 bg-white/70 p-3 rounded-2xl border border-black/20">
-                      {feedback.archetypeDescription}
-                    </p>
+                <div className="w-full max-w-lg mx-auto space-y-3 py-1 animate-in zoom-in-95 duration-300">
+                  {/* Story-style Auto-progress Bars */}
+                  <div className="flex items-center gap-1.5 px-1 pt-1">
+                    {FEEDBACK_TABS.map((tab) => {
+                      const isPast = tab.id < flagFeedbackStep;
+                      const isCurrent = tab.id === flagFeedbackStep;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            setFlagFeedbackStep(tab.id);
+                          }}
+                          aria-label={`Jump to ${tab.label}`}
+                          className="flex-1 h-1.5 bg-black/15 rounded-full overflow-hidden relative cursor-pointer"
+                        >
+                          {isPast ? (
+                            <div className="w-full h-full bg-black rounded-full" />
+                          ) : isCurrent ? (
+                            <motion.div
+                              key={`progress-${tab.id}-${isAutoPlayingFeedback}`}
+                              initial={{ width: '0%' }}
+                              animate={{ width: isAutoPlayingFeedback ? '100%' : '100%' }}
+                              transition={{
+                                duration: isAutoPlayingFeedback ? (tab.id === 0 ? 4.2 : 4.0) : 0,
+                                ease: 'linear',
+                              }}
+                              className="h-full bg-black rounded-full"
+                            />
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Smart Analysis 4-Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Mutual Dealbreaker Card */}
-                    <div className="p-3.5 bg-[#ffe3e8] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-black text-[#dc341e] mb-1">
-                          <Flag className="w-3.5 h-3.5 fill-[#dc341e]" />
-                          <span>Mutual Dealbreaker</span>
-                        </div>
-                        <p className="text-xs font-extrabold text-black leading-snug">
-                          {feedback.biggestRedFlagAlliance
-                            ? `"${feedback.biggestRedFlagAlliance}"`
-                            : "No mutual red flags — you both kept an open mind!"}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-gray-600 mt-2 block">
-                        {feedback.biggestRedFlagAlliance ? "🚩 Both waved Red Flag" : "✨ High tolerance"}
-                      </span>
-                    </div>
+                  {/* Divided Smart Feedback Content with Short Fade-in / Fade-out */}
+                  <div className="min-h-[290px] flex flex-col justify-center">
+                    <AnimatePresence mode="wait">
+                      {flagFeedbackStep === 0 && (
+                        <motion.div
+                          key="feedback-step-0"
+                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className="space-y-3"
+                        >
+                          {/* Top Trophy & Synergy Archetype Card */}
+                          <div className="p-5 bg-gradient-to-br from-[#ffc900] via-[#ffe3e8] to-[#00e599]/30 border-3 border-black rounded-3xl shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
 
-                    {/* Shared Green Flag Card */}
-                    <div className="p-3.5 bg-[#e6fcf5] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-black text-[#0f5132] mb-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#00e599]" />
-                          <span>Shared Green Flag</span>
-                        </div>
-                        <p className="text-xs font-extrabold text-black leading-snug">
-                          {feedback.biggestGreenFlagAlliance
-                            ? `"${feedback.biggestGreenFlagAlliance}"`
-                            : "No mutual green flags — strict standards all around!"}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-gray-600 mt-2 block">
-                        {feedback.biggestGreenFlagAlliance ? "🟢 Both waved Green Flag" : "⚡ Tough judges"}
-                      </span>
-                    </div>
+                            <h3 className="text-2xl sm:text-3xl font-black text-black tracking-tight leading-tight">
+                              {feedback.archetypeTitle}
+                            </h3>
 
-                    {/* Spiciest Debate Card */}
-                    <div className="p-3.5 bg-[#fff8e6] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:col-span-2">
-                      <div className="flex items-center gap-1.5 text-xs font-black text-amber-900 mb-1">
-                        <Flame className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Spiciest Campus Debate</span>
-                      </div>
-                      {feedback.spiciestDebate ? (
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-extrabold text-black">
-                            "{feedback.spiciestDebate.scenario}"
-                          </p>
-                          <div className="flex items-center gap-2 text-[11px] font-black flex-wrap">
-                            <span className="px-2 py-0.5 bg-white border border-black rounded-md">
-                              You: {feedback.spiciestDebate.myChoice}
-                            </span>
-                            <span className="text-gray-400">vs</span>
-                            <span className="px-2 py-0.5 bg-white border border-black rounded-md">
-                              {partner.username}: {feedback.spiciestDebate.partnerChoice}
+                            <div className="my-3 flex items-center justify-center gap-3">
+                              <div className="px-3.5 py-1.5 bg-white border-2 border-black rounded-2xl shadow-xs">
+                                <span className="text-2xl sm:text-3xl font-black text-[#dc341e]">
+                                  {feedback.matchCount} / {feedback.totalQuestions}
+                                </span>
+                                <span className="block text-[10px] font-black uppercase text-gray-600">
+                                  Matched Flags
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="text-xs sm:text-sm font-bold text-gray-800 leading-relaxed px-2 bg-white/70 p-3 rounded-2xl border border-black/20">
+                              {feedback.archetypeDescription}
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {flagFeedbackStep === 1 && (
+                        <motion.div
+                          key="feedback-step-1"
+                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                        >
+                          {/* Mutual Dealbreaker Card */}
+                          <div className="p-4 bg-[#ffe3e8] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between min-h-[140px]">
+                            <div>
+                              <div className="flex items-center gap-1.5 text-xs font-black text-[#dc341e] mb-1.5">
+                                <Flag className="w-3.5 h-3.5 fill-[#dc341e]" />
+                                <span>Mutual Dealbreaker</span>
+                              </div>
+                              <p className="text-xs sm:text-sm font-extrabold text-black leading-snug">
+                                {feedback.biggestRedFlagAlliance
+                                  ? `"${feedback.biggestRedFlagAlliance}"`
+                                  : "No mutual red flags — you both kept an open mind!"}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-black text-gray-600 mt-3 pt-2 border-t border-black/10 block">
+                              {feedback.biggestRedFlagAlliance ? "🚩 Both waved Red Flag" : "✨ High tolerance"}
                             </span>
                           </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs font-extrabold text-black">
-                          Flawless harmony! You didn't have any major disagreements.
-                        </p>
-                      )}
-                    </div>
 
-                    {/* Standards Radar Card */}
-                    <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:col-span-2 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-black">
-                        <div className="flex items-center gap-1.5 text-gray-800">
-                          <Scale className="w-3.5 h-3.5 text-[#701a31]" />
-                          <span>Standards &amp; Strictness Radar</span>
-                        </div>
-                        <span className="text-[10px] text-gray-500 font-bold">
-                          {feedback.strictnessVerdict}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-[11px] font-black pt-1">
-                        <div className="p-2 bg-[#f4f4f0] border border-black rounded-xl text-center">
-                          <span className="text-gray-600 block text-[10px]">You</span>
-                          <span>{feedback.myRedCount} 🚩 Red • {feedback.totalQuestions - feedback.myRedCount} 🟢 Green</span>
-                        </div>
-                        <div className="p-2 bg-[#f4f4f0] border border-black rounded-xl text-center">
-                          <span className="text-gray-600 block text-[10px]">{partner.username}</span>
-                          <span>{feedback.partnerRedCount} 🚩 Red • {feedback.totalQuestions - feedback.partnerRedCount} 🟢 Green</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Scrollable Questions Breakdown */}
-                  {flagHistory.length > 0 && (
-                    <div className="p-3 bg-white border-2 border-black rounded-2xl shadow-xs space-y-2">
-                      <span className="text-xs font-black text-black block">
-                        Full Round Breakdown ({flagHistory.length} Scenarios):
-                      </span>
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                        {flagHistory.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className={`p-2 rounded-xl border border-black/30 flex items-center justify-between gap-2 text-[11px] font-bold ${
-                              item.isMatch ? 'bg-emerald-50/60' : 'bg-rose-50/60'
-                            }`}
-                          >
-                            <span className="line-clamp-1 flex-1 text-gray-900">
-                              <strong className="text-black font-black">Q{idx + 1}:</strong> {item.question.scenario}
+                          {/* Shared Green Flag Card */}
+                          <div className="p-4 bg-[#e6fcf5] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between min-h-[140px]">
+                            <div>
+                              <div className="flex items-center gap-1.5 text-xs font-black text-[#0f5132] mb-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#00e599]" />
+                                <span>Shared Green Flag</span>
+                              </div>
+                              <p className="text-xs sm:text-sm font-extrabold text-black leading-snug">
+                                {feedback.biggestGreenFlagAlliance
+                                  ? `"${feedback.biggestGreenFlagAlliance}"`
+                                  : "No mutual green flags — strict standards all around!"}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-black text-gray-600 mt-3 pt-2 border-t border-black/10 block">
+                              {feedback.biggestGreenFlagAlliance ? "🟢 Both waved Green Flag" : "⚡ Tough judges"}
                             </span>
-                            <div className="flex items-center gap-1 shrink-0 text-[10px] font-black">
-                              <span className={`px-1.5 py-0.5 rounded border border-black/20 ${
-                                item.myChoice === 'RED' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                You: {item.myChoice === 'RED' ? '🚩' : '🟢'}
-                              </span>
-                              <span className={`px-1.5 py-0.5 rounded border border-black/20 ${
-                                item.partnerChoice === 'RED' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                {item.partnerChoice === 'RED' ? '🚩' : '🟢'}
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {flagFeedbackStep === 2 && (
+                        <motion.div
+                          key="feedback-step-2"
+                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className="space-y-3"
+                        >
+                          {/* Spiciest Debate Card */}
+                          <div className="p-3.5 bg-[#fff8e6] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                            <div className="flex items-center gap-1.5 text-xs font-black text-amber-900 mb-1">
+                              <Flame className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Spiciest Campus Debate</span>
+                            </div>
+                            {feedback.spiciestDebate ? (
+                              <div className="space-y-1.5">
+                                <p className="text-xs font-extrabold text-black">
+                                  "{feedback.spiciestDebate.scenario}"
+                                </p>
+                                <div className="flex items-center gap-2 text-[11px] font-black flex-wrap">
+                                  <span className="px-2 py-0.5 bg-white border border-black rounded-md">
+                                    You: {feedback.spiciestDebate.myChoice}
+                                  </span>
+                                  <span className="text-gray-400">vs</span>
+                                  <span className="px-2 py-0.5 bg-white border border-black rounded-md">
+                                    {partner.username}: {feedback.spiciestDebate.partnerChoice}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs font-extrabold text-black">
+                                Flawless harmony! You didn't have any major disagreements.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Standards Radar Card */}
+                          <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-2">
+                            <div className="flex items-center justify-between text-xs font-black">
+                              <div className="flex items-center gap-1.5 text-gray-800">
+                                <Scale className="w-3.5 h-3.5 text-[#701a31]" />
+                                <span>Standards &amp; Strictness Radar</span>
+                              </div>
+                              <span className="text-[10px] text-gray-500 font-bold">
+                                {feedback.strictnessVerdict}
                               </span>
                             </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[11px] font-black pt-1">
+                              <div className="p-2 bg-[#f4f4f0] border border-black rounded-xl text-center">
+                                <span className="text-gray-600 block text-[10px]">You</span>
+                                <span>{feedback.myRedCount} 🚩 Red • {feedback.totalQuestions - feedback.myRedCount} 🟢 Green</span>
+                              </div>
+                              <div className="p-2 bg-[#f4f4f0] border border-black rounded-xl text-center">
+                                <span className="text-gray-600 block text-[10px]">{partner.username}</span>
+                                <span>{feedback.partnerRedCount} 🚩 Red • {feedback.totalQuestions - feedback.partnerRedCount} 🟢 Green</span>
+                              </div>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                        </motion.div>
+                      )}
+
+                      {flagFeedbackStep === 3 && (
+                        <motion.div
+                          key="feedback-step-3"
+                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className="space-y-2"
+                        >
+                          {/* Scrollable Questions Breakdown */}
+                          {flagHistory.length > 0 ? (
+                            <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-black">
+                                  Full Round Breakdown ({flagHistory.length} Scenarios):
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 bg-[#00e599]/20 text-[#0f5132] rounded-full border border-black/20">
+                                  {feedback.matchCount} Matches
+                                </span>
+                              </div>
+                              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                                {flagHistory.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`p-2 rounded-xl border border-black/30 flex items-center justify-between gap-2 text-[11px] font-bold ${
+                                      item.isMatch ? 'bg-emerald-50/60' : 'bg-rose-50/60'
+                                    }`}
+                                  >
+                                    <span className="line-clamp-1 flex-1 text-gray-900">
+                                      <strong className="text-black font-black">Q{idx + 1}:</strong> {item.question.scenario}
+                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0 text-[10px] font-black">
+                                      <span className={`px-1.5 py-0.5 rounded border border-black/20 ${
+                                        item.myChoice === 'RED' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                                      }`}>
+                                        You: {item.myChoice === 'RED' ? '🚩' : '🟢'}
+                                      </span>
+                                      <span className={`px-1.5 py-0.5 rounded border border-black/20 ${
+                                        item.partnerChoice === 'RED' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                                      }`}>
+                                        {item.partnerChoice === 'RED' ? '🚩' : '🟢'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-white border-2 border-black rounded-2xl text-center text-xs font-bold text-gray-600">
+                              No history recorded for this round.
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Navigation Stepper & Play/Pause Controls */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlagFeedbackStep((prev) => Math.max(0, prev - 1));
+                      }}
+                      disabled={flagFeedbackStep === 0}
+                      className={`py-2 px-3 rounded-xl border-2 border-black font-black text-xs flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer ${
+                        flagFeedbackStep === 0
+                          ? 'opacity-35 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-300 shadow-none'
+                          : 'bg-white hover:bg-gray-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none text-black'
+                      }`}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Back</span>
+                    </button>
+
+                    {/* Auto-Play / Pause / Replay Controls Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (flagFeedbackStep === 3) {
+                          setFlagFeedbackStep(0);
+                          setIsAutoPlayingFeedback(true);
+                        } else {
+                          setIsAutoPlayingFeedback((prev) => !prev);
+                        }
+                      }}
+                      className="py-1.5 px-3 bg-white hover:bg-gray-50 border-2 border-black rounded-xl font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer text-black"
+                    >
+                      {flagFeedbackStep === 3 ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Replay Story</span>
+                        </>
+                      ) : isAutoPlayingFeedback ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5 fill-black" />
+                          <span>Pause</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-black" />
+                          <span>Auto Play</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (flagFeedbackStep < FEEDBACK_TABS.length - 1) {
+                          setFlagFeedbackStep((prev) => prev + 1);
+                        } else {
+                          setFlagFeedbackStep(0);
+                          setIsAutoPlayingFeedback(true);
+                        }
+                      }}
+                      className="py-2 px-3 bg-[#ffc900] hover:bg-[#ffb700] text-black rounded-xl border-2 border-black font-black text-xs flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                    >
+                      <span>{flagFeedbackStep === FEEDBACK_TABS.length - 1 ? 'Replay' : 'Next'}</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
                   {/* Action Buttons Toolbar */}
-                  <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                  <div className="flex flex-col sm:flex-row items-center gap-2 pt-1 border-t border-black/10">
                     {/* Share to chat button */}
                     <button
                       type="button"
                       onClick={() => handleShareFlagFeedbackToChat(feedback)}
                       disabled={flagSharedToChat}
-                      className={`w-full sm:flex-1 py-3 px-4 rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer ${
+                      className={`w-full sm:flex-1 py-2.5 px-3.5 rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer ${
                         flagSharedToChat
                           ? 'bg-[#00e599] text-black opacity-90'
                           : 'bg-[#ff90e8] hover:bg-[#ff7be3] text-black'
@@ -1324,7 +1561,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     <button
                       type="button"
                       onClick={handleRestartFlagRound}
-                      className="w-full sm:flex-1 py-3 px-4 bg-[#ffc900] hover:bg-[#ffb700] text-black rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer"
+                      className="w-full sm:flex-1 py-2.5 px-3.5 bg-[#ffc900] hover:bg-[#ffb700] text-black rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer"
                     >
                       <RotateCcw className="w-4 h-4 stroke-[2.5]" />
                       <span>Play Another Round</span>
@@ -1334,7 +1571,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     <button
                       type="button"
                       onClick={() => switchGame('menu')}
-                      className="w-full sm:w-auto py-3 px-4 bg-white hover:bg-black hover:text-white text-black rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+                      className="w-full sm:w-auto py-2.5 px-3.5 bg-white hover:bg-black hover:text-white text-black rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
                     >
                       <span>Menu</span>
                     </button>
@@ -1374,7 +1611,6 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="px-2 py-0.5 bg-[#00e599] text-black rounded-md flex items-center gap-1 border border-black shadow-2xs">
-                      <Sparkles className="w-3 h-3" />
                       <span>{synergyPct}% Alignment</span>
                     </span>
                     <span className="text-gray-500 font-bold">({flagStats.matches} matches)</span>
@@ -1386,7 +1622,6 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                   <div className="flex items-center justify-between text-xs font-black">
                     <span className="flex items-center gap-1 text-[#dc341e]">
                       <Timer className="w-3.5 h-3.5" />
-                      <span>Time Remaining:</span>
                     </span>
                     <span className={`px-2 py-0.5 rounded-full border border-black ${
                       flagTimerSeconds <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffc900] text-black'
@@ -1406,7 +1641,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
 
                 {/* Auto Skip Alert Notice */}
                 {flagAutoSkipNotice && (
-                  <div className="p-2.5 bg-amber-200 border-2 border-black rounded-xl text-center text-xs font-extrabold animate-bounce">
+                  <div className="p-2.5 bg-amber-200 border-2 border-black text-black rounded-xl text-center text-xs font-extrabold animate-bounce">
                     ⏳ 10 seconds expired! Moving to the next scenario...
                   </div>
                 )}
@@ -1438,24 +1673,20 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     {isMatch ? (
                       <div className="space-y-0.5">
                         <div className="font-black text-sm flex items-center justify-center gap-1.5">
-                          <Sparkles className="w-4 h-4" />
                           <span>
                             {flagMyChoice === 'RED'
-                              ? '🚩 Total Alignment! You BOTH called this a Red Flag!'
-                              : '🟢 Total Alignment! You BOTH called this a Green Flag!'}
+                              ? 'You BOTH called this a Red Flag! 🚩'
+                              : 'You BOTH called this a Green Flag! 🟢'}
                           </span>
                         </div>
-                        <p className="text-xs font-bold opacity-90">
-                          Great minds think alike! +1 added to compatibility.
-                        </p>
                       </div>
                     ) : (
                       <div className="space-y-0.5">
                         <div className="font-black text-sm">
-                          ⚡ Split Verdict! Campus debate time!
+                          hmm.. a little disagreement there.
                         </div>
                         <p className="text-xs font-bold">
-                          You chose <span className="underline font-black">{flagMyChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>, while {partner.username} chose <span className="underline font-black">{flagPartnerChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>.
+                          You chose <span className="font-black">{flagMyChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>, while {partner.username} chose <span className="font-black">{flagPartnerChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>.
                         </p>
                       </div>
                     )}
@@ -1483,9 +1714,6 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     <div className="text-center">
                       <span className="text-sm sm:text-base font-black tracking-tight block">
                         RED FLAG
-                      </span>
-                      <span className={`text-[10px] font-bold block ${flagMyChoice === 'RED' ? 'text-white/90' : 'text-gray-500'}`}>
-                        Major Warning 🛑
                       </span>
                     </div>
 
@@ -1523,9 +1751,6 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     <div className="text-center">
                       <span className="text-sm sm:text-base font-black tracking-tight block">
                         GREEN FLAG
-                      </span>
-                      <span className={`text-[10px] font-bold block ${flagMyChoice === 'GREEN' ? 'text-black/80' : 'text-gray-500'}`}>
-                        Keeper Habit ✨
                       </span>
                     </div>
 

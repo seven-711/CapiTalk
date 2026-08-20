@@ -34,6 +34,10 @@ import {
   Hourglass,
   Sparkles,
   Palette,
+  Flag,
+  Flame,
+  Scale,
+  CheckCircle2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
@@ -1025,7 +1029,7 @@ export const ChatRoom: React.FC = () => {
                       setActivePickerMsgId(msg.id);
                     }}
                     style={
-                      isMe && !msg.is_profane
+                      isMe && !msg.is_profane && !msg.game_data
                         ? {
                             backgroundColor: activeThemeConfig.bubbleBg,
                             color: activeThemeConfig.bubbleText,
@@ -1036,7 +1040,11 @@ export const ChatRoom: React.FC = () => {
                     className={`p-3 sm:p-3.5 rounded-[16px] border text-sm relative cursor-pointer w-fit max-w-full min-w-0 ${
                       isActivePicker ? 'filter-none opacity-100 shadow-2xl ring-2 ring-black/20' : ''
                     } ${
-                      isMe
+                      msg.game_data
+                        ? isDarkMode
+                          ? 'bg-[#1c1c20]/95 text-zinc-100 border-zinc-700 shadow-md'
+                          : 'bg-white/95 text-zinc-900 border-zinc-300 shadow-md'
+                        : isMe
                         ? msg.is_profane
                           ? 'bg-red-950 text-white border-red-600 rounded-tr-none'
                           : 'rounded-tr-none font-bold shadow-xs'
@@ -1049,7 +1057,156 @@ export const ChatRoom: React.FC = () => {
                         : 'bg-white text-black border-[#d1d5dc] rounded-tl-none'
                     }`}
                   >
-                    {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.message}</p>}
+                    {msg.game_data?.game_id === 'redgreenflag' && msg.game_data.game_state ? (() => {
+                      const st = msg.game_data.game_state;
+                      return (
+                        <div className="space-y-3 my-0.5 w-full max-w-[340px] sm:max-w-[380px] select-text">
+                          {/* Mini Header Card */}
+                          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-black/10 dark:border-white/10">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#701a31] via-[#dc341e] to-rose-400 text-white flex items-center justify-center text-sm shadow-sm font-black shrink-0">
+                                🚩
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className={`text-xs font-black tracking-tight leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                                  Campus Vibe Report
+                                </h4>
+                                <span className={`text-[10px] font-semibold block leading-tight ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                  Red Flag or Green Flag?
+                                </span>
+                              </div>
+                            </div>
+                            <span className="px-2.5 py-1 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-black text-[11px] rounded-full border border-emerald-500/30 flex items-center gap-1 shadow-2xs shrink-0">
+                              <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              {st.synergyScore}% Match
+                            </span>
+                          </div>
+
+                          {/* Archetype Hero Spotlight */}
+                          <div className={`p-3 rounded-2xl border text-center space-y-1.5 shadow-2xs relative overflow-hidden ${
+                            isDarkMode 
+                              ? 'bg-gradient-to-br from-amber-500/10 via-rose-500/10 to-emerald-500/10 border-amber-500/30 text-white' 
+                              : 'bg-gradient-to-br from-amber-50 via-rose-50 to-emerald-50 border-amber-300/80 text-zinc-900'
+                          }`}>
+                            <div className="text-sm sm:text-base font-black tracking-tight flex items-center justify-center gap-1.5">
+                              {st.archetypeTitle}
+                            </div>
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border shadow-2xs ${
+                                isDarkMode ? 'bg-zinc-800/90 text-zinc-200 border-zinc-700' : 'bg-white/90 text-zinc-800 border-zinc-300'
+                              }`}>
+                                {st.archetypeBadge}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                isDarkMode ? 'bg-zinc-800/60 text-zinc-300 border-zinc-700/60' : 'bg-zinc-100 text-zinc-700 border-zinc-200'
+                              }`}>
+                                {st.matchCount}/{st.totalQuestions} Questions Matched
+                              </span>
+                            </div>
+
+                            {/* Mini Alignment Track Bar */}
+                            <div className="w-full bg-black/10 dark:bg-white/10 h-2 rounded-full overflow-hidden mt-2 p-0.5">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-rose-400 to-emerald-400 transition-all duration-700"
+                                style={{ width: `${Math.max(5, Math.min(100, st.synergyScore))}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Insights Grid */}
+                          <div className="space-y-2 text-xs">
+                            {/* Mutual Dealbreaker */}
+                            {st.biggestRedFlagAlliance && (
+                              <div className={`p-2.5 rounded-xl border ${
+                                isDarkMode ? 'bg-red-950/40 border-red-800/60 text-red-100' : 'bg-rose-50 border-rose-200 text-rose-950'
+                              }`}>
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 flex items-center gap-1 uppercase tracking-wide">
+                                    🚩 Mutual Dealbreaker
+                                  </span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-200/50 dark:bg-rose-900/50 rounded text-rose-800 dark:text-rose-300">
+                                    Both Voted Red
+                                  </span>
+                                </div>
+                                <p className={`font-extrabold text-[11px] leading-snug ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                                  "{st.biggestRedFlagAlliance}"
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Shared Green Flag */}
+                            {st.biggestGreenFlagAlliance && (
+                              <div className={`p-2.5 rounded-xl border ${
+                                isDarkMode ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-100' : 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                              }`}>
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1 uppercase tracking-wide">
+                                    🟢 Shared Green Flag
+                                  </span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-200/50 dark:bg-emerald-900/50 rounded text-emerald-800 dark:text-emerald-300">
+                                    Both Voted Green
+                                  </span>
+                                </div>
+                                <p className={`font-extrabold text-[11px] leading-snug ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                                  "{st.biggestGreenFlagAlliance}"
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Spiciest Debate */}
+                            {st.spiciestDebate && (
+                              <div className={`p-2.5 rounded-xl border ${
+                                isDarkMode ? 'bg-amber-950/40 border-amber-800/60 text-amber-100' : 'bg-amber-50 border-amber-200 text-amber-950'
+                              }`}>
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 flex items-center gap-1 uppercase tracking-wide">
+                                    ⚡ Spiciest Debate
+                                  </span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-200/50 dark:bg-amber-900/50 rounded text-amber-800 dark:text-amber-300">
+                                    Split Verdict
+                                  </span>
+                                </div>
+                                <p className={`font-extrabold text-[11px] leading-snug mb-1.5 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                                  "{st.spiciestDebate.scenario}"
+                                </p>
+                                <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-bold">
+                                  <span className={`px-2 py-0.5 rounded-md border ${
+                                    isDarkMode ? 'bg-zinc-800 text-zinc-200 border-zinc-700' : 'bg-white text-zinc-800 border-zinc-300 shadow-2xs'
+                                  }`}>
+                                    You: {st.spiciestDebate.myChoice}
+                                  </span>
+                                  <span className="text-zinc-400">vs</span>
+                                  <span className={`px-2 py-0.5 rounded-md border ${
+                                    isDarkMode ? 'bg-zinc-800 text-zinc-200 border-zinc-700' : 'bg-white text-zinc-800 border-zinc-300 shadow-2xs'
+                                  }`}>
+                                    Partner: {st.spiciestDebate.partnerChoice}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Standards Radar */}
+                            <div className={`p-2 rounded-xl border text-[10px] font-bold flex items-center gap-2 ${
+                              isDarkMode ? 'bg-zinc-800/70 border-zinc-700 text-zinc-300' : 'bg-zinc-100 border-zinc-200 text-zinc-700'
+                            }`}>
+                              <Scale className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                              <span className="leading-tight">{st.strictnessVerdict}</span>
+                            </div>
+                          </div>
+
+                          {/* Footer Prompt */}
+                          <div className="pt-1 text-center border-t border-black/10 dark:border-white/10">
+                            <span className={`text-[10px] font-extrabold inline-flex items-center gap-1 ${
+                              isDarkMode ? 'text-zinc-400' : 'text-zinc-500'
+                            }`}>
+                              💬 Drop your takes in the chat!
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })() : msg.message ? (
+                      <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.message}</p>
+                    ) : null}
 
                     {msg.image_url && (
                       <div className={`mt-2 rounded overflow-hidden border ${isDarkMode ? 'border-[#3f3f46]' : 'border-[#d1d5dc]'}`}>
