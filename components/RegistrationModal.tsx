@@ -2,23 +2,51 @@
 
 import React, { useState, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
-import { CU_DEPARTMENTS, DEFAULT_AVATARS, DepartmentType } from '../lib/constants';
+import { CU_DEPARTMENTS, IP_AVATARS, getAvatarForPseudonym, DepartmentType, AvatarOption } from '../lib/constants';
 import { validateUsername, checkUsernameAvailability, MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH } from '../lib/utils/safety';
 import { CoinMascot } from './CoinMascot';
-import { Sparkles, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Sparkles, CheckCircle2, ShieldCheck, AlertCircle, Shuffle, Wand2 } from 'lucide-react';
 
 export const RegistrationModal: React.FC = () => {
   const { currentUser, registerUser, setViewState } = useChatStore();
 
   const [username, setUsername] = useState(currentUser ? currentUser.username : '');
   const [department, setDepartment] = useState<DepartmentType>(currentUser ? currentUser.department : 'College of Computer Studies');
-  const [selectedAvatar, setSelectedAvatar] = useState(currentUser?.avatar_url || DEFAULT_AVATARS[0]);
+  const [selectedAvatar, setSelectedAvatar] = useState(currentUser?.avatar_url || IP_AVATARS[0].url);
+  const [hasManuallySelectedAvatar, setHasManuallySelectedAvatar] = useState(Boolean(currentUser?.avatar_url));
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [agreed, setAgreed] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('All');
 
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<{ isAvailable: boolean; message?: string } | null>(null);
+
+  // Automatically suggest a deterministic IP avatar when user types pseudonym (if not manually chosen)
+  useEffect(() => {
+    if (!hasManuallySelectedAvatar && username.trim().length >= 2) {
+      setSelectedAvatar(getAvatarForPseudonym(username));
+    }
+  }, [username, hasManuallySelectedAvatar]);
+
+  const currentAvatarOption = IP_AVATARS.find((a) => a.url === selectedAvatar) || IP_AVATARS[0];
+  const categories = ['All', 'Mascot', 'Chill', 'Social', 'Academic', 'Campus Life', 'Growth', 'Secret'];
+  const filteredAvatars = activeCategory === 'All' 
+    ? IP_AVATARS 
+    : IP_AVATARS.filter((a) => a.category === activeCategory);
+
+  const handleRandomizeAvatar = () => {
+    const randomIndex = Math.floor(Math.random() * IP_AVATARS.length);
+    setSelectedAvatar(IP_AVATARS[randomIndex].url);
+    setHasManuallySelectedAvatar(true);
+  };
+
+  const handleAutoMatchPseudonym = () => {
+    if (username.trim()) {
+      setSelectedAvatar(getAvatarForPseudonym(username));
+      setHasManuallySelectedAvatar(true);
+    }
+  };
 
   useEffect(() => {
     if (!username.trim()) {
@@ -85,7 +113,7 @@ export const RegistrationModal: React.FC = () => {
 
         <div className="mb-4 sm:mb-6">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-black">
-            {currentUser ? 'Edit Your CapiTalk Profile' : 'Create Your CapiTalk Profile'}
+            {currentUser ? 'Edit CapiTalk Profile' : 'Create CapiTalk Profile'}
           </h2>
           <p className="text-sm text-[#242423] mt-1.5">
             Keep your real identity private. Pick a unique username and your college department.
@@ -99,35 +127,83 @@ export const RegistrationModal: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-          {/* Avatar Selector */}
-          <div>
-            <label className="block text-sm font-semibold text-black mb-2">
-              Choose Avatar
-            </label>
-            <div className="flex items-center gap-3.5 overflow-x-auto py-3 px-1">
-              {DEFAULT_AVATARS.map((avatar, idx) => (
+          {/* Avatar Selector Section */}
+          <div className="rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-bold text-black">
+                Profile Avatar
+              </label>
+            </div>
+
+            {/* Active Avatar Highlight Banner */}
+            <div className="flex items-center gap-3.5 mb-3 p-2.5 bg-white rounded-lg border border-[#d1d5dc]">
+              <div className="relative shrink-0">
+                <img
+                  src={selectedAvatar}
+                  alt={currentAvatarOption.name}
+                  className="w-14 h-14 rounded-xl border-2 border-black object-cover shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-black text-sm">{currentAvatarOption.name}</span>
+                </div>
+                <p className="text-xs text-[#242423]/80 truncate mt-0.5">
+                  {currentAvatarOption.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+              {categories.map((cat) => (
                 <button
-                  key={idx}
+                  key={cat}
                   type="button"
-                  onClick={() => setSelectedAvatar(avatar)}
-                  className={`relative p-1 rounded-full border-2 transition-all transform hover:scale-105 shrink-0 ${
-                    selectedAvatar === avatar
-                      ? 'border-black bg-[#701a31] scale-110 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                      : 'border-transparent hover:border-[#d1d5dc]'
+                  onClick={() => setActiveCategory(cat)}
+                  className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap transition-all ${
+                    activeCategory === cat
+                      ? 'bg-black text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                      : 'bg-white text-black border border-[#d1d5dc] hover:border-black'
                   }`}
                 >
-                  <img
-                    src={avatar}
-                    alt={`Avatar ${idx + 1}`}
-                    className="w-12 h-12 rounded-full bg-[#f4f4f0]"
-                  />
-                  {selectedAvatar === avatar && (
-                    <span className="absolute -top-1 -right-1 bg-black text-white rounded-full p-0.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    </span>
-                  )}
+                  {cat}
                 </button>
               ))}
+            </div>
+
+            {/* Avatar Grid / Carousel */}
+            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-36 overflow-y-auto p-1.5 bg-white/70 rounded-lg border border-[#d1d5dc]">
+              {filteredAvatars.map((avatar) => {
+                const isSelected = selectedAvatar === avatar.url;
+                return (
+                  <button
+                    key={avatar.id}
+                    type="button"
+                    title={`${avatar.name} (${avatar.character})`}
+                    onClick={() => {
+                      setSelectedAvatar(avatar.url);
+                      setHasManuallySelectedAvatar(true);
+                    }}
+                    className={`relative p-0.5 rounded-lg border-2 transition-all transform hover:scale-105 shrink-0 ${
+                      isSelected
+                        ? 'border-black bg-[#ff90e8] scale-105 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                        : 'border-transparent hover:border-[#d1d5dc]'
+                    }`}
+                  >
+                    <img
+                      src={avatar.url}
+                      alt={avatar.name}
+                      className="w-full aspect-square rounded-md bg-[#f4f4f0] object-cover"
+                    />
+                    {isSelected && (
+                      <span className="absolute -top-1 -right-1 bg-black text-white rounded-full p-0.5 shadow-sm">
+                        <CheckCircle2 className="w-3 h-3" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

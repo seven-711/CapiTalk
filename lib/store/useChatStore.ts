@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification } from '../types';
-import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType } from '../constants';
+import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType, getAvatarForPseudonym } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
@@ -775,7 +775,7 @@ export const useChatStore = create<ChatStoreState>()(
                     author_id: row.author_id,
                     author_alias: row.author_alias || 'Anon Student',
                     department: row.department || 'General',
-                    author_avatar: extractedAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(row.author_alias || 'Anon')}&backgroundColor=ffc900`,
+                    author_avatar: extractedAvatar || getAvatarForPseudonym(row.author_alias || 'Anon'),
                     author_bio: extractedBio || '',
                     message: row.message,
                     color: dbColor,
@@ -1081,7 +1081,7 @@ export const useChatStore = create<ChatStoreState>()(
           id: persistentId,
           username: trimmedUsername,
           department,
-          avatar_url: avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${trimmedUsername}`,
+          avatar_url: avatarUrl || getAvatarForPseudonym(trimmedUsername),
           bio: bio?.trim() || '',
           status: 'online',
           created_at: new Date().toISOString(),
@@ -1824,7 +1824,7 @@ export const useChatStore = create<ChatStoreState>()(
           author_id: currentUserId,
           author_alias: postData.author_alias || (currentUser ? currentUser.username : 'Anon Student'),
           department: postData.department || (currentUser ? currentUser.department : 'General'),
-          author_avatar: postData.author_avatar || currentUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(postData.author_alias || 'Anon')}&backgroundColor=ffc900`,
+          author_avatar: postData.author_avatar || currentUser?.avatar_url || getAvatarForPseudonym(postData.author_alias || 'Anon'),
           author_bio: postData.author_bio || currentUser?.bio || '',
           message: postData.message,
           color: postData.color || '#ffc900',

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { roomManager } from '../lib/realtime/roomManager';
 import { UserProfile } from '../lib/types';
+import { useChatStore } from '../lib/store/useChatStore';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import confetti from 'canvas-confetti';
 import {
@@ -21,9 +22,15 @@ import {
   ChevronRight,
   RefreshCw,
   Users,
+  Flag,
+  MessageSquare,
+  Share2,
+  Scale,
+  HeartHandshake,
+  Check,
 } from 'lucide-react';
 
-export type GameType = 'menu' | 'connect4' | 'tictactoe' | 'wouldyourather' | 'rockpaperscissors';
+export type GameType = 'menu' | 'connect4' | 'tictactoe' | 'redgreenflag' | 'wouldyourather' | 'rockpaperscissors';
 
 interface CampusGamesModalProps {
   isOpen: boolean;
@@ -33,162 +40,276 @@ interface CampusGamesModalProps {
   isDarkMode?: boolean;
 }
 
-export interface WYRQuestion {
+export interface FlagQuestion {
   id: number;
   category: string;
-  questionA: string;
-  questionB: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  scenario: string;
+  difficulty: 'classic' | 'spicy' | 'campus' | 'deep';
 }
 
-// ─── Would You Rather Questions (20 Unique Curated Questions) ─────────────────
-export const RAW_WYR_QUESTIONS: WYRQuestion[] = [
+export interface FlagHistoryEntry {
+  question: FlagQuestion;
+  myChoice: 'RED' | 'GREEN' | 'TIMEOUT';
+  partnerChoice: 'RED' | 'GREEN' | 'TIMEOUT';
+  isMatch: boolean;
+}
+
+export interface SmartFeedbackData {
+  synergyScore: number;
+  matchCount: number;
+  totalQuestions: number;
+  archetypeTitle: string;
+  archetypeBadge: string;
+  archetypeDescription: string;
+  biggestRedFlagAlliance?: string;
+  biggestGreenFlagAlliance?: string;
+  spiciestDebate?: {
+    scenario: string;
+    myChoice: string;
+    partnerChoice: string;
+  };
+  strictnessVerdict: string;
+  myRedCount: number;
+  partnerRedCount: number;
+}
+
+export function computeFlagSmartFeedback(
+  history: FlagHistoryEntry[],
+  currentUsername: string,
+  partnerUsername: string
+): SmartFeedbackData {
+  const total = history.length || QUESTIONS_PER_ROUND;
+  const matches = history.filter((h) => h.isMatch).length;
+  const synergyScore = total > 0 ? Math.round((matches / total) * 100) : 0;
+
+  let archetypeTitle = "✨ Twin Flame Alignment";
+  let archetypeBadge = "Uncanny Synergy 💖";
+  let archetypeDescription = "You two operate on the exact same campus wavelength! Your boundaries, instincts, and green flags match up almost seamlessly. You'd either be an unstoppable duo or complete partners in crime.";
+
+  if (synergyScore < 29) {
+    archetypeTitle = "🌪️ Total Chaos & Intrigue";
+    archetypeBadge = "Wild Card Dynamic 🎭";
+    archetypeDescription = "Polar opposites across the board! Where one sees a red flag, the other sees a green flag. Perfect chemistry for playful banter and a spicy, unpredictable campus dynamic.";
+  } else if (synergyScore < 58) {
+    archetypeTitle = "⚡ Spicy Debate Partners";
+    archetypeBadge = "Opposites in Motion 🌶️";
+    archetypeDescription = "You two look at campus dilemmas from wonderfully contrasting perspectives. One is chill and forgiving while the other maintains high standards. Late-night conversations will never run dry.";
+  } else if (synergyScore < 85) {
+    archetypeTitle = "🔥 Balanced Chemistry";
+    archetypeBadge = "Dynamic Duo 🤝";
+    archetypeDescription = "You share solid core values with just enough healthy divergence to keep things lively. You agree on what truly matters while keeping each other sharp on the nuances.";
+  }
+
+  const mutualRed = history.find((h) => h.myChoice === 'RED' && h.partnerChoice === 'RED');
+  const mutualGreen = history.find((h) => h.myChoice === 'GREEN' && h.partnerChoice === 'GREEN');
+  const debate = history.find((h) => !h.isMatch && h.myChoice !== 'TIMEOUT' && h.partnerChoice !== 'TIMEOUT');
+
+  const myRedCount = history.filter((h) => h.myChoice === 'RED').length;
+  const partnerRedCount = history.filter((h) => h.partnerChoice === 'RED').length;
+
+  let strictnessVerdict = "You both have an identical standard filter!";
+  if (myRedCount > partnerRedCount) {
+    strictnessVerdict = `${currentUsername} has a stricter radar (${myRedCount} 🚩) compared to ${partnerUsername} (${partnerRedCount} 🚩)!`;
+  } else if (partnerRedCount > myRedCount) {
+    strictnessVerdict = `${partnerUsername} has a stricter radar (${partnerRedCount} 🚩) compared to ${currentUsername} (${myRedCount} 🚩)!`;
+  }
+
+  return {
+    synergyScore,
+    matchCount: matches,
+    totalQuestions: total,
+    archetypeTitle,
+    archetypeBadge,
+    archetypeDescription,
+    biggestRedFlagAlliance: mutualRed?.question.scenario,
+    biggestGreenFlagAlliance: mutualGreen?.question.scenario,
+    spiciestDebate: debate ? {
+      scenario: debate.question.scenario,
+      myChoice: debate.myChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag',
+      partnerChoice: debate.partnerChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag',
+    } : undefined,
+    strictnessVerdict,
+    myRedCount,
+    partnerRedCount,
+  };
+}
+
+// ─── Red Flag or Green Flag Questions (28 Curated Dating & Campus Scenarios) ───
+export const RAW_FLAG_QUESTIONS: FlagQuestion[] = [
   {
     id: 1,
-    category: "Lifestyle",
-    questionA: "Have unlimited free food forever",
-    questionB: "Travel anywhere for free forever",
-    difficulty: "easy"
+    category: "Dating & Exes",
+    scenario: "They are still close best friends with their ex and hang out one-on-one regularly.",
+    difficulty: "spicy",
   },
   {
     id: 2,
-    category: "Technology",
-    questionA: "Lose your phone for a year",
-    questionB: "Lose your laptop for a year",
-    difficulty: "medium"
+    category: "Communication",
+    scenario: "They leave you on 'Delivered' for 2 days, but post 5 Instagram stories throughout the day.",
+    difficulty: "spicy",
   },
   {
     id: 3,
-    category: "Funny",
-    questionA: "Talk like a robot forever",
-    questionB: "Walk backwards forever",
-    difficulty: "hard"
+    category: "Campus Life",
+    scenario: "They remind the professor 2 minutes before class ends that there was supposed to be a quiz today.",
+    difficulty: "campus",
   },
   {
     id: 4,
-    category: "School",
-    questionA: "Never take exams again",
-    questionB: "Never do assignments again",
-    difficulty: "easy"
+    category: "Romance & Dates",
+    scenario: "They offer to pay the entire bill on the first date without making a scene or expecting anything.",
+    difficulty: "classic",
   },
   {
     id: 5,
-    category: "Money",
-    questionA: "Receive ₱100,000 now",
-    questionB: "Receive ₱1,000 every day forever",
-    difficulty: "medium"
+    category: "Lifestyle & Phone",
+    scenario: "They have 0 unread emails, 0 unread notification badges, and a pristine organized phone home screen.",
+    difficulty: "classic",
   },
   {
     id: 6,
-    category: "Gaming",
-    questionA: "Play only mobile games forever",
-    questionB: "Play only PC games forever",
-    difficulty: "easy"
+    category: "Academic Solidarity",
+    scenario: "They share their complete color-coded lecture notes and exam reviewer in the group chat before finals.",
+    difficulty: "campus",
   },
   {
     id: 7,
-    category: "Superpower",
-    questionA: "Be invisible",
-    questionB: "Read minds",
-    difficulty: "hard"
+    category: "Social Habits",
+    scenario: "They check their phone and scroll TikTok while you are in the middle of telling them an emotional personal story.",
+    difficulty: "spicy",
   },
   {
     id: 8,
-    category: "Food",
-    questionA: "Eat only spicy food",
-    questionB: "Eat only sweet food",
-    difficulty: "easy"
+    category: "Character & Respect",
+    scenario: "They are extremely sweet to you, but rude or impatient to cafeteria servers and university security guards.",
+    difficulty: "classic",
   },
   {
     id: 9,
-    category: "Social",
-    questionA: "Have 1 million followers",
-    questionB: "Have 10 real best friends",
-    difficulty: "medium"
+    category: "Thoughtfulness",
+    scenario: "They remember tiny, obscure details you mentioned in passing weeks ago (like your exact coffee order or favorite candy).",
+    difficulty: "classic",
   },
   {
     id: 10,
-    category: "Travel",
-    questionA: "Live in the mountains",
-    questionB: "Live near the beach",
-    difficulty: "easy"
+    category: "Study Habits",
+    scenario: "They only start a 10-page thesis chapter 3 hours before the 11:59 PM deadline and submit at 11:58 PM.",
+    difficulty: "campus",
   },
   {
     id: 11,
-    category: "Technology",
-    questionA: "Use only dark mode forever",
-    questionB: "Use only light mode forever",
-    difficulty: "easy"
+    category: "Conflict & Maturity",
+    scenario: "They apologize immediately and take sincere accountability whenever they realize they made a mistake.",
+    difficulty: "deep",
   },
   {
     id: 12,
-    category: "Funny",
-    questionA: "Have a duck as your pet",
-    questionB: "Have a monkey as your pet",
-    difficulty: "medium"
+    category: "Social Media",
+    scenario: "They have 3,000 active followers but strictly refuse to post you or even acknowledge having a partner anywhere online.",
+    difficulty: "spicy",
   },
   {
     id: 13,
-    category: "Entertainment",
-    questionA: "Watch only movies forever",
-    questionB: "Watch only series forever",
-    difficulty: "easy"
+    category: "Group Projects",
+    scenario: "They quietly do 90% of the entire group project all by themselves just to make sure everyone gets a 1.0 (A) grade.",
+    difficulty: "campus",
   },
   {
     id: 14,
-    category: "School",
-    questionA: "Attend classes at 7 AM forever",
-    questionB: "Attend classes until 8 PM forever",
-    difficulty: "hard"
+    category: "Independence",
+    scenario: "They actively encourage you to spend time with your own friends and have hobbies outside the relationship.",
+    difficulty: "classic",
   },
   {
     id: 15,
-    category: "Superpower",
-    questionA: "Teleport anywhere",
-    questionB: "Stop time",
-    difficulty: "hard"
+    category: "Friendship Loyalty",
+    scenario: "They gossip and talk badly about their closest best friend the instant they step out of the room.",
+    difficulty: "spicy",
   },
   {
     id: 16,
-    category: "Food",
-    questionA: "Never eat rice again",
-    questionB: "Never eat bread again",
-    difficulty: "medium"
+    category: "Communication",
+    scenario: "They prefer calling you on the phone immediately instead of texting back and forth for 20 minutes.",
+    difficulty: "classic",
   },
   {
     id: 17,
-    category: "Social",
-    questionA: "Always know when someone lies",
-    questionB: "Always know what someone feels",
-    difficulty: "hard"
+    category: "Humor & Ego",
+    scenario: "They can genuinely laugh at themselves without getting defensive when they do something clumsy or awkward.",
+    difficulty: "deep",
   },
   {
     id: 18,
-    category: "Lifestyle",
-    questionA: "Live without WiFi",
-    questionB: "Live without air conditioning",
-    difficulty: "hard"
+    category: "Dating Memories",
+    scenario: "They still keep a dedicated photo album of their ex in their private hidden phone gallery folder.",
+    difficulty: "spicy",
   },
   {
     id: 19,
-    category: "Gaming",
-    questionA: "Have unlimited game skins",
-    questionB: "Have unlimited in-game currency",
-    difficulty: "easy"
+    category: "Daily Routine",
+    scenario: "They wake up at 5:00 AM every single morning including weekends and holidays to run or workout.",
+    difficulty: "classic",
   },
   {
     id: 20,
-    category: "Funny",
-    questionA: "Have a theme song whenever you enter a room",
-    questionB: "Have confetti fall whenever you laugh",
-    difficulty: "medium"
-  }
+    category: "Campus Etiquette",
+    scenario: "They borrow your pens, highlighters, or scientific calculators during class and never remember to return them.",
+    difficulty: "campus",
+  },
+  {
+    id: 21,
+    category: "Texting Style",
+    scenario: "They send 10 rapid 2-word text bubbles in a row within 5 seconds instead of sending one complete paragraph.",
+    difficulty: "classic",
+  },
+  {
+    id: 22,
+    category: "Support & Hype",
+    scenario: "They actively celebrate your personal wins and hype up your achievements to everyone they know.",
+    difficulty: "classic",
+  },
+  {
+    id: 23,
+    category: "Food Habits",
+    scenario: "They put hot sauce / sriracha / extra chili on literally every single meal, including breakfast toast.",
+    difficulty: "classic",
+  },
+  {
+    id: 24,
+    category: "Caring & Late Nights",
+    scenario: "They always ask 'Have you eaten dinner yet?' or 'Did you get home safe?' before starting a late-night chat.",
+    difficulty: "classic",
+  },
+  {
+    id: 25,
+    category: "Transparency",
+    scenario: "They share their permanent live GPS location with 15 different friends and family members 24/7.",
+    difficulty: "spicy",
+  },
+  {
+    id: 26,
+    category: "Study Sessions",
+    scenario: "They bring extra snacks, milk tea, or coffee for the entire study table without anyone asking.",
+    difficulty: "campus",
+  },
+  {
+    id: 27,
+    category: "Emotional Intelligence",
+    scenario: "They ask 'Do you want advice or do you just want to vent right now?' when you share a stressful problem.",
+    difficulty: "deep",
+  },
+  {
+    id: 28,
+    category: "Dating Pace",
+    scenario: "They say 'I think I love you' or plan a couple vacation after talking for only 3 days.",
+    difficulty: "spicy",
+  },
 ];
 
 export const QUESTIONS_PER_ROUND = 7;
 
-// Deterministic pair-specific shuffle that rotates 7 unique questions from the 20-question deck
-export function getShuffledQuestionsForPair(userId1: string, userId2: string): WYRQuestion[] {
+// Deterministic pair-specific shuffle that rotates 7 unique questions from the deck
+export function getShuffledQuestionsForPair(userId1: string, userId2: string): FlagQuestion[] {
   const seedString = [userId1 || 'u1', userId2 || 'u2'].sort().join(':');
   let hash = 0;
   for (let i = 0; i < seedString.length; i++) {
@@ -204,7 +325,7 @@ export function getShuffledQuestionsForPair(userId1: string, userId2: string): W
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 
-  const copy = [...RAW_WYR_QUESTIONS];
+  const copy = [...RAW_FLAG_QUESTIONS];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -240,23 +361,28 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [tttWinner, setTttWinner] = useState<number | 'draw' | null>(null);
   const [tttScores, setTttScores] = useState({ p1: 0, p2: 0 });
 
-  // ─── WOULD YOU RATHER STATE (7 Questions per match) ────────────────────────
-  const [wyrQuestions, setWyrQuestions] = useState<WYRQuestion[]>(() =>
+  // ─── RED FLAG OR GREEN FLAG STATE (7 Scenarios per match) ───────────────────
+  const [flagQuestions, setFlagQuestions] = useState<FlagQuestion[]>(() =>
     getShuffledQuestionsForPair(currentUser.id, partner.id)
   );
 
   useEffect(() => {
-    setWyrQuestions(getShuffledQuestionsForPair(currentUser.id, partner.id));
+    setFlagQuestions(getShuffledQuestionsForPair(currentUser.id, partner.id));
   }, [currentUser.id, partner.id]);
 
-  const [wyrIndex, setWyrIndex] = useState(0);
-  const [wyrMyChoice, setWyrMyChoice] = useState<'A' | 'B' | null>(null);
-  const [wyrPartnerChoice, setWyrPartnerChoice] = useState<'A' | 'B' | null>(null);
-  const [wyrTimerSeconds, setWyrTimerSeconds] = useState(10);
-  const [wyrStats, setWyrStats] = useState({ matches: 0, totalAnswered: 0 });
-  const [wyrAutoSkipNotice, setWyrAutoSkipNotice] = useState(false);
-  const wyrTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const wyrAutoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [flagIndex, setFlagIndex] = useState(0);
+  const [flagMyChoice, setFlagMyChoice] = useState<'RED' | 'GREEN' | null>(null);
+  const [flagPartnerChoice, setFlagPartnerChoice] = useState<'RED' | 'GREEN' | null>(null);
+  const [flagTimerSeconds, setFlagTimerSeconds] = useState(10);
+  const [flagStats, setFlagStats] = useState({ matches: 0, totalAnswered: 0 });
+  const [flagAutoSkipNotice, setFlagAutoSkipNotice] = useState(false);
+  const [flagHistory, setFlagHistory] = useState<FlagHistoryEntry[]>([]);
+  const [flagIsFinished, setFlagIsFinished] = useState(false);
+  const [flagSharedToChat, setFlagSharedToChat] = useState(false);
+  const { sendMessage } = useChatStore();
+
+  const flagTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const flagAutoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastEvaluatedQRef = useRef<number>(-1);
 
   // ─── ROCK PAPER SCISSORS STATE ──────────────────────────────────────────────
@@ -288,13 +414,16 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setRpsPartnerChoice(null);
     setRpsResult(null);
 
-    // Fresh Would You Rather state
-    setWyrIndex(0);
-    setWyrMyChoice(null);
-    setWyrPartnerChoice(null);
-    setWyrTimerSeconds(10);
-    setWyrStats({ matches: 0, totalAnswered: 0 });
-    setWyrAutoSkipNotice(false);
+    // Fresh Red Flag or Green Flag state
+    setFlagIndex(0);
+    setFlagMyChoice(null);
+    setFlagPartnerChoice(null);
+    setFlagTimerSeconds(10);
+    setFlagStats({ matches: 0, totalAnswered: 0 });
+    setFlagAutoSkipNotice(false);
+    setFlagHistory([]);
+    setFlagIsFinished(false);
+    setFlagSharedToChat(false);
     lastEvaluatedQRef.current = -1;
 
     // Return to game selection menu for fresh next match
@@ -395,19 +524,57 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           setTttWinner(null);
           break;
 
-        // Would You Rather signals
+        // Red Flag or Green Flag signals
+        case 'FLAG_PICK':
         case 'WYR_PICK':
-          setWyrPartnerChoice(data.choice);
+          setFlagPartnerChoice(data.choice);
           break;
 
+        case 'FLAG_NEXT_QUESTION':
         case 'WYR_NEXT_QUESTION':
-          setWyrIndex(data.nextIndex);
-          setWyrMyChoice(null);
-          setWyrPartnerChoice(null);
-          setWyrTimerSeconds(10);
-          setWyrAutoSkipNotice(false);
+          setFlagIndex(data.nextIndex);
+          setFlagMyChoice(null);
+          setFlagPartnerChoice(null);
+          setFlagTimerSeconds(10);
+          setFlagAutoSkipNotice(false);
           lastEvaluatedQRef.current = -1;
-          if (data.stats) setWyrStats(data.stats);
+          if (data.stats) setFlagStats(data.stats);
+          if (data.historyItem) {
+            setFlagHistory((prev) => {
+              // Avoid duplicates
+              const exists = prev.some((h) => h.question.id === data.historyItem.question.id);
+              return exists ? prev : [...prev, data.historyItem];
+            });
+          }
+          break;
+
+        case 'FLAG_FINISH':
+          if (data.stats) setFlagStats(data.stats);
+          if (data.history) setFlagHistory(data.history);
+          setFlagIsFinished(true);
+          try {
+            confetti({
+              particleCount: 120,
+              spread: 90,
+              origin: { y: 0.5 },
+              colors: ['#ffc900', '#dc341e', '#00e599', '#ff90e8', '#ffffff'],
+            });
+          } catch (e) {}
+          break;
+
+        case 'FLAG_RESTART_ROUND':
+          if (data.questions) setFlagQuestions(data.questions);
+          setFlagIndex(0);
+          setFlagMyChoice(null);
+          setFlagPartnerChoice(null);
+          setFlagTimerSeconds(10);
+          setFlagStats({ matches: 0, totalAnswered: 0 });
+          setFlagAutoSkipNotice(false);
+          setFlagHistory([]);
+          setFlagIsFinished(false);
+          setFlagSharedToChat(false);
+          lastEvaluatedQRef.current = -1;
+          setActiveGame('redgreenflag');
           break;
 
         // RPS signals
@@ -428,43 +595,74 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     };
   }, [onClose, myPlayerId, currentUser.username, partner.username]);
 
-  // ─── WOULD YOU RATHER 10-SECOND TIMER & SMART ACCUMULATION ──────────────────
+  // ─── RED FLAG OR GREEN FLAG 10-SECOND TIMER & SMART ACCUMULATION ────────────
   useEffect(() => {
-    if (activeGame !== 'wouldyourather') {
-      if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
-      if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
+    if (activeGame !== 'redgreenflag' && activeGame !== 'wouldyourather') {
+      if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+      if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+      return;
+    }
+
+    if (flagIsFinished) {
+      if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+      if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
       return;
     }
 
     // Both players have made a choice
-    if (wyrMyChoice && wyrPartnerChoice) {
-      if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
+    if (flagMyChoice && flagPartnerChoice) {
+      if (flagTimerRef.current) clearInterval(flagTimerRef.current);
 
-      if (lastEvaluatedQRef.current !== wyrIndex) {
-        lastEvaluatedQRef.current = wyrIndex;
-        const isMatch = wyrMyChoice === wyrPartnerChoice;
+      if (lastEvaluatedQRef.current !== flagIndex) {
+        lastEvaluatedQRef.current = flagIndex;
+        const currentQ = flagQuestions[flagIndex] || RAW_FLAG_QUESTIONS[0];
+        const isMatch = flagMyChoice === flagPartnerChoice;
 
-        setWyrStats((prev) => {
+        const historyItem: FlagHistoryEntry = {
+          question: currentQ,
+          myChoice: flagMyChoice,
+          partnerChoice: flagPartnerChoice,
+          isMatch,
+        };
+
+        setFlagHistory((prev) => {
+          const exists = prev.some((h) => h.question.id === currentQ.id);
+          return exists ? prev : [...prev, historyItem];
+        });
+
+        setFlagStats((prev) => {
           const nextStats = {
             matches: prev.matches + (isMatch ? 1 : 0),
             totalAnswered: prev.totalAnswered + 1,
           };
 
           if (isHost) {
-            if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
-            wyrAutoAdvanceTimerRef.current = setTimeout(() => {
-              if (wyrIndex + 1 >= QUESTIONS_PER_ROUND) {
-                // All 7 questions complete! Conclude match and crown synergy score
-                const finalSynergy = Math.round((nextStats.matches / QUESTIONS_PER_ROUND) * 100);
-                triggerVictory(
-                  myPlayerId,
-                  `Would You Rather (${finalSynergy}% Synergy • ${nextStats.matches}/${QUESTIONS_PER_ROUND} Matches)`
-                );
+            if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+            flagAutoAdvanceTimerRef.current = setTimeout(() => {
+              if (flagIndex + 1 >= QUESTIONS_PER_ROUND) {
+                // All 7 questions complete! Conclude and display smart feedback conclusion
+                setFlagIsFinished(true);
+                try {
+                  confetti({
+                    particleCount: 120,
+                    spread: 90,
+                    origin: { y: 0.5 },
+                    colors: ['#ffc900', '#dc341e', '#00e599', '#ff90e8', '#ffffff'],
+                  });
+                } catch (e) {}
+
+                setFlagHistory((currentHistory) => {
+                  roomManager.sendGameSignal({
+                    action: 'FLAG_FINISH',
+                    stats: nextStats,
+                    history: currentHistory,
+                  });
+                  return currentHistory;
+                });
               } else {
-                // Continue to next question even if there's a disagreement
-                advanceWyrQuestion(nextStats);
+                advanceFlagQuestion(nextStats, historyItem);
               }
-            }, 2500);
+            }, 2600);
           }
 
           return nextStats;
@@ -474,28 +672,63 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     }
 
     // Countdown active
-    if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
-    wyrTimerRef.current = setInterval(() => {
-      setWyrTimerSeconds((prev) => {
+    if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+    flagTimerRef.current = setInterval(() => {
+      setFlagTimerSeconds((prev) => {
         if (prev <= 1) {
-          if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
-          setWyrAutoSkipNotice(true);
+          if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+          setFlagAutoSkipNotice(true);
 
-          if (isHost && lastEvaluatedQRef.current !== wyrIndex) {
-            lastEvaluatedQRef.current = wyrIndex;
-            if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
-            wyrAutoAdvanceTimerRef.current = setTimeout(() => {
-              setWyrStats((prev) => {
-                if (wyrIndex + 1 >= QUESTIONS_PER_ROUND) {
-                  const finalSynergy = prev.totalAnswered > 0 ? Math.round((prev.matches / prev.totalAnswered) * 100) : 0;
-                  triggerVictory(
-                    myPlayerId,
-                    `Would You Rather (${finalSynergy}% Synergy • ${prev.matches}/${QUESTIONS_PER_ROUND} Matches)`
-                  );
+          if (isHost && lastEvaluatedQRef.current !== flagIndex) {
+            lastEvaluatedQRef.current = flagIndex;
+            const currentQ = flagQuestions[flagIndex] || RAW_FLAG_QUESTIONS[0];
+            const myPick = flagMyChoice || 'TIMEOUT';
+            const partnerPick = flagPartnerChoice || 'TIMEOUT';
+            const isMatch = myPick !== 'TIMEOUT' && myPick === partnerPick;
+
+            const historyItem: FlagHistoryEntry = {
+              question: currentQ,
+              myChoice: myPick,
+              partnerChoice: partnerPick,
+              isMatch,
+            };
+
+            setFlagHistory((prev) => {
+              const exists = prev.some((h) => h.question.id === currentQ.id);
+              return exists ? prev : [...prev, historyItem];
+            });
+
+            if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
+            flagAutoAdvanceTimerRef.current = setTimeout(() => {
+              setFlagStats((prevStats) => {
+                const nextStats = {
+                  matches: prevStats.matches + (isMatch ? 1 : 0),
+                  totalAnswered: prevStats.totalAnswered + 1,
+                };
+
+                if (flagIndex + 1 >= QUESTIONS_PER_ROUND) {
+                  setFlagIsFinished(true);
+                  try {
+                    confetti({
+                      particleCount: 120,
+                      spread: 90,
+                      origin: { y: 0.5 },
+                      colors: ['#ffc900', '#dc341e', '#00e599', '#ff90e8', '#ffffff'],
+                    });
+                  } catch (e) {}
+
+                  setFlagHistory((currentHistory) => {
+                    roomManager.sendGameSignal({
+                      action: 'FLAG_FINISH',
+                      stats: nextStats,
+                      history: currentHistory,
+                    });
+                    return currentHistory;
+                  });
                 } else {
-                  advanceWyrQuestion(prev);
+                  advanceFlagQuestion(nextStats, historyItem);
                 }
-                return prev;
+                return nextStats;
               });
             }, 1500);
           }
@@ -506,34 +739,77 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     }, 1000);
 
     return () => {
-      if (wyrTimerRef.current) clearInterval(wyrTimerRef.current);
-      if (wyrAutoAdvanceTimerRef.current) clearTimeout(wyrAutoAdvanceTimerRef.current);
+      if (flagTimerRef.current) clearInterval(flagTimerRef.current);
+      if (flagAutoAdvanceTimerRef.current) clearTimeout(flagAutoAdvanceTimerRef.current);
     };
-  }, [activeGame, wyrIndex, wyrMyChoice, wyrPartnerChoice, isHost, myPlayerId]);
+  }, [activeGame, flagIndex, flagMyChoice, flagPartnerChoice, flagIsFinished, isHost, myPlayerId, flagQuestions]);
 
-  const advanceWyrQuestion = (statsToBroadcast?: { matches: number; totalAnswered: number }) => {
-    const nextIdx = (wyrIndex + 1) % QUESTIONS_PER_ROUND;
-    setWyrIndex(nextIdx);
-    setWyrMyChoice(null);
-    setWyrPartnerChoice(null);
-    setWyrTimerSeconds(10);
-    setWyrAutoSkipNotice(false);
+  const advanceFlagQuestion = (
+    statsToBroadcast?: { matches: number; totalAnswered: number },
+    historyItem?: FlagHistoryEntry
+  ) => {
+    const nextIdx = (flagIndex + 1) % QUESTIONS_PER_ROUND;
+    setFlagIndex(nextIdx);
+    setFlagMyChoice(null);
+    setFlagPartnerChoice(null);
+    setFlagTimerSeconds(10);
+    setFlagAutoSkipNotice(false);
     lastEvaluatedQRef.current = -1;
 
     roomManager.sendGameSignal({
-      action: 'WYR_NEXT_QUESTION',
+      action: 'FLAG_NEXT_QUESTION',
       nextIndex: nextIdx,
       stats: statsToBroadcast,
+      historyItem,
     });
   };
 
-  const handleWyrPick = (choice: 'A' | 'B') => {
-    if (wyrMyChoice || wyrTimerSeconds === 0) return;
-    setWyrMyChoice(choice);
+  const handleFlagPick = (choice: 'RED' | 'GREEN') => {
+    if (flagMyChoice || flagTimerSeconds === 0) return;
+    setFlagMyChoice(choice);
     roomManager.sendGameSignal({
-      action: 'WYR_PICK',
+      action: 'FLAG_PICK',
       choice,
     });
+  };
+
+  const handleRestartFlagRound = () => {
+    const newQuestions = [...RAW_FLAG_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, QUESTIONS_PER_ROUND);
+    setFlagQuestions(newQuestions);
+    setFlagIndex(0);
+    setFlagMyChoice(null);
+    setFlagPartnerChoice(null);
+    setFlagTimerSeconds(10);
+    setFlagStats({ matches: 0, totalAnswered: 0 });
+    setFlagAutoSkipNotice(false);
+    setFlagHistory([]);
+    setFlagIsFinished(false);
+    setFlagSharedToChat(false);
+    lastEvaluatedQRef.current = -1;
+    setActiveGame('redgreenflag');
+
+    roomManager.sendGameSignal({
+      action: 'FLAG_RESTART_ROUND',
+      questions: newQuestions,
+    });
+  };
+
+  const handleShareFlagFeedbackToChat = (feedback: SmartFeedbackData) => {
+    if (flagSharedToChat) return;
+    const msg = `🚩 *Red Flag or Green Flag Results* 🟢\n` +
+      `✨ Alignment: ${feedback.synergyScore}% (${feedback.matchCount}/${feedback.totalQuestions} Matches)\n` +
+      `🎭 Archetype: ${feedback.archetypeTitle} (${feedback.archetypeBadge})\n` +
+      `💡 Verdict: ${feedback.strictnessVerdict}\n` +
+      (feedback.biggestRedFlagAlliance ? `🚩 Mutual Dealbreaker: "${feedback.biggestRedFlagAlliance}"\n` : '') +
+      (feedback.biggestGreenFlagAlliance ? `🟢 Shared Green Flag: "${feedback.biggestGreenFlagAlliance}"\n` : '') +
+      (feedback.spiciestDebate ? `⚡ Spiciest Debate: "${feedback.spiciestDebate.scenario}" (You: ${feedback.spiciestDebate.myChoice} vs Partner: ${feedback.spiciestDebate.partnerChoice})` : '');
+
+    try {
+      sendMessage(msg);
+      setFlagSharedToChat(true);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // ─── RPS EVALUATION ─────────────────────────────────────────────────────────
@@ -771,22 +1047,22 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                {/* Game Card 1: Would You Rather */}
+                {/* Game Card 1: Red Flag or Green Flag */}
                 <button
                   type="button"
-                  onClick={() => switchGame('wouldyourather')}
+                  onClick={() => switchGame('redgreenflag')}
                   className="p-4 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#701a31] text-white flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                    <HelpCircle className="w-5 h-5 stroke-[2.5]" />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#dc341e] to-[#00e599] text-white flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
+                    <Flag className="w-5 h-5 stroke-[2.5]" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-black text-black">Would You Rather</span>
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-amber-400 text-black border border-black rounded-full">10s Timer</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-black text-black">Red Flag or Green Flag?</span>
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-[#ff90e8] text-black border border-black rounded-full">10s Vibe Check</span>
                     </div>
                     <p className="text-xs text-gray-600 font-medium mt-0.5">
-                      10-second rapid campus dilemmas with smart compatibility match stats.
+                      10-second rapid dating & campus dilemma vibe check with instant compatibility stats.
                     </p>
                   </div>
                 </button>
@@ -849,38 +1125,259 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           )}
 
           {/* ═══════════════════════════════════════════════════════════════════
-              VIEW: WOULD YOU RATHER (10s Timer + Smart Accumulation)
+              VIEW: RED FLAG OR GREEN FLAG (Game Play or Smart Feedback Report)
              ═══════════════════════════════════════════════════════════════════ */}
-          {activeGame === 'wouldyourather' && (() => {
-            const currentQ = wyrQuestions[wyrIndex] || RAW_WYR_QUESTIONS[0];
+          {(activeGame === 'redgreenflag' || activeGame === 'wouldyourather') && (() => {
+            // If the 7 questions are finished, render the Smart Feedback conclusion screen!
+            if (flagIsFinished) {
+              const feedback = computeFlagSmartFeedback(flagHistory, currentUser.username, partner.username);
+              return (
+                <div className="w-full max-w-lg mx-auto space-y-4 py-2 animate-in zoom-in-95 duration-300">
+                  {/* Top Trophy & Synergy Archetype Card */}
+                  <div className="p-5 bg-gradient-to-br from-[#ffc900] via-[#ffe3e8] to-[#00e599]/30 border-3 border-black rounded-3xl shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-[#00e599] border-2 border-black rounded-full font-black text-xs uppercase tracking-wider mb-2 shadow-2xs">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{feedback.archetypeBadge}</span>
+                    </div>
+
+                    <h3 className="text-2xl sm:text-3xl font-black text-black tracking-tight leading-tight">
+                      {feedback.archetypeTitle}
+                    </h3>
+
+                    <div className="my-3 flex items-center justify-center gap-3">
+                      <div className="px-3.5 py-1.5 bg-white border-2 border-black rounded-2xl shadow-xs">
+                        <span className="text-2xl sm:text-3xl font-black text-black">
+                          {feedback.synergyScore}%
+                        </span>
+                        <span className="block text-[10px] font-black uppercase text-gray-600">
+                          Alignment
+                        </span>
+                      </div>
+                      <div className="px-3.5 py-1.5 bg-white border-2 border-black rounded-2xl shadow-xs">
+                        <span className="text-2xl sm:text-3xl font-black text-[#dc341e]">
+                          {feedback.matchCount} / {feedback.totalQuestions}
+                        </span>
+                        <span className="block text-[10px] font-black uppercase text-gray-600">
+                          Matched Flags
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm font-bold text-gray-800 leading-relaxed px-2 bg-white/70 p-3 rounded-2xl border border-black/20">
+                      {feedback.archetypeDescription}
+                    </p>
+                  </div>
+
+                  {/* Smart Analysis 4-Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Mutual Dealbreaker Card */}
+                    <div className="p-3.5 bg-[#ffe3e8] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-black text-[#dc341e] mb-1">
+                          <Flag className="w-3.5 h-3.5 fill-[#dc341e]" />
+                          <span>Mutual Dealbreaker</span>
+                        </div>
+                        <p className="text-xs font-extrabold text-black leading-snug">
+                          {feedback.biggestRedFlagAlliance
+                            ? `"${feedback.biggestRedFlagAlliance}"`
+                            : "No mutual red flags — you both kept an open mind!"}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-600 mt-2 block">
+                        {feedback.biggestRedFlagAlliance ? "🚩 Both waved Red Flag" : "✨ High tolerance"}
+                      </span>
+                    </div>
+
+                    {/* Shared Green Flag Card */}
+                    <div className="p-3.5 bg-[#e6fcf5] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-black text-[#0f5132] mb-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#00e599]" />
+                          <span>Shared Green Flag</span>
+                        </div>
+                        <p className="text-xs font-extrabold text-black leading-snug">
+                          {feedback.biggestGreenFlagAlliance
+                            ? `"${feedback.biggestGreenFlagAlliance}"`
+                            : "No mutual green flags — strict standards all around!"}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-600 mt-2 block">
+                        {feedback.biggestGreenFlagAlliance ? "🟢 Both waved Green Flag" : "⚡ Tough judges"}
+                      </span>
+                    </div>
+
+                    {/* Spiciest Debate Card */}
+                    <div className="p-3.5 bg-[#fff8e6] border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:col-span-2">
+                      <div className="flex items-center gap-1.5 text-xs font-black text-amber-900 mb-1">
+                        <Flame className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Spiciest Campus Debate</span>
+                      </div>
+                      {feedback.spiciestDebate ? (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-extrabold text-black">
+                            "{feedback.spiciestDebate.scenario}"
+                          </p>
+                          <div className="flex items-center gap-2 text-[11px] font-black flex-wrap">
+                            <span className="px-2 py-0.5 bg-white border border-black rounded-md">
+                              You: {feedback.spiciestDebate.myChoice}
+                            </span>
+                            <span className="text-gray-400">vs</span>
+                            <span className="px-2 py-0.5 bg-white border border-black rounded-md">
+                              {partner.username}: {feedback.spiciestDebate.partnerChoice}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs font-extrabold text-black">
+                          Flawless harmony! You didn't have any major disagreements.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Standards Radar Card */}
+                    <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:col-span-2 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-black">
+                        <div className="flex items-center gap-1.5 text-gray-800">
+                          <Scale className="w-3.5 h-3.5 text-[#701a31]" />
+                          <span>Standards &amp; Strictness Radar</span>
+                        </div>
+                        <span className="text-[10px] text-gray-500 font-bold">
+                          {feedback.strictnessVerdict}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] font-black pt-1">
+                        <div className="p-2 bg-[#f4f4f0] border border-black rounded-xl text-center">
+                          <span className="text-gray-600 block text-[10px]">You</span>
+                          <span>{feedback.myRedCount} 🚩 Red • {feedback.totalQuestions - feedback.myRedCount} 🟢 Green</span>
+                        </div>
+                        <div className="p-2 bg-[#f4f4f0] border border-black rounded-xl text-center">
+                          <span className="text-gray-600 block text-[10px]">{partner.username}</span>
+                          <span>{feedback.partnerRedCount} 🚩 Red • {feedback.totalQuestions - feedback.partnerRedCount} 🟢 Green</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Scrollable Questions Breakdown */}
+                  {flagHistory.length > 0 && (
+                    <div className="p-3 bg-white border-2 border-black rounded-2xl shadow-xs space-y-2">
+                      <span className="text-xs font-black text-black block">
+                        Full Round Breakdown ({flagHistory.length} Scenarios):
+                      </span>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {flagHistory.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-2 rounded-xl border border-black/30 flex items-center justify-between gap-2 text-[11px] font-bold ${
+                              item.isMatch ? 'bg-emerald-50/60' : 'bg-rose-50/60'
+                            }`}
+                          >
+                            <span className="line-clamp-1 flex-1 text-gray-900">
+                              <strong className="text-black font-black">Q{idx + 1}:</strong> {item.question.scenario}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0 text-[10px] font-black">
+                              <span className={`px-1.5 py-0.5 rounded border border-black/20 ${
+                                item.myChoice === 'RED' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                You: {item.myChoice === 'RED' ? '🚩' : '🟢'}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded border border-black/20 ${
+                                item.partnerChoice === 'RED' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {item.partnerChoice === 'RED' ? '🚩' : '🟢'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons Toolbar */}
+                  <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                    {/* Share to chat button */}
+                    <button
+                      type="button"
+                      onClick={() => handleShareFlagFeedbackToChat(feedback)}
+                      disabled={flagSharedToChat}
+                      className={`w-full sm:flex-1 py-3 px-4 rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer ${
+                        flagSharedToChat
+                          ? 'bg-[#00e599] text-black opacity-90'
+                          : 'bg-[#ff90e8] hover:bg-[#ff7be3] text-black'
+                      }`}
+                    >
+                      {flagSharedToChat ? (
+                        <>
+                          <Check className="w-4 h-4 stroke-[3]" />
+                          <span>Shared to Chat Room!</span>
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="w-4 h-4" />
+                          <span>Share Summary to Chat</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Play another round */}
+                    <button
+                      type="button"
+                      onClick={handleRestartFlagRound}
+                      className="w-full sm:flex-1 py-3 px-4 bg-[#ffc900] hover:bg-[#ffb700] text-black rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4 stroke-[2.5]" />
+                      <span>Play Another Round</span>
+                    </button>
+
+                    {/* Menu button */}
+                    <button
+                      type="button"
+                      onClick={() => switchGame('menu')}
+                      className="w-full sm:w-auto py-3 px-4 bg-white hover:bg-black hover:text-white text-black rounded-2xl border-2 border-black font-black text-xs flex items-center justify-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+                    >
+                      <span>Menu</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            const currentQ = flagQuestions[flagIndex] || RAW_FLAG_QUESTIONS[0];
+            const isAnsweredBoth = Boolean(flagMyChoice && flagPartnerChoice);
+            const isMatch = flagMyChoice === flagPartnerChoice;
+            const synergyPct = flagStats.totalAnswered > 0 ? Math.round((flagStats.matches / flagStats.totalAnswered) * 100) : 0;
+
             return (
               <div className="w-full max-w-md mx-auto space-y-4">
                 {/* Question Tracker & Stats Accumulator */}
                 <div className="flex items-center justify-between gap-2 p-2.5 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="px-2 py-0.5 bg-[#701a31] text-white rounded-md">
-                      Q{wyrIndex + 1}/{wyrQuestions.length}
+                      Q{flagIndex + 1}/{flagQuestions.length}
                     </span>
                     <span className="px-2 py-0.5 bg-[#fff8e6] text-black border border-black/30 rounded-md font-bold text-[10px] uppercase tracking-wide">
                       {currentQ.category}
                     </span>
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase border border-black/20 ${
-                      currentQ.difficulty === 'easy'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : currentQ.difficulty === 'medium'
+                      currentQ.difficulty === 'spicy'
+                        ? 'bg-rose-100 text-rose-800'
+                        : currentQ.difficulty === 'campus'
                         ? 'bg-amber-100 text-amber-800'
-                        : 'bg-rose-100 text-rose-800'
+                        : currentQ.difficulty === 'deep'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-emerald-100 text-emerald-800'
                     }`}>
-                      {currentQ.difficulty}
+                      {currentQ.difficulty === 'spicy' ? '🔥 Spicy' : currentQ.difficulty === 'campus' ? '🏫 Campus' : currentQ.difficulty === 'deep' ? '💭 Deep' : '⭐ Classic'}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="px-2 py-0.5 bg-[#00e599] text-black rounded-md flex items-center gap-1 border border-black shadow-2xs">
                       <Sparkles className="w-3 h-3" />
-                      <span>{wyrStats.totalAnswered > 0 ? `${Math.round((wyrStats.matches / wyrStats.totalAnswered) * 100)}% Synergy` : '0% Synergy'}</span>
+                      <span>{synergyPct}% Alignment</span>
                     </span>
-                    <span className="text-gray-500 font-bold">({wyrStats.matches} matches)</span>
+                    <span className="text-gray-500 font-bold">({flagStats.matches} matches)</span>
                   </div>
                 </div>
 
@@ -892,147 +1389,172 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                       <span>Time Remaining:</span>
                     </span>
                     <span className={`px-2 py-0.5 rounded-full border border-black ${
-                      wyrTimerSeconds <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffc900] text-black'
+                      flagTimerSeconds <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffc900] text-black'
                     }`}>
-                      {wyrTimerSeconds}s
+                      {flagTimerSeconds}s
                     </span>
                   </div>
                   <div className="w-full h-3 bg-gray-200 border-2 border-black rounded-full overflow-hidden p-0.5">
                     <div
                       className={`h-full rounded-full transition-all duration-1000 ${
-                        wyrTimerSeconds <= 3 ? 'bg-red-500' : 'bg-[#00e599]'
+                        flagTimerSeconds <= 3 ? 'bg-red-500' : 'bg-[#00e599]'
                       }`}
-                      style={{ width: `${(wyrTimerSeconds / 10) * 100}%` }}
+                      style={{ width: `${(flagTimerSeconds / 10) * 100}%` }}
                     />
                   </div>
                 </div>
 
                 {/* Auto Skip Alert Notice */}
-                {wyrAutoSkipNotice && (
+                {flagAutoSkipNotice && (
                   <div className="p-2.5 bg-amber-200 border-2 border-black rounded-xl text-center text-xs font-extrabold animate-bounce">
-                    ⏳ 10 seconds expired! Skipping to next question...
+                    ⏳ 10 seconds expired! Moving to the next scenario...
                   </div>
                 )}
 
-                {/* Both Answered: Smart Match Accumulation Reveal Banner */}
-                {wyrMyChoice && wyrPartnerChoice && (
+                {/* Scenario Presentation Card */}
+                <div className="p-5 sm:p-6 bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
+                  <div className="absolute top-2 left-3 text-4xl text-gray-200 select-none font-serif leading-none">“</div>
+                  <div className="absolute bottom-1 right-3 text-4xl text-gray-200 select-none font-serif leading-none">”</div>
+                  
+                  <div className="relative z-10 space-y-2">
+                    <p className="text-xs font-black uppercase tracking-wider text-[#701a31]">
+                      Is this a Red Flag or a Green Flag?
+                    </p>
+                    <p className="text-base sm:text-lg font-black text-black leading-snug px-2">
+                      {currentQ.scenario}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Both Answered Reveal Banner */}
+                {isAnsweredBoth && (
                   <div className={`p-3 border-2 border-black rounded-2xl text-center shadow-xs animate-in zoom-in-95 duration-200 ${
-                    wyrMyChoice === wyrPartnerChoice
-                      ? 'bg-[#00e599] text-black'
-                      : 'bg-[#ffe3e8] text-black'
+                    isMatch
+                      ? flagMyChoice === 'RED'
+                        ? 'bg-[#ffe3e8] text-[#dc341e]'
+                        : 'bg-[#e6fcf5] text-[#0f5132]'
+                      : 'bg-[#fff8e6] text-black'
                   }`}>
-                    {wyrMyChoice === wyrPartnerChoice ? (
+                    {isMatch ? (
                       <div className="space-y-0.5">
                         <div className="font-black text-sm flex items-center justify-center gap-1.5">
                           <Sparkles className="w-4 h-4" />
-                          <span>✨ Match! You both picked the exact same option!</span>
+                          <span>
+                            {flagMyChoice === 'RED'
+                              ? '🚩 Total Alignment! You BOTH called this a Red Flag!'
+                              : '🟢 Total Alignment! You BOTH called this a Green Flag!'}
+                          </span>
                         </div>
                         <p className="text-xs font-bold opacity-90">
-                          Option {wyrMyChoice} • Great minds think alike!
+                          Great minds think alike! +1 added to compatibility.
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-0.5">
                         <div className="font-black text-sm">
-                          ⚡ You disagreed on this one!
+                          ⚡ Split Verdict! Campus debate time!
                         </div>
                         <p className="text-xs font-bold">
-                          You picked <span className="underline font-black">Option {wyrMyChoice}</span>, {partner.username} picked <span className="underline font-black">Option {wyrPartnerChoice}</span>.
+                          You chose <span className="underline font-black">{flagMyChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>, while {partner.username} chose <span className="underline font-black">{flagPartnerChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>.
                         </p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Option Cards */}
-                <div className="grid grid-cols-1 gap-3">
-                  {/* Option A */}
+                {/* Red Flag & Green Flag Choice Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  {/* RED FLAG BUTTON */}
                   <button
                     type="button"
-                    disabled={Boolean(wyrMyChoice) || wyrTimerSeconds === 0}
-                    onClick={() => handleWyrPick('A')}
-                    className={`p-4 rounded-2xl border-2 sm:border-3 border-black text-left transition-all relative overflow-hidden group cursor-pointer ${
-                      wyrMyChoice === 'A'
-                        ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02]'
-                        : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5'
+                    disabled={Boolean(flagMyChoice) || flagTimerSeconds === 0}
+                    onClick={() => handleFlagPick('RED')}
+                    className={`p-4 rounded-2xl border-3 border-black flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden group cursor-pointer ${
+                      flagMyChoice === 'RED'
+                        ? 'bg-[#dc341e] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.03] ring-4 ring-red-400'
+                        : 'bg-white text-black hover:bg-[#ffe3e8] hover:border-[#dc341e] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px]'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <span className={`w-8 h-8 rounded-xl border-2 border-black flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
-                        wyrMyChoice === 'A' ? 'bg-[#ffc900] text-black' : 'bg-[#701a31] text-white'
-                      }`}>
-                        A
+                    <div className={`w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center text-2xl shadow-xs transition-transform group-hover:scale-110 ${
+                      flagMyChoice === 'RED' ? 'bg-white text-[#dc341e]' : 'bg-[#dc341e]/15 text-[#dc341e]'
+                    }`}>
+                      🚩
+                    </div>
+                    <div className="text-center">
+                      <span className="text-sm sm:text-base font-black tracking-tight block">
+                        RED FLAG
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm sm:text-base font-extrabold leading-snug">
-                          {currentQ.questionA}
-                        </p>
-                        {wyrMyChoice === 'A' && (
-                          <span className="text-[11px] font-black text-amber-300 mt-1 inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Your Pick
-                          </span>
-                        )}
-                      </div>
+                      <span className={`text-[10px] font-bold block ${flagMyChoice === 'RED' ? 'text-white/90' : 'text-gray-500'}`}>
+                        Major Warning 🛑
+                      </span>
                     </div>
 
-                    {/* Partner Pick Indicator after reveal */}
-                    {wyrMyChoice && wyrPartnerChoice === 'A' && (
-                      <div className="mt-2 pt-2 border-t border-white/20 text-xs font-black text-white flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#00e599] animate-ping" />
-                        <span>{partner.username} chose this too!</span>
+                    {flagMyChoice === 'RED' && (
+                      <span className="text-[10px] font-black bg-white text-black px-2 py-0.5 rounded-full border border-black inline-flex items-center gap-1 shadow-2xs">
+                        <CheckCircle2 className="w-3 h-3 text-[#dc341e]" /> Locked In
+                      </span>
+                    )}
+
+                    {/* Partner Reveal Badge */}
+                    {isAnsweredBoth && flagPartnerChoice === 'RED' && (
+                      <div className="w-full mt-1 pt-1.5 border-t border-black/20 text-[10px] font-black text-center flex items-center justify-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                        <span>{partner.username} picked Red Flag</span>
                       </div>
                     )}
                   </button>
 
-                  {/* Option B */}
+                  {/* GREEN FLAG BUTTON */}
                   <button
                     type="button"
-                    disabled={Boolean(wyrMyChoice) || wyrTimerSeconds === 0}
-                    onClick={() => handleWyrPick('B')}
-                    className={`p-4 rounded-2xl border-2 sm:border-3 border-black text-left transition-all relative overflow-hidden group cursor-pointer ${
-                      wyrMyChoice === 'B'
-                        ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02]'
-                        : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5'
+                    disabled={Boolean(flagMyChoice) || flagTimerSeconds === 0}
+                    onClick={() => handleFlagPick('GREEN')}
+                    className={`p-4 rounded-2xl border-3 border-black flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden group cursor-pointer ${
+                      flagMyChoice === 'GREEN'
+                        ? 'bg-[#00e599] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.03] ring-4 ring-emerald-300'
+                        : 'bg-white text-black hover:bg-[#e6fcf5] hover:border-[#00e599] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px]'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <span className={`w-8 h-8 rounded-xl border-2 border-black flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
-                        wyrMyChoice === 'B' ? 'bg-[#ffc900] text-black' : 'bg-[#ffc900] text-black'
-                      }`}>
-                        B
+                    <div className={`w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center text-2xl shadow-xs transition-transform group-hover:scale-110 ${
+                      flagMyChoice === 'GREEN' ? 'bg-black text-[#00e599]' : 'bg-[#00e599]/20 text-[#0f5132]'
+                    }`}>
+                      🟢
+                    </div>
+                    <div className="text-center">
+                      <span className="text-sm sm:text-base font-black tracking-tight block">
+                        GREEN FLAG
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm sm:text-base font-extrabold leading-snug">
-                          {currentQ.questionB}
-                        </p>
-                        {wyrMyChoice === 'B' && (
-                          <span className="text-[11px] font-black text-amber-300 mt-1 inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Your Pick
-                          </span>
-                        )}
-                      </div>
+                      <span className={`text-[10px] font-bold block ${flagMyChoice === 'GREEN' ? 'text-black/80' : 'text-gray-500'}`}>
+                        Keeper Habit ✨
+                      </span>
                     </div>
 
-                    {/* Partner Pick Indicator after reveal */}
-                    {wyrMyChoice && wyrPartnerChoice === 'B' && (
-                      <div className="mt-2 pt-2 border-t border-white/20 text-xs font-black text-white flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#00e599] animate-ping" />
-                        <span>{partner.username} chose this too!</span>
+                    {flagMyChoice === 'GREEN' && (
+                      <span className="text-[10px] font-black bg-black text-white px-2 py-0.5 rounded-full border border-black inline-flex items-center gap-1 shadow-2xs">
+                        <CheckCircle2 className="w-3 h-3 text-[#00e599]" /> Locked In
+                      </span>
+                    )}
+
+                    {/* Partner Reveal Badge */}
+                    {isAnsweredBoth && flagPartnerChoice === 'GREEN' && (
+                      <div className="w-full mt-1 pt-1.5 border-t border-black/20 text-[10px] font-black text-center flex items-center justify-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+                        <span>{partner.username} picked Green Flag</span>
                       </div>
                     )}
                   </button>
                 </div>
 
-                {/* Status Note */}
+                {/* Waiting indicator */}
                 <div className="text-center text-xs font-bold text-gray-500">
-                  {wyrMyChoice && !wyrPartnerChoice && (
+                  {flagMyChoice && !flagPartnerChoice && (
                     <span className="inline-flex items-center gap-1.5 text-[#701a31] font-extrabold animate-pulse">
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Locked in! Waiting for {partner.username} to pick...
+                      Vote locked in! Waiting for {partner.username} to vote...
                     </span>
                   )}
-                  {!wyrMyChoice && (
-                    <span>Pick your choice before the 10-second timer runs out!</span>
+                  {!flagMyChoice && (
+                    <span>Vote Red or Green before the 10-second timer expires!</span>
                   )}
                 </div>
               </div>

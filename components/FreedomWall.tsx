@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
-import { CU_DEPARTMENTS } from '../lib/constants';
+import { CU_DEPARTMENTS, getAvatarForPseudonym } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomComment, FreedomPost, FreedomPollOption } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
@@ -375,7 +375,7 @@ export const FreedomWall: React.FC = () => {
     if (!newCommentText.trim() || !selectedPostForComments) return;
 
     const authorAliasVal = commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student');
-    const authorAvatarVal = currentUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authorAliasVal)}&backgroundColor=ffc900`;
+    const authorAvatarVal = currentUser?.avatar_url || getAvatarForPseudonym(authorAliasVal);
     const authorBioVal = currentUser?.bio || '';
 
     const newComment: FreedomComment = {
@@ -598,8 +598,8 @@ export const FreedomWall: React.FC = () => {
         : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
 
       const finalAuthorAvatar = postAsAdmin
-        ? 'https://api.dicebear.com/7.x/bottts/svg?seed=capitalkadmin&backgroundColor=701a31'
-        : (currentUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(finalAuthorAlias)}&backgroundColor=ffc900`);
+        ? '/avatars/coin-left.jpg'
+        : (currentUser?.avatar_url || getAvatarForPseudonym(finalAuthorAlias));
 
       const success = await addFreedomPost({
         author_alias: finalAuthorAlias,
@@ -888,7 +888,7 @@ export const FreedomWall: React.FC = () => {
               onClick={() => setViewingProfile({
                 username: post.author_alias || 'Anon Student',
                 department: post.department || 'General',
-                avatar_url: post.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.author_alias || 'Anon')}&backgroundColor=ffc900`,
+                avatar_url: post.author_avatar || getAvatarForPseudonym(post.author_alias || 'Anon'),
                 bio: post.author_bio,
                 is_admin: isPostAdmin,
                 author_id: post.author_id,
@@ -897,11 +897,11 @@ export const FreedomWall: React.FC = () => {
               title="Click to view student profile"
             >
               <img
-                src={post.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.author_alias || 'Anon')}&backgroundColor=ffc900`}
+                src={post.author_avatar || getAvatarForPseudonym(post.author_alias || 'Anon')}
                 alt={post.author_alias}
                 className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/avatar:scale-105 transition-transform"
                 onError={(e) => {
-                  (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.author_alias || 'Anon')}&backgroundColor=ffc900`);
+                  (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(post.author_alias || 'Anon'));
                 }}
               />
               <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none group-hover/avatar:underline ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
@@ -1321,7 +1321,7 @@ export const FreedomWall: React.FC = () => {
                     onClick={() => setViewingProfile({
                       username: selectedPostForComments.author_alias || 'Anon Student',
                       department: selectedPostForComments.department || 'General',
-                      avatar_url: selectedPostForComments.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedPostForComments.author_alias || 'Anon')}&backgroundColor=ffc900`,
+                      avatar_url: selectedPostForComments.author_avatar || getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon'),
                       bio: selectedPostForComments.author_bio,
                       is_admin: selectedPostForComments.is_admin,
                       author_id: selectedPostForComments.author_id,
@@ -1330,11 +1330,11 @@ export const FreedomWall: React.FC = () => {
                     title="Click to view author profile"
                   >
                     <img
-                      src={selectedPostForComments.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedPostForComments.author_alias || 'Anon')}&backgroundColor=ffc900`}
+                      src={selectedPostForComments.author_avatar || getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon')}
                       alt={selectedPostForComments.author_alias}
                       className="w-5.5 h-5.5 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/author:scale-105 transition-transform"
                       onError={(e) => {
-                        (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedPostForComments.author_alias || 'Anon')}&backgroundColor=ffc900`);
+                        (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon'));
                       }}
                     />
                     <span className="text-[12px] font-bold text-[#242423] italic group-hover/author:underline">
@@ -1415,7 +1415,7 @@ export const FreedomWall: React.FC = () => {
                                   onClick={() => setViewingProfile({
                                     username: cm.author_alias,
                                     department: cm.department || 'General',
-                                    avatar_url: cm.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cm.author_alias)}&backgroundColor=ffc900`,
+                                    avatar_url: cm.author_avatar || getAvatarForPseudonym(cm.author_alias),
                                     bio: cm.author_bio,
                                     author_id: cm.author_id,
                                   })}
@@ -1423,11 +1423,11 @@ export const FreedomWall: React.FC = () => {
                                   title="Click to view commenter profile"
                                 >
                                   <img
-                                    src={cm.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cm.author_alias)}&backgroundColor=ffc900`}
+                                    src={cm.author_avatar || getAvatarForPseudonym(cm.author_alias)}
                                     alt={cm.author_alias}
                                     className="w-5 h-5 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/cmter:scale-105 transition-transform"
                                     onError={(e) => {
-                                      (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cm.author_alias)}&backgroundColor=ffc900`);
+                                      (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(cm.author_alias));
                                     }}
                                   />
                                   <span className="text-[13px] font-bold text-[#000000] truncate group-hover/cmter:underline">
@@ -2116,11 +2116,11 @@ export const FreedomWall: React.FC = () => {
             {/* Avatar with status indicator */}
             <div className="relative w-24 h-24 mx-auto mb-4">
               <img
-                src={viewingProfile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(viewingProfile.username)}&backgroundColor=ffc900`}
+                src={viewingProfile.avatar_url || getAvatarForPseudonym(viewingProfile.username)}
                 alt={viewingProfile.username}
                 className="w-24 h-24 rounded-full border-4 border-black object-cover shadow-md bg-amber-100"
                 onError={(e) => {
-                  (e.target as HTMLElement).setAttribute('src', `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(viewingProfile.username)}&backgroundColor=ffc900`);
+                  (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(viewingProfile.username));
                 }}
               />
               {viewingProfile.is_admin ? (

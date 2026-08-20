@@ -38,6 +38,7 @@ import {
 import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
 import { ThemeModal, getThemeConfig } from './ThemeModal';
+import { getAvatarForPseudonym } from '../lib/constants';
 
 const ADMIN_LINES_GRADIENT = ['#ffc900', '#701a31', '#00f2fe', '#e11d48'];
 
@@ -711,7 +712,7 @@ export const ChatRoom: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <div className="relative">
             <img
-              src={partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.username}`}
+              src={partner.avatar_url || getAvatarForPseudonym(partner.username)}
               alt={partner.username}
               className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#f4f4f0] border-2 transition-all duration-500 ${
                 partnerLeft ? 'border-red-400 opacity-50 grayscale' : isDarkMode ? 'border-[#3f3f46]' : 'border-black'
@@ -1288,15 +1289,6 @@ export const ChatRoom: React.FC = () => {
             ) : (
               <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
             )}
-            <span className="font-semibold text-xs sm:text-sm opacity-90">
-              {partnerLeftReason === 'inactivity'
-                ? 'Partner timed out due to inactivity.'
-                : partnerLeftReason === 'exited' || partnerLeftReason === 'left'
-                ? 'Partner exited the conversation.'
-                : partnerLeftReason === 'skipped'
-                ? 'Partner skipped to next chat.'
-                : 'Partner disconnected.'}
-            </span>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
