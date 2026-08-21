@@ -96,7 +96,7 @@ export const Navbar: React.FC = () => {
               type="button"
               onClick={() => setViewState('freedom_wall')}
               className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${
-                viewState === 'freedom_wall'
+                viewState === 'freedom_wall' || viewState === 'add_note'
                   ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                   : 'bg-white text-black hover:bg-[#fff1f3]'
               }`}
@@ -209,7 +209,7 @@ export const Navbar: React.FC = () => {
                     setShowMenuDrawer(false);
                   }}
                   className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
-                    viewState === 'freedom_wall'
+                    viewState === 'freedom_wall' || viewState === 'add_note'
                       ? 'bg-[#701a31] text-white scale-[1.02]'
                       : 'bg-white text-black hover:bg-[#fff1f3]'
                   }`}

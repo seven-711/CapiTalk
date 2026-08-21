@@ -188,6 +188,7 @@ export async function POST(req: Request) {
       avatar: postData.author_avatar || '',
       bio: postData.author_bio || '',
     });
+    // Keep encodedColor short (< 200 chars) to prevent PostgreSQL VARCHAR length overflows
     const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}||${profileMeta}`;
 
     const insertPayload: any = {
@@ -204,6 +205,8 @@ export async function POST(req: Request) {
     if (postData.author_id) insertPayload.author_id = postData.author_id;
     if (postData.author_avatar) insertPayload.author_avatar = postData.author_avatar;
     if (postData.author_bio) insertPayload.author_bio = postData.author_bio;
+    if (postData.image_url) insertPayload.image_url = postData.image_url;
+    if (postData.image_type) insertPayload.image_type = postData.image_type;
     if (postData.dedicated_to) insertPayload.dedicated_to = postData.dedicated_to;
     if (postData.poll_question) insertPayload.poll_question = postData.poll_question;
     if (postData.poll_options && postData.poll_options.length > 0) insertPayload.poll_options = postData.poll_options;
@@ -218,33 +221,73 @@ export async function POST(req: Request) {
     let { error } = await supabase.from('freedom_posts').insert(insertPayload);
 
     if (error) {
-      console.error('Supabase Insert Error:', error);
+      console.warn('Supabase Insert initial attempt failed:', error.message);
 
-      // Retry 1: If dedicated_to column is missing from schema, strip it and retry
-      if (error.message?.includes('dedicated_to')) {
-        delete insertPayload.dedicated_to;
-        const retry = await supabase.from('freedom_posts').insert(insertPayload);
-        error = retry.error;
+      // Schema Compatibility Multi-Pass Retries
+      const OPTIONAL_COLUMNS = [
+        'image_url',
+        'image_type',
+        'dedicated_to',
+        'poll_question',
+        'poll_options',
+        'author_id',
+        'author_avatar',
+        'author_bio',
+        'song_title',
+        'song_artist',
+        'song_image_url',
+        'song_preview_url',
+        'song_link',
+      ];
+
+      // Strip columns mentioned in error or if value is too long for schema
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (!error) break;
+        let modified = false;
+
+        for (const col of OPTIONAL_COLUMNS) {
+          if (insertPayload[col] !== undefined) {
+            const errLower = (error.message || '').toLowerCase();
+            if (errLower.includes(col.toLowerCase()) || errLower.includes('column') || errLower.includes('varying') || errLower.includes('too long')) {
+              delete insertPayload[col];
+              modified = true;
+            }
+          }
+        }
+
+        // Also ensure color is simplified to 7-character hex if length was an issue
+        if (insertPayload.color !== finalColor) {
+          insertPayload.color = finalColor;
+          modified = true;
+        }
+
+        if (modified) {
+          const retryRes = await supabase.from('freedom_posts').insert(insertPayload);
+          error = retryRes.error;
+        } else {
+          break;
+        }
       }
 
-      // Retry 2: If author_id, author_avatar or author_bio column is missing from schema, strip them and retry
-      if (error && (error.message?.includes('author_id') || error.message?.includes('author_avatar') || error.message?.includes('author_bio'))) {
-        delete insertPayload.author_id;
-        delete insertPayload.author_avatar;
-        delete insertPayload.author_bio;
-        const retry = await supabase.from('freedom_posts').insert(insertPayload);
-        error = retry.error;
-      }
-
-      // Retry 3: If song_preview_url or song_link columns missing, strip them and retry
-      if (error && (error.message?.includes('song_preview_url') || error.message?.includes('song_link'))) {
-        delete insertPayload.song_preview_url;
-        delete insertPayload.song_link;
-        const retry = await supabase.from('freedom_posts').insert(insertPayload);
-        error = retry.error;
+      // Final Absolute Core Fallback
+      if (error) {
+        console.warn('Attempting ultimate core payload insert fallback...');
+        const corePayload = {
+          id: postData.id,
+          author_alias: postData.author_alias || 'Anon Student',
+          department: postData.department || 'General',
+          message: message,
+          color: finalColor,
+          likes_count: 0,
+          liked_by_users: [],
+          created_at: new Date().toISOString(),
+        };
+        const finalRetry = await supabase.from('freedom_posts').insert(corePayload);
+        error = finalRetry.error;
       }
 
       if (error) {
+        console.error('All insert attempts failed:', error);
         return NextResponse.json({ 
           success: false, 
           error: `Database insert failed: ${error.message}` 
@@ -258,8 +301,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, message: 'Post created successfully.' }, { status: 200 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in freedom-wall/post:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || 'Internal server error.' }, { status: 500 });
   }
 }

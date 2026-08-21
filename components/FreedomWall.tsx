@@ -36,7 +36,73 @@ import {
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
+import { processUploadedImage } from '../lib/utils/imagePipeline';
 import Silk from './Silk';
+import {
+  Image as ImageIcon,
+  Film,
+  UploadCloud,
+  Eye,
+  Link as LinkIcon,
+} from 'lucide-react';
+
+interface CampusGifItem {
+  title: string;
+  url: string;
+}
+
+interface CampusGifCategory {
+  id: string;
+  name: string;
+  gifs?: CampusGifItem[];
+}
+
+const CAMPUS_GIF_COLLECTIONS: CampusGifCategory[] = [
+  {
+    id: 'all',
+    name: '✨ All Trending',
+  },
+  {
+    id: 'hype',
+    name: '🔥 Hype & Energy',
+    gifs: [
+      { title: 'Let’s Go Hype', url: 'https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif' },
+      { title: 'Victory Dance', url: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif' },
+      { title: 'Campus Excitement', url: 'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif' },
+      { title: 'High Five Energy', url: 'https://media.giphy.com/media/l0amJzVHIAfl7jMDos/giphy.gif' },
+    ],
+  },
+  {
+    id: 'study',
+    name: '📚 Study & Exams',
+    gifs: [
+      { title: 'Cramming All Night', url: 'https://media.giphy.com/media/3oriO04qxVReM5rJEA/giphy.gif' },
+      { title: 'Coffee Fuel Needed', url: 'https://media.giphy.com/media/hPTZgtzfRIB5Nfb5rL/giphy.gif' },
+      { title: 'Typing Super Fast', url: 'https://media.giphy.com/media/unQ3IJU2RG7DO/giphy.gif' },
+      { title: 'Brain Overheat', url: 'https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif' },
+    ],
+  },
+  {
+    id: 'relatable',
+    name: '😭 Mood & Memes',
+    gifs: [
+      { title: 'Wait What', url: 'https://media.giphy.com/media/3o7TKTDnUxE0g2BTSE/giphy.gif' },
+      { title: 'Facepalm Reaction', url: 'https://media.giphy.com/media/14aUO0Mf651jeU/giphy.gif' },
+      { title: 'Sipping Tea', url: 'https://media.giphy.com/media/3o85xGocUH8RY0WoKs/giphy.gif' },
+      { title: 'Everything is Fine', url: 'https://media.giphy.com/media/NTur7XlVDUdqM/giphy.gif' },
+    ],
+  },
+  {
+    id: 'love',
+    name: '💖 Campus Crush',
+    gifs: [
+      { title: 'Heart Eyes', url: 'https://media.giphy.com/media/26BRv0ThflsHCqDrG/giphy.gif' },
+      { title: 'Blushing Smile', url: 'https://media.giphy.com/media/OpfkuToK5gSHK/giphy.gif' },
+      { title: 'Shining Love', url: 'https://media.giphy.com/media/l4pTdcifPZLpDjL1e/giphy.gif' },
+      { title: 'Smooth Finger Guns', url: 'https://media.giphy.com/media/6t4gwsSh4BQfm/giphy.gif' },
+    ],
+  },
+];
 
 const POST_COLORS = [
   { name: 'Maroon', hex: '#701a31' },
@@ -125,31 +191,7 @@ export const FreedomWall: React.FC = () => {
   // Pagination & Active Pinning State
   const NOTES_PER_PAGE = 20;
   const [currentPage, setCurrentPage] = useState(1);
-  const [alias, setAlias] = useState(currentUser ? currentUser.username : 'Anon Student');
-  const [department, setDepartment] = useState<string>(currentUser ? currentUser.department : 'General');
-  const [message, setMessage] = useState('');
-  const [selectedColor, setSelectedColor] = useState('#ffc900');
-  const [moderationError, setModerationError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Campus Poll Creation State (max 4 options)
-  const [showPollForm, setShowPollForm] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOption1, setPollOption1] = useState('');
-  const [pollOption2, setPollOption2] = useState('');
-  const [pollOption3, setPollOption3] = useState('');
-  const [pollOption4, setPollOption4] = useState('');
-  const [pollOptionsCount, setPollOptionsCount] = useState(2);
-
-  const resetPollForm = () => {
-    setShowPollForm(false);
-    setPollQuestion('');
-    setPollOption1('');
-    setPollOption2('');
-    setPollOption3('');
-    setPollOption4('');
-    setPollOptionsCount(2);
-  };
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Anti-Bot & Rate Limit Protection State
   const COOLDOWN_SECONDS = 60;
@@ -210,14 +252,7 @@ export const FreedomWall: React.FC = () => {
     checkLimits();
     const interval = setInterval(checkLimits, 1000);
     return () => clearInterval(interval);
-  }, [isAdminUser, showCreateModal]);
-
-  React.useEffect(() => {
-    if (showCreateModal) {
-      setTurnstileToken(null);
-      setModerationError(null);
-    }
-  }, [showCreateModal]);
+  }, [isAdminUser]);
 
   const [activeTab, setActiveTab] = useState<'trending' | 'latest' | 'my_notes'>('latest');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
@@ -484,158 +519,6 @@ export const FreedomWall: React.FC = () => {
     }
   };
 
-  const handlePostSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setModerationError(null);
-
-    if (!message.trim() || message.length > 300) {
-      setModerationError('Message must be between 1 and 300 characters.');
-      return;
-    }
-
-    const getAvailableTimeStr = (seconds: number) => {
-      const unlockDate = new Date(Date.now() + seconds * 1000);
-      return unlockDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    };
-
-    const getDailyResetTimeStr = () => {
-      try {
-        const raw = localStorage.getItem('capitalk_wall_post_history');
-        if (raw) {
-          const timestamps: number[] = JSON.parse(raw);
-          if (timestamps.length >= DAILY_MAX_POSTS) {
-            const oldest = Math.min(...timestamps);
-            const resetDate = new Date(oldest + 24 * 60 * 60 * 1000);
-            return resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          }
-        }
-      } catch (e) {}
-      return 'tomorrow';
-    };
-
-    if (!postAsAdmin && !isAdminUser) {
-      // 1. Check Cooldown
-      if (cooldownRemaining > 0) {
-        const timeStr = getAvailableTimeStr(cooldownRemaining);
-        const errMsg = `⏳ Rate Limit Active: Please wait ${cooldownRemaining}s before publishing your next note (Available at ${timeStr}).`;
-        setModerationError(errMsg);
-        useChatStore.setState({
-          actionToast: {
-            type: 'error',
-            message: errMsg,
-          },
-        });
-        return;
-      }
-
-      // 2. Check Daily Limit Cap
-      if (dailyPostCount >= DAILY_MAX_POSTS) {
-        const resetTimeStr = getDailyResetTimeStr();
-        const errMsg = `🚫 Daily Cap Exceeded: Reached max limit of ${DAILY_MAX_POSTS} notes today. You can post again at ${resetTimeStr}.`;
-        setModerationError(errMsg);
-        useChatStore.setState({
-          actionToast: {
-            type: 'error',
-            message: errMsg,
-          },
-        });
-        return;
-      }
-
-      // 3. Check Duplicate Spam
-      const isDuplicate = (freedomPosts || [])
-        .slice(0, 20)
-        .some((p) => p.message.trim().toLowerCase() === message.trim().toLowerCase());
-
-      if (isDuplicate) {
-        setModerationError('⚠️ Spam Blocked: An identical note was recently published to the Campus Wall. Please share a unique thought!');
-        return;
-      }
-    }
-
-    // Run profanity moderation check
-    const modResult = analyzeContentModeration(message);
-    if (modResult.contains_profanity) {
-      setModerationError(`⚠️ Message blocked: Contains profane or inappropriate terms (${modResult.matched_terms.join(', ')}). Please keep the Campus Wall friendly!`);
-      return;
-    }
-
-    let pollOptionsList: FreedomPollOption[] | undefined = undefined;
-    let finalPollQuestion: string | undefined = undefined;
-
-    if (showPollForm) {
-      const rawOptions = [pollOption1, pollOption2, pollOption3, pollOption4]
-        .slice(0, pollOptionsCount)
-        .map((opt) => opt.trim())
-        .filter(Boolean);
-
-      if (rawOptions.length < 2) {
-        setModerationError('⚠️ Poll Error: Please enter at least 2 non-empty options for your poll.');
-        return;
-      }
-
-      for (const opt of rawOptions) {
-        const check = analyzeContentModeration(opt);
-        if (check.contains_profanity) {
-          setModerationError(`⚠️ Poll Option blocked: Contains inappropriate term ("${check.matched_terms.join(', ')}").`);
-          return;
-        }
-      }
-
-      finalPollQuestion = pollQuestion.trim() || message.trim();
-      pollOptionsList = rawOptions.map((optText, idx) => ({
-        id: `opt_${Date.now()}_${idx}`,
-        text: optText,
-        votes_count: 0,
-        voted_users: [],
-      }));
-    }
-
-    setIsSubmitting(true);
-    try {
-      const finalAuthorAlias = postAsAdmin
-        ? (alias.includes('Admin') ? alias.trim() : '👑 CapiTalk Admin')
-        : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
-
-      const finalAuthorAvatar = postAsAdmin
-        ? '/avatars/coin-left.jpg'
-        : (currentUser?.avatar_url || getAvatarForPseudonym(finalAuthorAlias));
-
-      const success = await addFreedomPost({
-        author_alias: finalAuthorAlias,
-        department: currentUser ? currentUser.department : (department || 'General'),
-        author_avatar: finalAuthorAvatar,
-        author_bio: currentUser?.bio || '',
-        message: message.trim(),
-        color: postAsAdmin ? '#701a31' : selectedColor,
-        is_admin: postAsAdmin,
-        poll_question: finalPollQuestion,
-        poll_options: pollOptionsList,
-      }, honeypot, deviceId);
-
-      if (success) {
-        if (!postAsAdmin && !isAdminUser) {
-          const now = Date.now();
-          localStorage.setItem('capitalk_wall_last_post_ts', String(now));
-          try {
-            const rawHistory = localStorage.getItem('capitalk_wall_post_history');
-            const history: number[] = rawHistory ? JSON.parse(rawHistory) : [];
-            const oneDayAgo = now - 24 * 60 * 60 * 1000;
-            const updated = [...history.filter((ts) => ts > oneDayAgo), now];
-            localStorage.setItem('capitalk_wall_post_history', JSON.stringify(updated));
-          } catch (e) {}
-        }
-
-        setMessage('');
-        resetPollForm();
-        setShowCreateModal(false);
-        setModerationError(null);
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Check if a pinned note is still active (within 24 hours of being pinned)
   const isPinnedActive = React.useCallback((post: FreedomPost) => {
     if (!post.is_pinned) return false;
@@ -799,6 +682,36 @@ export const FreedomWall: React.FC = () => {
             <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin ? 'text-white drop-shadow-sm' : 'text-black'}`}>
               "{post.message}"
             </p>
+
+            {/* Attached Image / Animated GIF Media Display */}
+            {post.image_url && (
+              <div className="mb-3 rounded-2xl border-2 border-black overflow-hidden bg-black/5 relative group/media shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <img
+                  src={post.image_url}
+                  alt="Campus Note Attachment"
+                  className="w-full max-h-56 sm:max-h-72 object-cover object-center rounded-xl transition-transform duration-300 group-hover/media:scale-[1.02] cursor-pointer"
+                  onClick={() => setZoomedImage(post.image_url || null)}
+                  loading="lazy"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoomedImage(post.image_url || null);
+                  }}
+                  className="absolute top-2 right-2 px-2 py-1 bg-white/95 hover:bg-white text-black text-[10px] font-black rounded-lg border border-black shadow-xs opacity-0 group-hover/media:opacity-100 transition-opacity cursor-pointer flex items-center gap-1"
+                  title="View full image"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>View</span>
+                </button>
+                {post.image_type === 'gif' && (
+                  <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/85 text-[#ffc900] text-[9px] font-black uppercase rounded-md border border-black shadow-xs pointer-events-none">
+                    GIF
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Freedom Poll Widget */}
             {post.poll_options && post.poll_options.length > 0 && (() => {
@@ -1032,8 +945,8 @@ export const FreedomWall: React.FC = () => {
         <div className="flex flex-row items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="btn-gumroad-primary text-xs sm:text-sm px-3.5 py-2 sm:px-4 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] bg-[#ffc900] hover:bg-[#ffc900]/80"
+            onClick={() => setViewState('add_note')}
+            className="btn-gumroad-primary text-xs sm:text-sm px-3.5 py-2 sm:px-4 sm:py-3 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] bg-[#ffc900] hover:bg-[#ffc900]/80 cursor-pointer"
           >
             <span>Share</span>
           </button>
@@ -1135,10 +1048,10 @@ export const FreedomWall: React.FC = () => {
           </p>
           <button
             type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="mt-4 btn-gumroad-primary text-xs px-5 py-2.5"
+            onClick={() => setViewState('add_note')}
+            className="mt-4 btn-gumroad-primary text-xs px-5 py-2.5 cursor-pointer"
           >
-            <span>{activeTab === 'my_notes' ? 'Post a Note' : 'Write First Post'}</span>
+            <span>Share</span>
           </button>
         </div>
       ) : (
@@ -1205,11 +1118,11 @@ export const FreedomWall: React.FC = () => {
       {/* Floating Mobile Action Button */}
       <button
         type="button"
-        onClick={() => setShowCreateModal(true)}
-        className="fixed bottom-6 right-6 z-40 sm:hidden w-14 h-14 bg-[#ff90e8] border-2 border-black rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none text-black"
-        title="Post Anonymous Message"
+        onClick={() => setViewState('add_note')}
+        className="fixed bottom-6 right-6 z-40 sm:hidden w-14 h-14 bg-[#ff90e8] border-2 border-black rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none text-black cursor-pointer"
+        title="Share"
       >
-        <Plus className="w-7 h-7" />
+        <Plus className="w-6 h-6" />
       </button>
 
       {/* Comments — Ultra-Premium Full-Screen Panel (Gumroad DESIGN.md - Borderless Edition) */}
@@ -1584,348 +1497,6 @@ export const FreedomWall: React.FC = () => {
         </div>
       )}
 
-      {/* Create Anonymous Post Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white border-2 sm:border-4 border-black p-4 sm:p-6 rounded-2xl max-w-lg w-full text-left shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[95vh] overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowCreateModal(false);
-                setModerationError(null);
-              }}
-              className="absolute top-3 right-3 p-1 hover:bg-black/10 rounded-full transition-colors text-black"
-            >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="px-2 py-0.5 bg-[#ffc900] border border-black text-black text-[9px] font-extrabold rounded-full uppercase tracking-wider">
-                Anonymous Post
-              </span>
-            </div>
-            <h3 className="text-lg sm:text-xl font-extrabold text-black tracking-tight">
-              Post to Freedom Wall
-            </h3>
-            <p className="text-[11px] text-[#242423] mt-0.5 mb-3">
-              Share your thoughts safely and anonymously with fellow students.
-            </p>
-
-            {moderationError && (
-              <div className="mb-4 p-3.5 sm:p-4 bg-rose-100 border-2 border-black rounded-xl text-black font-extrabold text-xs sm:text-sm flex items-start gap-2.5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95">
-                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                <div className="flex-1 leading-snug break-words">
-                  {moderationError}
-                </div>
-              </div>
-            )}
-
-            {isAdminUser && (
-              <div className="mb-3 p-2.5 sm:p-3 bg-[#701a31] border-2 border-black rounded-xl text-white shadow-md flex items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-[#ffc900] animate-bounce shrink-0" />
-                  <div>
-                    <span className="text-[11px] font-black uppercase tracking-wider block text-[#ffc900]">
-                      Admin Privilege Mode
-                    </span>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={postAsAdmin}
-                    onChange={(e) => {
-                      setPostAsAdmin(e.target.checked);
-                      if (e.target.checked) {
-                        setAlias('CapiTalk Admin');
-                        setSelectedColor('#701a31');
-                      }
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#ffc900]"></div>
-                </label>
-              </div>
-            )}
-
-            <form onSubmit={handlePostSubmit} className="space-y-2.5">
-              <div className="flex items-center justify-between p-2.5 bg-[#f4f4f0] border-2 border-black rounded-xl text-black">
-                <div className="flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-[#ffc900] border border-black flex items-center justify-center font-black text-xs text-black shrink-0">
-                    {(currentUser?.username || alias || 'A').charAt(0).toUpperCase()}
-                  </span>
-                  <div>
-                    <span className="text-xs font-black text-black block">
-                      {currentUser ? currentUser.username : alias || 'Anon Student'}
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-600 block">
-                      {currentUser ? currentUser.department.replace('College of ', '') : 'General Student'}
-                    </span>
-                  </div>
-                </div>
-                <span className="text-[9px] sm:text-[10px] font-extrabold bg-black text-white px-2 py-0.5 rounded-full uppercase shrink-0">
-                  Profile Identity
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase mb-0.5">
-                  Card Theme Color
-                </label>
-                <div className="flex items-center gap-2">
-                  {POST_COLORS.map((c) => (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => setSelectedColor(c.hex)}
-                      style={{ backgroundColor: c.hex }}
-                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
-                        selectedColor === c.hex
-                          ? 'border-black scale-115 shadow-xs'
-                          : 'border-black/40 hover:scale-105'
-                      }`}
-                      title={c.name}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <label className="block text-[10px] sm:text-xs font-bold text-[#242423] uppercase">
-                    Your Anonymous Message
-                  </label>
-                  <span className="text-[10px] font-bold text-gray-500">
-                    {message.length}/300
-                  </span>
-                </div>
-                <textarea
-                  rows={3}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  maxLength={300}
-                  placeholder="Type your confession, thought, shoutout, or campus vibe here..."
-                  className="w-full p-2.5 text-xs border-2 border-black rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-black bg-white text-black"
-                />
-              </div>
-
-              {/* Optional Poll Feature */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowPollForm(!showPollForm)}
-                  className={`w-full py-2 px-3 rounded-xl border-2 border-black flex items-center justify-between text-xs font-black transition-all ${
-                    showPollForm ? 'bg-[#ffc900] text-black shadow-xs' : 'bg-gray-100 hover:bg-gray-200 text-black'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <BarChart2 className="w-4 h-4 text-black shrink-0" />
-                    <span>{showPollForm ? 'Poll Attached' : 'Add Poll (Max 4 Options)'}</span>
-                  </div>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-black text-white shrink-0">
-                    {showPollForm ? 'Remove Poll' : '+ Add Poll'}
-                  </span>
-                </button>
-
-                {showPollForm && (
-                  <div className="mt-2.5 p-3 bg-amber-50/90 border-2 border-black rounded-xl space-y-2 text-black animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-black">
-                        Poll Question (Optional)
-                      </label>
-                      <span className="text-[10px] font-bold text-gray-600">Max 4 options</span>
-                    </div>
-                    <input
-                      type="text"
-                      maxLength={100}
-                      value={pollQuestion}
-                      onChange={(e) => setPollQuestion(e.target.value)}
-                      placeholder="e.g. Which library floor is best for studying?"
-                      className="w-full p-2 text-xs border-2 border-black rounded-lg font-bold bg-white text-black focus:outline-none"
-                    />
-
-                    <div className="space-y-1.5 pt-1">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-black">
-                        Poll Options ({pollOptionsCount}/4)
-                      </label>
-
-                      <input
-                        type="text"
-                        maxLength={60}
-                        value={pollOption1}
-                        onChange={(e) => setPollOption1(e.target.value)}
-                        placeholder="Option 1 (e.g. 2nd Floor Quiet Zone)"
-                        className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
-                      />
-
-                      <input
-                        type="text"
-                        maxLength={60}
-                        value={pollOption2}
-                        onChange={(e) => setPollOption2(e.target.value)}
-                        placeholder="Option 2 (e.g. 4th Floor Study Pods)"
-                        className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
-                      />
-
-                      {pollOptionsCount >= 3 && (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            maxLength={60}
-                            value={pollOption3}
-                            onChange={(e) => setPollOption3(e.target.value)}
-                            placeholder="Option 3 (Optional)"
-                            className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
-                          />
-                          {pollOptionsCount === 3 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPollOption3('');
-                                setPollOptionsCount(2);
-                              }}
-                              className="p-2 border-2 border-black rounded-lg bg-rose-200 hover:bg-rose-300 text-black text-xs font-black shrink-0"
-                              title="Remove Option 3"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {pollOptionsCount >= 4 && (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            maxLength={60}
-                            value={pollOption4}
-                            onChange={(e) => setPollOption4(e.target.value)}
-                            placeholder="Option 4 (Optional)"
-                            className="w-full p-2 text-xs border-2 border-black rounded-lg font-semibold bg-white text-black focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPollOption4('');
-                              setPollOptionsCount(3);
-                            }}
-                            className="p-2 border-2 border-black rounded-lg bg-rose-200 hover:bg-rose-300 text-black text-xs font-black shrink-0"
-                            title="Remove Option 4"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-
-                      {pollOptionsCount < 4 && (
-                        <button
-                          type="button"
-                          onClick={() => setPollOptionsCount(Math.min(4, pollOptionsCount + 1))}
-                          className="w-full py-1.5 px-3 border-2 border-dashed border-black rounded-lg bg-white hover:bg-amber-100 text-black text-xs font-extrabold flex items-center justify-center gap-1 transition-all mt-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add Option ({pollOptionsCount + 1}/4)</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Anti-Bot Verification Challenge */}
-              {!postAsAdmin && (
-                <div className="hidden">
-                  <label htmlFor="report-nickname">Nickname</label>
-                  <input
-                    type="text"
-                    id="report-nickname"
-                    name="report-nickname"
-                    value={honeypot}
-                    onChange={(e) => setHoneypot(e.target.value)}
-                    autoComplete="off"
-                    tabIndex={-1}
-                  />
-                </div>
-              )}
-
-              {/* Cooldown Warning Notice */}
-              {!isAdminUser && cooldownRemaining > 0 && (
-                <div className="p-3 bg-amber-50 border-2 border-amber-400 rounded-xl text-black shadow-xs">
-                  <div className="flex items-center gap-2 text-xs font-black text-amber-900">
-                    <Clock className="w-4 h-4 shrink-0 animate-spin text-amber-700" />
-                    <span>⏳ Cooldown Active ({cooldownRemaining}s remaining)</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-amber-900 mt-1">
-                    You can post your next note at <strong>{new Date(Date.now() + cooldownRemaining * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>.
-                  </p>
-                </div>
-              )}
-
-              {!isAdminUser && cooldownRemaining === 0 && dailyPostCount >= DAILY_MAX_POSTS && (
-                <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-black shadow-xs">
-                  <div className="flex items-center gap-2 text-xs font-black text-rose-900">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-700" />
-                    <span>🚫 Daily Limit Reached (10/10 notes)</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-rose-900 mt-1">
-                    You have published 10 notes today. You can post again at <strong>{(() => {
-                      try {
-                        const raw = localStorage.getItem('capitalk_wall_post_history');
-                        if (raw) {
-                          const ts: number[] = JSON.parse(raw);
-                          if (ts.length >= DAILY_MAX_POSTS) {
-                            return new Date(Math.min(...ts) + 24 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                          }
-                        }
-                      } catch (e) {}
-                      return 'tomorrow';
-                    })()}</strong>.
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="btn-gumroad-ghost text-xs px-3.5 py-2"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))}
-                  className={`btn-gumroad-primary text-xs px-5 py-2 flex items-center gap-1.5 ${
-                    isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))
-                      ? 'opacity-50 cursor-not-allowed bg-gray-400 border-gray-600'
-                      : ''
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Posting Note...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      <span>
-                        {cooldownRemaining > 0 && !postAsAdmin
-                          ? `Wait ${cooldownRemaining}s...`
-                          : dailyPostCount >= DAILY_MAX_POSTS && !postAsAdmin
-                          ? 'Daily Limit Reached'
-                          : 'Post Note'}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-
       {/* Report Note Modal */}
       {selectedPostForReport && (
         <ReportNoteModal
@@ -2170,6 +1741,39 @@ export const FreedomWall: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          FULLSCREEN IMAGE / GIF LIGHTBOX MODAL
+         ═══════════════════════════════════════════════════════════════════ */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white text-white hover:text-black rounded-full border-2 border-white transition-all cursor-pointer shadow-lg"
+            title="Close image preview"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <div
+            className="max-w-4xl max-h-[85vh] p-1.5 sm:p-2 bg-white rounded-3xl border-3 sm:border-4 border-black shadow-[8px_8px_0px_0px_rgba(255,201,0,1)] animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={zoomedImage}
+              alt="Campus Note Attachment Preview"
+              className="max-w-full max-h-[78vh] object-contain rounded-2xl"
+            />
+          </div>
+          <p className="text-white/70 text-xs font-bold mt-3">
+            Click outside or tap ✕ to close preview
+          </p>
         </div>
       )}
     </div>

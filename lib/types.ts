@@ -120,6 +120,8 @@ export interface FreedomPost {
   dedicated_to?: string;
   poll_question?: string;
   poll_options?: FreedomPollOption[];
+  image_url?: string;
+  image_type?: 'image' | 'gif';
   created_at: string;
 }
 

@@ -9,6 +9,7 @@ import { MatchmakingScreen } from '../components/MatchmakingScreen';
 import { ChatRoom } from '../components/ChatRoom';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { FreedomWall } from '../components/FreedomWall';
+import { PostNotePage } from '../components/PostNotePage';
 import { MusicWall } from '../components/MusicWall';
 import { BannedScreen } from '../components/BannedScreen';
 import { PrivacyPolicy } from '../components/PrivacyPolicy';
@@ -154,6 +155,7 @@ export default function Home() {
         {viewState === 'admin' && <AdminDashboard />}
 
         {viewState === 'freedom_wall' && <FreedomWall />}
+        {viewState === 'add_note' && <PostNotePage />}
         {viewState === 'music_wall' && <MusicWall />}
         {viewState === 'privacy' && <PrivacyPolicy />}
         {viewState === 'terms' && <TermsOfConduct onAccept={handleAcceptToc} isStandaloneView={true} />}

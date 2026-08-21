@@ -22,8 +22,8 @@ interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms';
-  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms') => void;
+  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note';
+  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note') => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -133,7 +133,7 @@ export const useChatStore = create<ChatStoreState>()(
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
       viewState: 'landing',
-      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms') => {
+      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note') => {
         set({ viewState: view });
       },
 
@@ -1863,6 +1863,8 @@ export const useChatStore = create<ChatStoreState>()(
           dedicated_to: postData.dedicated_to,
           poll_question: postData.poll_question,
           poll_options: postData.poll_options,
+          image_url: postData.image_url,
+          image_type: postData.image_type,
           likes_count: 0,
           liked_by_users: [],
           is_admin: !!postData.is_admin,
@@ -1881,12 +1883,21 @@ export const useChatStore = create<ChatStoreState>()(
           });
           
           if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            console.error('Failed to publish note to server:', errorData);
+            let errorMsg = `Server error (${res.status})`;
+            try {
+              const errorData = await res.json();
+              if (errorData && errorData.error) errorMsg = errorData.error;
+            } catch (e) {
+              try {
+                const text = await res.text();
+                if (text) errorMsg = text;
+              } catch (e2) {}
+            }
+            console.error('Failed to publish note to server:', errorMsg);
             set({
               actionToast: {
                 type: 'error',
-                message: errorData.error || 'Failed to publish note to server.',
+                message: errorMsg,
               },
             });
             return false;
