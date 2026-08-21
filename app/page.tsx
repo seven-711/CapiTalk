@@ -50,6 +50,8 @@ export default function Home() {
     setViewState,
     initSession,
     isSearching,
+    searchingTimeSeconds,
+    showQueueTimeoutModal,
     activeRoom,
     partnerLeft,
     actionToast,
@@ -58,6 +60,9 @@ export default function Home() {
     dismissAnnouncement,
     freedomPosts,
   } = useChatStore();
+
+  const isMatchmakingTimedOut = showQueueTimeoutModal || (viewState === 'queue' && !isSearching && searchingTimeSeconds >= 35);
+  const shouldHideNavAndFooter = viewState === 'chat' || isSearching || isMatchmakingTimedOut;
 
   const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(null);
 
@@ -187,8 +192,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Top Navbar (Hidden in chatroom view and during active search) */}
-      {viewState !== 'chat' && !isSearching && <Navbar />}
+      {/* Top Navbar (Hidden in chatroom view, during active search, and on search timeout) */}
+      {!shouldHideNavAndFooter && <Navbar />}
 
       {/* Main Content View Switcher */}
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -616,8 +621,8 @@ export default function Home() {
         )}
       </main>
 
-      {/* FOOTER — hidden during active chat and during active search */}
-      {viewState !== 'chat' && !isSearching && (
+      {/* FOOTER — hidden during active chat, active search, and search timeout */}
+      {!shouldHideNavAndFooter && (
         <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] py-8 px-4 sm:px-8 mt-auto">
           <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">

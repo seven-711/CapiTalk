@@ -544,11 +544,11 @@ export const MusicWall: React.FC = () => {
             </span>
           ) : isPinned ? (
             <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] sm:text-[9px] font-extrabold rounded-full truncate">
-              📌 Pinned
+              📌
             </span>
           ) : post.dedicated_to ? (
             <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[8.5px] sm:text-[10px] font-black rounded-full truncate max-w-full flex items-center gap-1">
-              <span className="shrink-0">💝 For:</span>
+              <span className="shrink-0">For:</span>
               <span className="truncate">{post.dedicated_to}</span>
             </span>
           ) : (
@@ -1489,7 +1489,7 @@ export const MusicWall: React.FC = () => {
               <div className="text-xs font-black truncate">{activePlayingPost.song_title || 'Untitled Track'}</div>
               <div className="text-[10px] text-gray-400 font-semibold truncate">{activePlayingPost.song_artist || 'Unknown Artist'}</div>
               {activePlayingPost.dedicated_to && (
-                <div className="text-[9px] text-rose-400 font-bold truncate">💝 For: {activePlayingPost.dedicated_to}</div>
+                <div className="text-[9px] text-rose-400 font-bold truncate">For: {activePlayingPost.dedicated_to}</div>
               )}
             </div>
 
