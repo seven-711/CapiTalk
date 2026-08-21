@@ -1228,6 +1228,18 @@ export const FreedomWall: React.FC = () => {
                   </div>
                 )}
 
+                {/* Attached Image / Animated GIF Media in Comments Modal */}
+                {selectedPostForComments.image_url && (
+                  <div className="mb-3 rounded-xl border-2 border-black overflow-hidden bg-black/5 relative group/media shadow-xs">
+                    <img
+                      src={selectedPostForComments.image_url}
+                      alt="Note attachment"
+                      className="w-full max-h-60 object-cover object-center rounded-lg cursor-pointer"
+                      onClick={() => setZoomedImage(selectedPostForComments?.image_url || null)}
+                    />
+                  </div>
+                )}
+
                 {/* Footer Signature */}
                 <div className="flex items-center justify-between pt-3 border-t border-black/5">
                   <button

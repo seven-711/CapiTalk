@@ -14,9 +14,9 @@ export interface ProcessedImage {
 
 export const processUploadedImage = (
   file: File,
-  maxWidth = 1600,
+  maxWidth = 900,
   thumbWidth = 320,
-  quality = 0.82
+  quality = 0.72
 ): Promise<ProcessedImage> => {
   return new Promise((resolve, reject) => {
     // 1. Validation

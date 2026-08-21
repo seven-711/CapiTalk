@@ -396,16 +396,18 @@ export const useChatStore = create<ChatStoreState>()(
                   .order('created_at', { ascending: false })
                   .then(({ data, error }) => {
                     if (data && data.length > 0 && !error) {
+                      const localMap = new Map((get().freedomPosts || []).map((p) => [p.id, p]));
                       const loadedFromDb: FreedomPost[] = data.map((row: any) => {
+                        const existingLocal = localMap.get(row.id);
                         const rawColor = row.color || '#ffc900';
                         const parts = rawColor.split('||');
                         const dbColor = parts[0];
-                        const dbStatus = parts[1] || row.status || 'approved';
+                        const dbStatus = row.status || parts[1] || (row.is_admin ? 'approved' : 'pending');
                         let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
                         try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
 
-                        let dbPollOptions = row.poll_options;
-                        let dbPollQuestion = row.poll_question;
+                        let dbPollOptions = existingLocal?.poll_options || row.poll_options;
+                        let dbPollQuestion = existingLocal?.poll_question || row.poll_question;
                         try {
                           if (parts[3]) {
                             const parsedPoll = JSON.parse(parts[3]);
@@ -429,8 +431,8 @@ export const useChatStore = create<ChatStoreState>()(
                           pinned_at: row.pinned_at || undefined,
                           status: dbStatus,
                           created_at: row.created_at,
-                          image_url: row.image_url,
-                          image_type: row.image_type,
+                          image_url: row.image_url || existingLocal?.image_url,
+                          image_type: row.image_type || existingLocal?.image_type,
                           song_title: row.song_title,
                           song_artist: row.song_artist,
                           song_image_url: row.song_image_url,
@@ -792,7 +794,7 @@ export const useChatStore = create<ChatStoreState>()(
                   const rawColor = row.color || '#ffc900';
                   const parts = rawColor.split('||');
                   const dbColor = parts[0];
-                  const dbStatus = parts[1] || row.status || 'approved';
+                  const dbStatus = row.status || parts[1] || (row.is_admin ? 'approved' : 'pending');
                   let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
                   try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
 
@@ -2014,7 +2016,7 @@ export const useChatStore = create<ChatStoreState>()(
             const post = freedomPosts.find(p => p.id === postId);
             if (post) {
               const encodedColor = `${post.color}||approved||${JSON.stringify(post.liked_by_profiles || {})}`;
-              supabase.from('freedom_posts').update({ color: encodedColor }).eq('id', postId).then(() => {}, () => {});
+              supabase.from('freedom_posts').update({ color: encodedColor, status: 'approved' }).eq('id', postId).then(() => {}, () => {});
             }
           } catch (e) {}
         }

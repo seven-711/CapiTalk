@@ -528,6 +528,15 @@ export const AdminDashboard: React.FC = () => {
                         <p className="text-xs font-bold leading-relaxed mb-3 whitespace-pre-wrap break-words">
                           "{post.message}"
                         </p>
+                        {post.image_url && (
+                          <div className="mb-3 rounded-xl border border-black overflow-hidden bg-black/5 max-h-36">
+                            <img
+                              src={post.image_url}
+                              alt="Post attachment"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
                       </div>
 
                       <div className="pt-2 border-t border-black/20 flex items-center justify-between gap-2">

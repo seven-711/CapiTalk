@@ -191,6 +191,40 @@ export async function POST(req: Request) {
     // Keep encodedColor short (< 200 chars) to prevent PostgreSQL VARCHAR length overflows
     const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}||${profileMeta}`;
 
+    // Handle image upload: if base64, attempt to upload to Supabase storage 'freedom_media'
+    let finalImageUrl = postData.image_url;
+    if (finalImageUrl && typeof finalImageUrl === 'string' && finalImageUrl.startsWith('data:image/')) {
+      try {
+        const parts = finalImageUrl.split(',');
+        const base64Data = parts[1];
+        if (base64Data) {
+          const buffer = Buffer.from(base64Data, 'base64');
+          const mimeMatch = finalImageUrl.match(/data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+)/);
+          const mimeType = mimeMatch ? mimeMatch[1] : 'image/webp';
+          const extension = mimeType.split('/')[1] || 'webp';
+          const fileName = `posts/${postData.id}_${Date.now()}.${extension}`;
+
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('freedom_media')
+            .upload(fileName, buffer, {
+              contentType: mimeType,
+              upsert: true,
+            });
+
+          if (!uploadErr && uploadData) {
+            const { data: publicUrlData } = supabase.storage
+              .from('freedom_media')
+              .getPublicUrl(fileName);
+            if (publicUrlData?.publicUrl) {
+              finalImageUrl = publicUrlData.publicUrl;
+            }
+          }
+        }
+      } catch (storageErr) {
+        console.warn('Storage upload fallback:', storageErr);
+      }
+    }
+
     const insertPayload: any = {
       id: postData.id,
       author_alias: postData.author_alias || 'Anon Student',
@@ -205,8 +239,9 @@ export async function POST(req: Request) {
     if (postData.author_id) insertPayload.author_id = postData.author_id;
     if (postData.author_avatar) insertPayload.author_avatar = postData.author_avatar;
     if (postData.author_bio) insertPayload.author_bio = postData.author_bio;
-    if (postData.image_url) insertPayload.image_url = postData.image_url;
+    if (finalImageUrl) insertPayload.image_url = finalImageUrl;
     if (postData.image_type) insertPayload.image_type = postData.image_type;
+    insertPayload.status = finalStatus;
     if (postData.dedicated_to) insertPayload.dedicated_to = postData.dedicated_to;
     if (postData.poll_question) insertPayload.poll_question = postData.poll_question;
     if (postData.poll_options && postData.poll_options.length > 0) insertPayload.poll_options = postData.poll_options;
@@ -227,6 +262,7 @@ export async function POST(req: Request) {
       const OPTIONAL_COLUMNS = [
         'image_url',
         'image_type',
+        'status',
         'dedicated_to',
         'poll_question',
         'poll_options',

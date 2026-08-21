@@ -7,6 +7,7 @@ import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomPollOption } from '../lib/types';
 import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import {
   ArrowLeft,
   X,
@@ -202,7 +203,30 @@ export const PostNotePage: React.FC = () => {
         reader.readAsDataURL(file);
       } else if (['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
         const processed = await processUploadedImage(file, 900, 240, 0.72);
-        setAttachedMedia({ url: processed.fullDataUrl, type: 'image', name: processed.fileName });
+        let finalMediaUrl = processed.fullDataUrl;
+
+        try {
+          const blobRes = await fetch(processed.fullDataUrl);
+          const blob = await blobRes.blob();
+          const formData = new FormData();
+          formData.append('file', blob, processed.fileName);
+
+          const uploadReq = await fetch('/api/freedom-wall/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (uploadReq.ok) {
+            const uploadJson = await uploadReq.json();
+            if (uploadJson.success && uploadJson.url) {
+              finalMediaUrl = uploadJson.url;
+            }
+          }
+        } catch (uploadErr) {
+          console.warn('API upload fallback to webp data URL:', uploadErr);
+        }
+
+        setAttachedMedia({ url: finalMediaUrl, type: 'image', name: processed.fileName });
         setIsProcessingMedia(false);
       } else {
         throw new Error('Please upload JPG, PNG, WEBP, or GIF.');
