@@ -20,7 +20,7 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
-  Dices,
+  Lock,
 } from 'lucide-react';
 
 const PSEUDONYMS = [
@@ -321,20 +321,24 @@ export const PostNotePage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const finalAuthorAlias = postAsAdmin
-        ? (alias.includes('Admin') ? alias.trim() : 'Admin')
+      const authorAlias = postAsAdmin
+        ? 'Admin'
         : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
 
-      const finalAuthorAvatar = postAsAdmin
+      const authorDepartment = postAsAdmin
+        ? 'University Administration'
+        : (currentUser ? currentUser.department : (department || 'General'));
+
+      const authorAvatar = postAsAdmin
         ? '/avatars/coin-left.jpg'
-        : (currentUser?.avatar_url || getAvatarForPseudonym(finalAuthorAlias));
+        : (currentUser?.avatar_url || getAvatarForPseudonym(authorAlias));
 
       const newPostId = 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
       const success = await addFreedomPost({
-        author_alias: finalAuthorAlias,
-        department: currentUser ? currentUser.department : (department || 'General'),
-        author_avatar: finalAuthorAvatar,
+        author_alias: authorAlias,
+        department: authorDepartment,
+        author_avatar: authorAvatar,
         author_bio: currentUser?.bio || '',
         message: message.trim(),
         color: postAsAdmin ? '#701a31' : selectedColor,
@@ -366,9 +370,17 @@ export const PostNotePage: React.FC = () => {
     }
   };
 
+  const currentAuthorAlias = postAsAdmin
+    ? 'Admin'
+    : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
+
+  const currentAuthorDept = postAsAdmin
+    ? 'University Administration'
+    : (currentUser ? currentUser.department : (department || 'General'));
+
   const previewAvatar = postAsAdmin
     ? '/avatars/coin-left.jpg'
-    : (currentUser?.avatar_url || getAvatarForPseudonym(alias.trim() || 'Anon'));
+    : (currentUser?.avatar_url || getAvatarForPseudonym(currentAuthorAlias));
 
   return (
     <div className="min-h-screen bg-[#f4f4f0] text-black pb-12">
@@ -410,51 +422,36 @@ export const PostNotePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Alias & Department Stack */}
+              {/* Alias & Department Stack (Locked to registered user profile) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="flex flex-col">
-                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5">
-                    Alias
+                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5 flex items-center justify-between">
+                    <span>Author</span>
+               
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      maxLength={30}
-                      disabled={postAsAdmin}
-                      value={postAsAdmin ? 'Admin' : alias}
-                      onChange={(e) => setAlias(e.target.value)}
-                      placeholder="e.g. Anon#123"
-                      className="flex-1 h-10 px-3 text-xs border-2 border-black rounded-xl font-bold bg-[#f4f4f0] text-black focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-200"
+                  <div className="flex items-center gap-2 h-10 px-3 border-2 border-black rounded-xl bg-[#f4f4f0] text-black shadow-xs select-none">
+                    <img
+                      src={previewAvatar}
+                      alt={currentAuthorAlias}
+                      className="w-5 h-5 rounded-full border border-black object-cover bg-amber-100 shrink-0"
                     />
-                    {!postAsAdmin && (
-                      <button
-                        type="button"
-                        onClick={handleRandomizeAlias}
-                        className="h-10 px-2.5 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-bold text-xs flex items-center justify-center gap-1 cursor-pointer shrink-0 shadow-xs active:scale-95"
-                        title="Randomize Alias"
-                      >
-                        <Dices className="w-4 h-4" />
-                      </button>
-                    )}
+                    <span className="flex-1 text-xs font-bold truncate">
+                      {currentAuthorAlias}
+                    </span>
+                    <Lock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                   </div>
                 </div>
 
                 <div className="flex flex-col">
-                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5">
-                    Department
+                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5 flex items-center justify-between">
+                    <span>Department</span>
                   </label>
-                  <select
-                    disabled={postAsAdmin}
-                    value={postAsAdmin ? 'University Administration' : department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full h-10 px-2.5 text-xs border-2 border-black rounded-xl font-bold bg-[#f4f4f0] text-black focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-200 cursor-pointer"
-                  >
-                    {CU_DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between h-10 px-3 border-2 border-black rounded-xl bg-[#f4f4f0] text-black shadow-xs select-none">
+                    <span className="text-xs font-bold truncate">
+                      {currentAuthorDept}
+                    </span>
+                    <Lock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                  </div>
                 </div>
               </div>
 
@@ -776,7 +773,7 @@ export const PostNotePage: React.FC = () => {
               {/* Header Badges */}
               <div className="flex items-center justify-between gap-2 mb-3">
                 <span className="px-2.5 py-0.5 bg-black text-white text-[10px] font-bold rounded-full uppercase">
-                  {department.replace('College of ', '')}
+                  {currentAuthorDept.replace('College of ', '')}
                 </span>
                 <span className={`text-[10px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
                   Just now
@@ -828,11 +825,11 @@ export const PostNotePage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <img
                     src={previewAvatar}
-                    alt={alias}
+                    alt={currentAuthorAlias}
                     className="w-6 h-6 rounded-full border border-black object-cover bg-amber-100"
                   />
                   <span className={`text-xs font-bold truncate max-w-[140px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black'}`}>
-                    ~ {postAsAdmin ? 'Admin' : (alias.trim() || 'Anon Student')}
+                    ~ {currentAuthorAlias}
                   </span>
                 </div>
               </div>

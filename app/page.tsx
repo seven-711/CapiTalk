@@ -308,13 +308,6 @@ export default function Home() {
                       <span>Join CapiTalk — It's Free</span>
                     </button>
                   )}
-
-                  <a
-                    href="#campus-features"
-                    className="btn-gumroad-ghost text-sm sm:text-base px-6 py-3.5 sm:py-4 w-full sm:w-auto flex items-center justify-center gap-1.5"
-                  >
-                    <span>View All Features</span>
-                  </a>
                 </div>
 
                 {/* Micro Guarantee Label & Privacy Link */}
