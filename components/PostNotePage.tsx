@@ -19,6 +19,7 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
+  Dices,
 } from 'lucide-react';
 
 const PSEUDONYMS = [
@@ -87,6 +88,7 @@ export const PostNotePage: React.FC = () => {
     freedomPosts,
     addFreedomPost,
     setViewState,
+    goBack,
     setTargetPostId,
   } = useChatStore();
 
@@ -345,11 +347,11 @@ export const PostNotePage: React.FC = () => {
     : (currentUser?.avatar_url || getAvatarForPseudonym(alias.trim() || 'Anon'));
 
   return (
-    <div className="min-h-screen bg-[#f4f4f0] text-black pb-8">
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 pt-4">
+    <div className="min-h-screen bg-[#f4f4f0] text-black pb-12">
+      <div className="max-w-4xl mx-auto px-4 pt-6">
         {/* Error Alert */}
         {moderationError && (
-          <div className="mb-3 p-3 bg-rose-100 border-2 border-black rounded-xl text-black font-bold text-xs flex items-center gap-2">
+          <div className="mb-4 p-3 bg-rose-100 border-2 border-black rounded-xl text-black font-bold text-xs flex items-center gap-2 shadow-xs">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span className="flex-1">{moderationError}</span>
             <button type="button" onClick={() => setModerationError(null)} className="p-0.5 hover:bg-black/10 rounded">
@@ -358,14 +360,17 @@ export const PostNotePage: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-          {/* Main Form (7 cols on desktop) */}
-          <div className="md:col-span-7 bg-white border-2 border-black rounded-2xl p-4 sm:p-5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-            <form onSubmit={handleSubmit} className="space-y-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Form (7 cols on desktop) */}
+          <div className="lg:col-span-7 bg-white border-2 border-black rounded-2xl p-5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {/* Admin Mode Switcher */}
               {isAdminUser && (
-                <div className="p-2.5 bg-[#701a31] border-2 border-black rounded-xl text-white flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#ffc900]">Admin Mode</span>
+                <div className="p-3 bg-[#701a31] border-2 border-black rounded-xl text-white flex items-center justify-between gap-2 shadow-xs">
+                  <div>
+                    <span className="text-xs font-black text-[#ffc900] block">Admin Mode</span>
+                    <span className="text-[10px] text-white/80 font-medium">Post official university note</span>
+                  </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
                     <input
                       type="checkbox"
@@ -376,15 +381,15 @@ export const PostNotePage: React.FC = () => {
                       }}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#ffc900]"></div>
+                    <div className="w-10 h-6 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ffc900]"></div>
                   </label>
                 </div>
               )}
 
-              {/* Alias & Department */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">
+              {/* Alias & Department Stack */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="flex flex-col">
+                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5">
                     Alias
                   </label>
                   <div className="flex items-center gap-1.5">
@@ -395,30 +400,30 @@ export const PostNotePage: React.FC = () => {
                       value={postAsAdmin ? 'Admin' : alias}
                       onChange={(e) => setAlias(e.target.value)}
                       placeholder="e.g. Anon#123"
-                      className="flex-1 p-2 text-xs border-2 border-black rounded-lg font-bold bg-[#f4f4f0] text-black focus:outline-none disabled:bg-gray-200"
+                      className="flex-1 h-10 px-3 text-xs border-2 border-black rounded-xl font-bold bg-[#f4f4f0] text-black focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-200"
                     />
                     {!postAsAdmin && (
                       <button
                         type="button"
                         onClick={handleRandomizeAlias}
-                        className="px-2 py-2 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-lg font-bold text-xs cursor-pointer shrink-0"
+                        className="h-10 px-2.5 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-bold text-xs flex items-center justify-center gap-1 cursor-pointer shrink-0 shadow-xs active:scale-95"
                         title="Randomize Alias"
                       >
-                        Random
+                        <Dices className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">
+                <div className="flex flex-col">
+                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5">
                     Department
                   </label>
                   <select
                     disabled={postAsAdmin}
                     value={postAsAdmin ? 'University Administration' : department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full p-2 text-xs border-2 border-black rounded-lg font-bold bg-[#f4f4f0] text-black focus:outline-none disabled:bg-gray-200 cursor-pointer"
+                    className="w-full h-10 px-2.5 text-xs border-2 border-black rounded-xl font-bold bg-[#f4f4f0] text-black focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-200 cursor-pointer"
                   >
                     {CU_DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>
@@ -431,18 +436,18 @@ export const PostNotePage: React.FC = () => {
 
               {/* Note Colors */}
               {!postAsAdmin && (
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">
-                    Color
+                <div className="pt-1">
+                  <label className="block text-xs font-bold text-gray-800 uppercase mb-1.5">
+                    Note Color
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     {POST_COLORS.map((c) => (
                       <button
                         key={c.hex}
                         type="button"
                         onClick={() => setSelectedColor(c.hex)}
                         style={{ backgroundColor: c.hex }}
-                        className={`w-7 h-7 rounded-full border-2 border-black transition-all flex items-center justify-center cursor-pointer ${
+                        className={`w-8 h-8 rounded-full border-2 border-black transition-all flex items-center justify-center cursor-pointer ${
                           selectedColor === c.hex
                             ? 'scale-110 shadow-xs ring-2 ring-black'
                             : 'opacity-70 hover:opacity-100'
@@ -450,7 +455,7 @@ export const PostNotePage: React.FC = () => {
                         title={c.name}
                       >
                         {selectedColor === c.hex && (
-                          <Check className={`w-3.5 h-3.5 ${c.hex === '#701a31' || c.hex === '#c41e3a' ? 'text-white' : 'text-black'}`} />
+                          <Check className={`w-4 h-4 ${c.hex === '#701a31' || c.hex === '#c41e3a' ? 'text-white' : 'text-black'}`} />
                         )}
                       </button>
                     ))}
@@ -460,26 +465,26 @@ export const PostNotePage: React.FC = () => {
 
               {/* Message Textarea */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-gray-700 uppercase">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-gray-800 uppercase">
                     Message
                   </label>
-                  <span className="text-[11px] font-bold text-gray-500">
+                  <span className="text-xs font-bold text-gray-500">
                     {message.length}/300
                   </span>
                 </div>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   maxLength={300}
                   placeholder="Type your message here..."
-                  className="w-full p-2.5 text-xs sm:text-sm border-2 border-black rounded-xl font-medium focus:outline-none focus:ring-1 focus:ring-black bg-[#f4f4f0] text-black"
+                  className="w-full p-3 text-xs sm:text-sm border-2 border-black rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0] text-black leading-relaxed"
                 />
               </div>
 
               {/* Media Attachment */}
-              <div className="p-3 bg-[#f4f4f0] border-2 border-black rounded-xl space-y-2">
+              <div className="p-3.5 bg-[#f4f4f0] border-2 border-black rounded-xl space-y-2.5">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -489,8 +494,8 @@ export const PostNotePage: React.FC = () => {
                 />
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-gray-700 uppercase">
-                    Attach Media
+                  <span className="text-xs font-bold text-gray-800 uppercase">
+                    Media Attachment
                   </span>
                   <span className="text-[10px] text-gray-500 font-medium">Image / GIF</span>
                 </div>
@@ -499,31 +504,31 @@ export const PostNotePage: React.FC = () => {
                   <div className="p-2 bg-rose-100 border border-black rounded-lg text-black text-xs font-bold flex items-center gap-2">
                     <span className="flex-1">{mediaError}</span>
                     <button type="button" onClick={() => setMediaError(null)}>
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
 
                 {attachedMedia ? (
-                  <div className="p-2 bg-white border border-black rounded-lg flex items-center gap-2.5">
+                  <div className="p-2 bg-white border-2 border-black rounded-xl flex items-center gap-3">
                     <img
                       src={attachedMedia.url}
                       alt="Preview"
-                      className="w-12 h-12 rounded object-cover border border-black shrink-0"
+                      className="w-14 h-14 rounded-lg object-cover border border-black shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <span className="text-xs font-bold text-black truncate block">
-                        {attachedMedia.name || (attachedMedia.type === 'gif' ? 'Reaction GIF' : 'Image')}
+                        {attachedMedia.name || (attachedMedia.type === 'gif' ? 'Reaction GIF' : 'Image Attachment')}
                       </span>
                       <span className="text-[10px] text-gray-500 uppercase font-bold">
-                        {attachedMedia.type === 'gif' ? 'GIF' : 'WebP'}
+                        {attachedMedia.type === 'gif' ? 'GIF Format' : 'WebP Format'}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setAttachedMedia(null)}
-                      className="p-1.5 hover:bg-rose-100 text-rose-700 rounded-lg cursor-pointer shrink-0"
-                      title="Remove"
+                      className="p-2 hover:bg-rose-100 text-rose-700 rounded-lg cursor-pointer shrink-0 transition-colors"
+                      title="Remove media"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -535,7 +540,7 @@ export const PostNotePage: React.FC = () => {
                         type="button"
                         disabled={isProcessingMedia}
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 py-1.5 px-2.5 rounded-lg border-2 border-black bg-white hover:bg-gray-100 text-black text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="flex-1 h-9 px-3 rounded-xl border-2 border-black bg-white hover:bg-gray-100 text-black text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
                       >
                         {isProcessingMedia ? (
                           <>
@@ -545,7 +550,7 @@ export const PostNotePage: React.FC = () => {
                         ) : (
                           <>
                             <ImageIcon className="w-3.5 h-3.5" />
-                            <span>Upload</span>
+                            <span>Upload Image</span>
                           </>
                         )}
                       </button>
@@ -553,7 +558,7 @@ export const PostNotePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowGifModal(true)}
-                        className="py-1.5 px-3 rounded-lg border-2 border-black bg-[#ff90e8] hover:bg-[#ff7be3] text-black text-xs font-bold flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                        className="h-9 px-3 rounded-xl border-2 border-black bg-[#ff90e8] hover:bg-[#ff7be3] text-black text-xs font-bold flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95 shrink-0"
                       >
                         <Film className="w-3.5 h-3.5" />
                         <span>GIFs</span>
@@ -562,10 +567,10 @@ export const PostNotePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowCustomUrlInput(!showCustomUrlInput)}
-                        className={`p-1.5 rounded-lg border-2 border-black cursor-pointer shrink-0 ${
+                        className={`h-9 px-3 rounded-xl border-2 border-black cursor-pointer shadow-xs active:scale-95 shrink-0 flex items-center justify-center ${
                           showCustomUrlInput ? 'bg-black text-white' : 'bg-white hover:bg-gray-100 text-black'
                         }`}
-                        title="Link"
+                        title="Direct URL"
                       >
                         <LinkIcon className="w-3.5 h-3.5" />
                       </button>
@@ -584,7 +589,7 @@ export const PostNotePage: React.FC = () => {
                           type="button"
                           onClick={handleApplyCustomUrl}
                           disabled={!customMediaUrl.trim()}
-                          className="px-2.5 py-1.5 bg-[#00e599] text-black text-xs font-bold rounded border border-black disabled:opacity-50 cursor-pointer"
+                          className="px-3 py-1.5 bg-[#00e599] text-black text-xs font-bold rounded border border-black disabled:opacity-50 cursor-pointer"
                         >
                           Attach
                         </button>
@@ -594,40 +599,40 @@ export const PostNotePage: React.FC = () => {
                 )}
               </div>
 
-              {/* Poll Builder */}
+              {/* Poll Feature */}
               <div>
                 <button
                   type="button"
                   onClick={() => setShowPollForm(!showPollForm)}
-                  className={`w-full py-1.5 px-3 rounded-xl border-2 border-black flex items-center justify-between text-xs font-bold cursor-pointer ${
+                  className={`w-full py-2 px-3 rounded-xl border-2 border-black flex items-center justify-between text-xs font-bold cursor-pointer transition-all shadow-xs ${
                     showPollForm ? 'bg-[#ffc900] text-black' : 'bg-[#f4f4f0] hover:bg-gray-200 text-black'
                   }`}
                 >
                   <span>{showPollForm ? 'Poll Added' : 'Add Poll'}</span>
-                  <span className="text-[10px] uppercase font-bold">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-black text-white rounded-md">
                     {showPollForm ? 'Remove' : '+ Poll'}
                   </span>
                 </button>
 
                 {showPollForm && (
-                  <div className="mt-2 p-3 bg-amber-50/80 border-2 border-black rounded-xl space-y-2 text-black">
+                  <div className="mt-2.5 p-3.5 bg-amber-50/80 border-2 border-black rounded-xl space-y-2 text-black shadow-xs">
                     <input
                       type="text"
                       maxLength={100}
                       value={pollQuestion}
                       onChange={(e) => setPollQuestion(e.target.value)}
                       placeholder="Poll question (optional)..."
-                      className="w-full p-2 text-xs border border-black rounded-lg font-medium bg-white text-black focus:outline-none"
+                      className="w-full p-2 text-xs border-2 border-black rounded-lg font-medium bg-white text-black focus:outline-none"
                     />
 
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 pt-1">
                       <input
                         type="text"
                         maxLength={60}
                         value={pollOption1}
                         onChange={(e) => setPollOption1(e.target.value)}
                         placeholder="Option 1"
-                        className="w-full p-1.5 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
+                        className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
                       />
 
                       <input
@@ -636,18 +641,18 @@ export const PostNotePage: React.FC = () => {
                         value={pollOption2}
                         onChange={(e) => setPollOption2(e.target.value)}
                         placeholder="Option 2"
-                        className="w-full p-1.5 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
+                        className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
                       />
 
                       {pollOptionsCount >= 3 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <input
                             type="text"
                             maxLength={60}
                             value={pollOption3}
                             onChange={(e) => setPollOption3(e.target.value)}
                             placeholder="Option 3"
-                            className="w-full p-1.5 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
+                            className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
                           />
                           {pollOptionsCount === 3 && (
                             <button
@@ -656,23 +661,23 @@ export const PostNotePage: React.FC = () => {
                                 setPollOption3('');
                                 setPollOptionsCount(2);
                               }}
-                              className="p-1.5 border border-black rounded-lg bg-rose-200 text-black text-xs font-bold shrink-0"
+                              className="p-2 border border-black rounded-lg bg-rose-200 text-black text-xs font-bold shrink-0"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
                       )}
 
                       {pollOptionsCount >= 4 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <input
                             type="text"
                             maxLength={60}
                             value={pollOption4}
                             onChange={(e) => setPollOption4(e.target.value)}
                             placeholder="Option 4"
-                            className="w-full p-1.5 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
+                            className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
                           />
                           <button
                             type="button"
@@ -680,9 +685,9 @@ export const PostNotePage: React.FC = () => {
                               setPollOption4('');
                               setPollOptionsCount(3);
                             }}
-                            className="p-1.5 border border-black rounded-lg bg-rose-200 text-black text-xs font-bold shrink-0"
+                            className="p-2 border border-black rounded-lg bg-rose-200 text-black text-xs font-bold shrink-0"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
                       )}
@@ -691,9 +696,9 @@ export const PostNotePage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPollOptionsCount(Math.min(4, pollOptionsCount + 1))}
-                          className="w-full py-1 px-2 border border-dashed border-black rounded-lg bg-white hover:bg-amber-100 text-black text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                          className="w-full py-1.5 px-2 border border-dashed border-black rounded-lg bg-white hover:bg-amber-100 text-black text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                           <span>Add Option</span>
                         </button>
                       )}
@@ -703,11 +708,11 @@ export const PostNotePage: React.FC = () => {
               </div>
 
               {/* Submit / Cancel Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/10">
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/10">
                 <button
                   type="button"
-                  onClick={() => setViewState('freedom_wall')}
-                  className="px-4 py-2 rounded-xl border-2 border-black bg-white hover:bg-gray-100 text-black text-xs font-bold cursor-pointer"
+                  onClick={() => goBack()}
+                  className="px-4 py-2.5 rounded-xl border-2 border-black bg-white hover:bg-gray-100 text-black text-xs font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -715,7 +720,7 @@ export const PostNotePage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))}
-                  className={`px-6 py-2 rounded-xl border-2 border-black text-black font-bold text-xs transition-all cursor-pointer ${
+                  className={`px-6 py-2.5 rounded-xl border-2 border-black text-black font-bold text-xs transition-all cursor-pointer ${
                     isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))
                       ? 'bg-gray-300 opacity-60 cursor-not-allowed'
                       : 'bg-[#ffc900] hover:bg-[#ffb700] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none'
@@ -732,21 +737,21 @@ export const PostNotePage: React.FC = () => {
           </div>
 
           {/* Right Column: Live Preview (5 cols on desktop) */}
-          <div className="md:col-span-5 space-y-2 md:sticky md:top-14">
-            <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider block">
+          <div className="lg:col-span-5 space-y-2 lg:sticky lg:top-16">
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
               Preview
             </span>
 
-            {/* Simulated Note Card */}
+            {/* Note Card Simulation */}
             <div
               style={{ backgroundColor: postAsAdmin ? '#701a31' : selectedColor }}
-              className={`p-4 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
+              className={`p-5 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${
                 postAsAdmin ? 'text-white' : 'text-black'
               }`}
             >
               {/* Header Badges */}
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="px-2 py-0.5 bg-black text-white text-[9px] font-bold rounded-full uppercase">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="px-2.5 py-0.5 bg-black text-white text-[10px] font-bold rounded-full uppercase">
                   {department.replace('College of ', '')}
                 </span>
                 <span className={`text-[10px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
@@ -754,40 +759,40 @@ export const PostNotePage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Message */}
-              <p className={`text-xs sm:text-sm font-bold leading-relaxed whitespace-pre-wrap break-words mb-3 ${postAsAdmin ? 'text-white' : 'text-black'}`}>
+              {/* Message text */}
+              <p className={`text-xs sm:text-sm font-bold leading-relaxed whitespace-pre-wrap break-words mb-3.5 ${postAsAdmin ? 'text-white' : 'text-black'}`}>
                 {message.trim() || 'Your note message preview will appear here as you type...'}
               </p>
 
               {/* Attached Media Preview */}
               {attachedMedia && (
-                <div className="mb-3 rounded-xl border border-black overflow-hidden bg-black/5">
+                <div className="mb-3.5 rounded-xl border border-black overflow-hidden bg-black/5">
                   <img
                     src={attachedMedia.url}
                     alt="Attachment Preview"
-                    className="w-full max-h-44 object-cover"
+                    className="w-full max-h-52 object-cover"
                   />
                 </div>
               )}
 
               {/* Poll Preview */}
               {showPollForm && (
-                <div className="mb-3 p-2.5 rounded-xl border border-black bg-white/95 text-black space-y-1.5">
-                  <div className="flex items-center justify-between text-[10px] font-bold">
+                <div className="mb-3.5 p-3 rounded-xl border border-black bg-white/95 text-black space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
                     <span>{pollQuestion.trim() || 'Poll'}</span>
                     <span className="text-gray-500">0 votes</span>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {[pollOption1 || 'Option 1', pollOption2 || 'Option 2', pollOption3, pollOption4]
                       .filter(Boolean)
                       .map((opt, i) => (
                         <div
                           key={i}
-                          className="p-1.5 rounded-lg border border-black/30 bg-[#f4f4f0] text-[11px] font-medium flex items-center justify-between"
+                          className="p-2 rounded-lg border border-black/30 bg-[#f4f4f0] text-xs font-medium flex items-center justify-between"
                         >
                           <span className="truncate">{opt}</span>
-                          <span className="text-[9px] text-gray-500 uppercase font-bold">Vote</span>
+                          <span className="text-[10px] text-gray-500 uppercase font-bold">Vote</span>
                         </div>
                       ))}
                   </div>
@@ -795,14 +800,14 @@ export const PostNotePage: React.FC = () => {
               )}
 
               {/* Footer Author */}
-              <div className={`pt-2 border-t flex items-center justify-between gap-2 ${postAsAdmin ? 'border-white/20' : 'border-black/20'}`}>
-                <div className="flex items-center gap-1.5">
+              <div className={`pt-3 border-t flex items-center justify-between gap-2 ${postAsAdmin ? 'border-white/20' : 'border-black/20'}`}>
+                <div className="flex items-center gap-2">
                   <img
                     src={previewAvatar}
                     alt={alias}
-                    className="w-5 h-5 rounded-full border border-black object-cover bg-amber-100"
+                    className="w-6 h-6 rounded-full border border-black object-cover bg-amber-100"
                   />
-                  <span className={`text-[11px] font-bold truncate max-w-[120px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black'}`}>
+                  <span className={`text-xs font-bold truncate max-w-[140px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black'}`}>
                     ~ {postAsAdmin ? 'Admin' : (alias.trim() || 'Anon Student')}
                   </span>
                 </div>

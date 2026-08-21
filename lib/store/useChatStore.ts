@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType, getAvatarForPseudonym } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -22,8 +22,11 @@ interface ChatStoreState {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   
-  viewState: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note';
-  setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note') => void;
+  viewState: ViewState;
+  viewHistory: ViewState[];
+  setViewState: (view: ViewState, pushHistory?: boolean) => void;
+  goBack: () => void;
+  popViewHistory: () => void;
 
   queueFilter: QueueFilter;
   setQueueFilter: (filter: QueueFilter) => void;
@@ -133,8 +136,47 @@ export const useChatStore = create<ChatStoreState>()(
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
       viewState: 'landing',
-      setViewState: (view: 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note') => {
-        set({ viewState: view });
+      viewHistory: [],
+      setViewState: (view: ViewState, pushHistory = true) => {
+        const current = get().viewState;
+        if (current === view) return;
+        const currentHistory = get().viewHistory || [];
+        const updatedHistory = pushHistory ? [...currentHistory.slice(-19), current] : currentHistory;
+        set({ viewState: view, viewHistory: updatedHistory });
+
+        if (pushHistory && typeof window !== 'undefined') {
+          try {
+            window.history.pushState({ viewState: view, historyIndex: updatedHistory.length }, '', window.location.pathname);
+          } catch (e) {}
+        }
+      },
+      popViewHistory: () => {
+        const history = get().viewHistory || [];
+        if (history.length > 0) {
+          set({ viewHistory: history.slice(0, -1) });
+        }
+      },
+      goBack: () => {
+        const { viewHistory, viewState } = get();
+        if (viewHistory && viewHistory.length > 0) {
+          const prevView = viewHistory[viewHistory.length - 1];
+          const updatedHistory = viewHistory.slice(0, -1);
+          set({ viewState: prevView, viewHistory: updatedHistory });
+          if (typeof window !== 'undefined') {
+            try {
+              window.history.replaceState({ viewState: prevView, historyIndex: updatedHistory.length }, '', window.location.pathname);
+            } catch (e) {}
+          }
+        } else {
+          if (viewState !== 'landing') {
+            set({ viewState: 'landing', viewHistory: [] });
+            if (typeof window !== 'undefined') {
+              try {
+                window.history.replaceState({ viewState: 'landing', historyIndex: 0 }, '', window.location.pathname);
+              } catch (e) {}
+            }
+          }
+        }
       },
 
       wallNotifications: typeof window !== 'undefined'
@@ -387,6 +429,8 @@ export const useChatStore = create<ChatStoreState>()(
                           pinned_at: row.pinned_at || undefined,
                           status: dbStatus,
                           created_at: row.created_at,
+                          image_url: row.image_url,
+                          image_type: row.image_type,
                           song_title: row.song_title,
                           song_artist: row.song_artist,
                           song_image_url: row.song_image_url,
@@ -789,6 +833,8 @@ export const useChatStore = create<ChatStoreState>()(
                     pinned_at: row.pinned_at || undefined,
                     status: dbStatus,
                     created_at: row.created_at,
+                    image_url: row.image_url || existingLocal?.image_url,
+                    image_type: row.image_type || existingLocal?.image_type,
                     song_title: row.song_title,
                     song_artist: row.song_artist,
                     song_image_url: row.song_image_url,

@@ -126,6 +126,7 @@ export const FreedomWall: React.FC = () => {
     myPostIds,
     addWallNotification,
     setViewState,
+    goBack,
     startSearch,
     targetPostId,
     setTargetPostId,
@@ -927,9 +928,9 @@ export const FreedomWall: React.FC = () => {
         <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             type="button"
-            onClick={() => setViewState('queue')}
-            className="p-1.5 sm:p-2 bg-[#f4f4f0] hover:bg-black hover:text-white border border-black rounded-full transition-all shrink-0"
-            title="Back to Matchmaking"
+            onClick={() => goBack()}
+            className="p-1.5 sm:p-2 bg-[#f4f4f0] hover:bg-black hover:text-white border border-black rounded-full transition-all shrink-0 cursor-pointer"
+            title="Back"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>

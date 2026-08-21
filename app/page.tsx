@@ -106,6 +106,52 @@ export default function Home() {
     };
   }, [isSearching, activeRoom, partnerLeft]);
 
+  // Mobile browser history & hardware Back button synchronizer
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Ensure initial entry exists in history state
+    const currentView = useChatStore.getState().viewState;
+    try {
+      window.history.replaceState({ viewState: currentView, isAppRoot: true }, '', window.location.pathname);
+    } catch (e) {}
+
+    const handlePopState = (e: PopStateEvent) => {
+      const store = useChatStore.getState();
+      const targetView = e.state?.viewState;
+
+      // Special handling when leaving active chatroom
+      if (store.viewState === 'chat' && store.activeRoom && !store.partnerLeft) {
+        const confirmLeave = window.confirm('Are you sure you want to leave the active chat?');
+        if (!confirmLeave) {
+          try {
+            window.history.pushState({ viewState: 'chat' }, '', window.location.pathname);
+          } catch (err) {}
+          return;
+        }
+        store.leaveRoom();
+      }
+
+      if (targetView) {
+        // Direct transition without pushing a duplicate entry
+        store.setViewState(targetView, false);
+        store.popViewHistory();
+      } else {
+        // If history state is null (e.g. backed to root of app), check viewHistory or return to landing
+        if (store.viewHistory.length > 0) {
+          store.goBack();
+        } else if (store.viewState !== 'landing') {
+          store.setViewState('landing', false);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   if (viewState === 'ceased') {
     return <BannedScreen />;
   }

@@ -92,7 +92,7 @@ export const AdminDashboard: React.FC = () => {
       useChatStore.setState({ currentUser: { ...currentUser, is_admin: false } });
     }
     setIsAuthenticated(false);
-    setViewState('landing');
+    useChatStore.getState().goBack();
   };
 
 

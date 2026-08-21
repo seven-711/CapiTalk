@@ -16,10 +16,11 @@ import {
   Heart,
   Scale,
   Ban,
-  Radio,
+  ShieldAlert,
   MessageSquare,
   Music,
   ArrowRight,
+  ArrowLeft,
   HelpCircle,
 } from 'lucide-react';
 
@@ -32,14 +33,14 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
   onAccept,
   isStandaloneView = false,
 }) => {
-  const { setViewState } = useChatStore();
+  const { setViewState, goBack } = useChatStore();
   const [hasAgreedCheck, setHasAgreedCheck] = useState(false);
 
   const handleAgreeClick = () => {
     if (onAccept) {
       onAccept();
     } else {
-      setViewState('landing');
+      goBack();
     }
   };
 
@@ -105,6 +106,19 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
     <div className="w-full min-h-screen bg-[#f4f4f0] py-6 sm:py-12 px-3 sm:px-6">
       <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
         
+        {isStandaloneView && (
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => goBack()}
+              className="btn-gumroad-ghost text-xs sm:text-sm px-3.5 py-2 flex items-center gap-1.5 hover:border-black rounded-xl shadow-2xs font-extrabold bg-white cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+          </div>
+        )}
+
         {/* TOP HERO BANNER */}
         <div className="p-6 sm:p-10 relative overflow-hidden text-center sm:text-left">
           {/* Decorative Background Coin Mascot */}

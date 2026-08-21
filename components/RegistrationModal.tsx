@@ -5,10 +5,10 @@ import { useChatStore } from '../lib/store/useChatStore';
 import { CU_DEPARTMENTS, IP_AVATARS, getAvatarForPseudonym, DepartmentType, AvatarOption } from '../lib/constants';
 import { validateUsername, checkUsernameAvailability, MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH } from '../lib/utils/safety';
 import { CoinMascot } from './CoinMascot';
-import { Sparkles, CheckCircle2, ShieldCheck, AlertCircle, Shuffle, Wand2 } from 'lucide-react';
+import { Sparkles, CheckCircle2, ShieldCheck, AlertCircle, Shuffle, Wand2, ArrowLeft, X } from 'lucide-react';
 
 export const RegistrationModal: React.FC = () => {
-  const { currentUser, registerUser, setViewState } = useChatStore();
+  const { currentUser, registerUser, setViewState, goBack } = useChatStore();
 
   const [username, setUsername] = useState(currentUser ? currentUser.username : '');
   const [department, setDepartment] = useState<DepartmentType>(currentUser ? currentUser.department : 'College of Computer Studies');
@@ -111,6 +111,17 @@ export const RegistrationModal: React.FC = () => {
           <CoinMascot size={88} tiltAngle={18} />
         </div>
 
+        <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            onClick={() => goBack()}
+            className="btn-gumroad-ghost text-xs px-3 py-1.5 flex items-center gap-1.5 hover:border-black rounded-lg shadow-2xs font-extrabold bg-white cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </button>
+        </div>
+
         <div className="mb-4 sm:mb-6">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-black">
             {currentUser ? 'Edit CapiTalk Profile' : 'Create CapiTalk Profile'}
@@ -140,31 +151,42 @@ export const RegistrationModal: React.FC = () => {
               <div className="relative shrink-0">
                 <img
                   src={selectedAvatar}
-                  alt={currentAvatarOption.name}
-                  className="w-14 h-14 rounded-xl border-2 border-black object-cover shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  alt="Selected avatar preview"
+                  className="w-12 h-12 rounded-lg border-2 border-black object-cover bg-amber-50"
+                  onError={(e) => {
+                    (e.target as HTMLElement).setAttribute('src', IP_AVATARS[0].url);
+                  }}
                 />
+                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border border-black flex items-center justify-center text-[10px] text-white font-bold">
+                  ✓
+                </span>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-extrabold text-black text-sm">{currentAvatarOption.name}</span>
-                </div>
-                <p className="text-xs text-[#242423]/80 truncate mt-0.5">
-                  {currentAvatarOption.description}
-                </p>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-black truncate">{currentAvatarOption.name}</p>
+                <p className="text-[11px] text-[#242423] truncate">{currentAvatarOption.description}</p>
               </div>
+              <button
+                type="button"
+                onClick={handleRandomizeAvatar}
+                className="btn-gumroad-ghost text-xs px-2.5 py-1.5 flex items-center gap-1 hover:border-black shrink-0"
+                title="Randomize avatar"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Random</span>
+              </button>
             </div>
 
-            {/* Category Filter Pills */}
+            {/* Category Filter Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
               {categories.map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setActiveCategory(cat)}
-                  className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors whitespace-nowrap ${
                     activeCategory === cat
-                      ? 'bg-black text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
-                      : 'bg-white text-black border border-[#d1d5dc] hover:border-black'
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-black border-[#d1d5dc] hover:border-black'
                   }`}
                 >
                   {cat}
@@ -172,34 +194,38 @@ export const RegistrationModal: React.FC = () => {
               ))}
             </div>
 
-            {/* Avatar Grid / Carousel */}
-            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-36 overflow-y-auto p-1.5 bg-white/70 rounded-lg border border-[#d1d5dc]">
+            {/* Grid of 2x2 Avatars */}
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 p-2 bg-[#f4f4f0] rounded-lg border border-[#d1d5dc] max-h-36 overflow-y-auto">
               {filteredAvatars.map((avatar) => {
                 const isSelected = selectedAvatar === avatar.url;
                 return (
                   <button
                     key={avatar.id}
                     type="button"
-                    title={`${avatar.name} (${avatar.character})`}
                     onClick={() => {
                       setSelectedAvatar(avatar.url);
                       setHasManuallySelectedAvatar(true);
                     }}
-                    className={`relative p-0.5 rounded-lg border-2 transition-all transform hover:scale-105 shrink-0 ${
+                    className={`relative aspect-square rounded-lg border-2 overflow-hidden transition-all group ${
                       isSelected
-                        ? 'border-black bg-[#ff90e8] scale-105 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                        : 'border-transparent hover:border-[#d1d5dc]'
+                        ? 'border-black ring-2 ring-[#ffc900] scale-105 shadow-sm'
+                        : 'border-[#d1d5dc] hover:border-black opacity-80 hover:opacity-100'
                     }`}
+                    title={avatar.name}
                   >
                     <img
                       src={avatar.url}
                       alt={avatar.name}
-                      className="w-full aspect-square rounded-md bg-[#f4f4f0] object-cover"
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLElement).setAttribute('src', IP_AVATARS[0].url);
+                      }}
                     />
                     {isSelected && (
-                      <span className="absolute -top-1 -right-1 bg-black text-white rounded-full p-0.5 shadow-sm">
-                        <CheckCircle2 className="w-3 h-3" />
-                      </span>
+                      <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-black rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-[#00e599]" />
+                      </div>
                     )}
                   </button>
                 );
@@ -207,46 +233,46 @@ export const RegistrationModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Username / Pseudonym Input */}
+          {/* Pseudonym Input */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-semibold text-black">
-                Pseudonym / Username <span className="text-red-500">*</span>
+                Pseudonym / Nickname <span className="text-red-500">*</span>
               </label>
-              <span
-                className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${
-                  username.length > MAX_USERNAME_LENGTH
-                    ? 'bg-red-100 text-red-700 border-red-300'
-                    : username.length >= MAX_USERNAME_LENGTH - 2
-                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                    : 'bg-gray-100 text-gray-600 border-gray-300'
-                }`}
-              >
-                {username.length}/{MAX_USERNAME_LENGTH} chars
-              </span>
+              {username.trim().length >= 2 && (
+                <button
+                  type="button"
+                  onClick={handleAutoMatchPseudonym}
+                  className="text-[11px] text-[#701a31] hover:underline font-bold flex items-center gap-1"
+                  title="Generate a character matching this pseudonym"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  <span>Match Character</span>
+                </button>
+              )}
             </div>
             <input
               type="text"
               required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. engr_masarap, nursing_mwa"
-              className={`gumroad-input w-full ${
-                usernameStatus
-                  ? usernameStatus.isAvailable
-                    ? 'border-emerald-600 focus:ring-emerald-600'
-                    : 'border-red-600 focus:ring-red-600'
-                  : ''
-              }`}
+              minLength={MIN_USERNAME_LENGTH}
               maxLength={MAX_USERNAME_LENGTH}
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setError(null);
+              }}
+              placeholder="e.g. BraveTiger or Starlight"
+              className={`gumroad-input w-full ${
+                usernameStatus?.isAvailable === false ? 'border-red-500 focus:border-red-500' : ''
+              }`}
             />
             {isCheckingUsername ? (
-              <p className="text-xs text-amber-700 font-semibold mt-1.5 flex items-center gap-1 animate-pulse">
-                Checking pseudonym availability...
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#ffc900] animate-ping" /> Checking availability...
               </p>
             ) : usernameStatus ? (
-              <p className={`text-xs font-semibold mt-1.5 flex items-center gap-1.5 ${
-                usernameStatus.isAvailable ? 'text-emerald-600' : 'text-red-600 font-bold'
+              <p className={`text-xs mt-1 font-medium ${
+                usernameStatus.isAvailable ? 'text-emerald-600' : 'text-red-600'
               }`}>
                 <span>{usernameStatus.isAvailable ? '✓' : '⚠️'}</span> {usernameStatus.message}
               </p>
@@ -295,9 +321,16 @@ export const RegistrationModal: React.FC = () => {
           {/* Submit CTA */}
           <div className="flex items-center gap-3 pt-2">
             <button
+              type="button"
+              onClick={() => goBack()}
+              className="btn-gumroad-ghost w-1/3 py-3.5 text-sm font-bold cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
               type="submit"
               disabled={isCheckingUsername || (usernameStatus !== null && !usernameStatus.isAvailable)}
-              className="btn-gumroad-primary w-full py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-gumroad-primary flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <span>{isCheckingUsername ? 'Checking...' : currentUser ? 'Save Profile' : 'Start Chatting'}</span>
             </button>

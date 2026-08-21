@@ -36,7 +36,7 @@ const FacebookIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
 );
 
 export const PrivacyPolicy: React.FC = () => {
-  const { setViewState, currentUser } = useChatStore();
+  const { setViewState, goBack, currentUser } = useChatStore();
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const handleClearLocalData = () => {
@@ -86,10 +86,10 @@ export const PrivacyPolicy: React.FC = () => {
               if (typeof window !== 'undefined' && sessionStorage.getItem('capitalk_toc_accepted_session') !== 'true') {
                 setViewState('terms');
               } else {
-                setViewState('landing');
+                goBack();
               }
             }}
-            className="btn-gumroad-ghost text-xs sm:text-sm px-3.5 py-2 flex items-center gap-1.5 hover:border-black rounded-xl shadow-2xs font-extrabold bg-white"
+            className="btn-gumroad-ghost text-xs sm:text-sm px-3.5 py-2 flex items-center gap-1.5 hover:border-black rounded-xl shadow-2xs font-extrabold bg-white cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
