@@ -751,11 +751,11 @@ export const ChatRoom: React.FC = () => {
         </div>
       )}
 
-      {/* Blurry Backdrop Overlay across whole chatroom (including header & text area) when reacting */}
+      {/* Transparent Dim Backdrop Overlay across whole chatroom when reacting */}
       {activePickerMsgId && (
         <div
           onClick={() => setActivePickerMsgId(null)}
-          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-xs transition-all duration-200 cursor-pointer animate-in fade-in"
+          className="fixed inset-0 z-30 bg-black/40 transition-opacity duration-200 cursor-pointer animate-in fade-in"
           title="Click anywhere to close reaction picker"
         />
       )}
@@ -768,8 +768,8 @@ export const ChatRoom: React.FC = () => {
           borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
         }}
         className={`px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-sm shrink-0 sticky top-0 z-20 transition-all duration-300 border-b ${
-          isAdminRoom ? 'bg-slate-950/80 border-slate-800/80 text-white backdrop-blur-md' : ''
-        } ${activePickerMsgId ? 'filter blur-[3px] opacity-40 pointer-events-none' : ''}`}
+          isAdminRoom ? 'bg-slate-950/80 border-slate-800/80 text-white' : ''
+        } ${activePickerMsgId ? 'pointer-events-none' : ''}`}
       >
         {/* Partner Info */}
         <div className="flex items-center gap-2.5">
@@ -1677,8 +1677,8 @@ export const ChatRoom: React.FC = () => {
             color: isAdminRoom ? undefined : activeThemeConfig.headerText,
           }}
           className={`p-3 sm:px-4 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
-            isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
-          } ${activePickerMsgId ? 'filter blur-[3px] opacity-40 pointer-events-none' : ''}`}
+            isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white' : ''
+          } ${activePickerMsgId ? 'pointer-events-none' : ''}`}
         >
           <div className="flex items-center gap-2 text-sm">
             {partnerLeftReason === 'inactivity' ? (
@@ -1706,6 +1706,10 @@ export const ChatRoom: React.FC = () => {
             <button
               type="button"
               onClick={nextMatch}
+              style={{
+                color: activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff',
+                backgroundColor: activeThemeConfig.btnBg || '#701a31',
+              }}
               className="btn-gumroad-primary text-xs px-4 py-2 flex-1 sm:flex-initial justify-center"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -1721,8 +1725,8 @@ export const ChatRoom: React.FC = () => {
             color: isAdminRoom ? undefined : activeThemeConfig.headerText,
           }}
           className={`p-2 sm:p-3 relative shrink-0 z-20 transition-all duration-300 border-t pb-[max(0.6rem,env(safe-area-inset-bottom))] ${
-            isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white backdrop-blur-md' : ''
-          } ${activePickerMsgId ? 'filter blur-[3px] opacity-40 pointer-events-none' : ''}`}
+            isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white' : ''
+          } ${activePickerMsgId ? 'pointer-events-none' : ''}`}
         >
           {/* Emoji Picker Popover */}
           {showEmojiPicker && (
