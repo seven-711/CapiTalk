@@ -2427,7 +2427,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
             {/* Animated Lottie Winner Cup */}
             <div className="relative">
               <DotLottieReact
-                src="/animated-reacts/winner.lottie"
+                src="/animated-assets/winner.lottie"
                 loop={true}
                 autoplay={true}
                 className="w-48 h-48 sm:w-60 sm:h-60 mx-auto drop-shadow-2xl"

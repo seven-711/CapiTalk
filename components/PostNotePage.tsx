@@ -8,6 +8,7 @@ import { FreedomPollOption } from '../lib/types';
 import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   ArrowLeft,
   X,
@@ -102,6 +103,7 @@ export const PostNotePage: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState('#ffc900');
   const [moderationError, setModerationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNoteSentSuccess, setIsNoteSentSuccess] = useState(false);
 
   // Attached Media State
   const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'gif'; name?: string } | null>(null);
@@ -363,7 +365,10 @@ export const PostNotePage: React.FC = () => {
         }
 
         setTargetPostId(newPostId);
-        setViewState('freedom_wall');
+        setIsNoteSentSuccess(true);
+        setTimeout(() => {
+          setViewState('freedom_wall');
+        }, 2200);
       }
     } finally {
       setIsSubmitting(false);
@@ -926,6 +931,32 @@ export const PostNotePage: React.FC = () => {
                 );
               })()}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sent Celebration Overlay (Plain Minimalist Animation) */}
+      {isNoteSentSuccess && (
+        <div className="fixed inset-0 z-[120] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+          <div className="max-w-xs w-full flex flex-col items-center text-center">
+            <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+              <DotLottieReact
+                src="/animated-assets/sent.lottie"
+                loop={false}
+                autoplay={true}
+                className="w-full h-full"
+              />
+            </div>
+
+            <h3 className="text-lg font-extrabold text-black mt-2">
+              Note Shared
+            </h3>
+
+            <p className="text-xs text-gray-500 mt-1">
+              {postAsAdmin
+                ? 'Published live to Freedom Wall'
+                : 'Submitted for review'}
+            </p>
           </div>
         </div>
       )}
