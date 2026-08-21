@@ -20,6 +20,8 @@ import {
   Pin,
   CheckCircle,
   PlayCircle,
+  Play,
+  Pause,
   Music,
   RefreshCw,
   Flame,
@@ -63,6 +65,90 @@ export const MusicWall: React.FC = () => {
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reactorsPost, setReactorsPost] = useState<FreedomPost | null>(null);
   const [selectedPostForDetail, setSelectedPostForDetail] = useState<FreedomPost | null>(null);
+
+  // Global Audio Playback State for CD Discs
+  const [playingPostId, setPlayingPostId] = useState<string | null>(null);
+  const [audioLoadingPostId, setAudioLoadingPostId] = useState<string | null>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleTogglePlaySong = async (e: React.MouseEvent, post: FreedomPost) => {
+    e.stopPropagation();
+
+    // If already playing this song -> pause
+    if (playingPostId === post.id) {
+      if (activeAudioRef.current) {
+        if (activeAudioRef.current.paused) {
+          activeAudioRef.current.play().catch(console.error);
+        } else {
+          activeAudioRef.current.pause();
+          setPlayingPostId(null);
+        }
+      }
+      return;
+    }
+
+    // If another song is playing, pause it first
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+
+    setPlayingPostId(null);
+
+    let previewUrl = post.song_preview_url;
+
+    // Fetch on the fly if missing preview_url
+    if (!previewUrl && post.song_title && post.song_artist) {
+      try {
+        setAudioLoadingPostId(post.id);
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(post.song_artist + ' ' + post.song_title)}&entity=song&limit=1`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results && data.results.length > 0 && data.results[0].previewUrl) {
+            previewUrl = data.results[0].previewUrl;
+            post.song_preview_url = previewUrl;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch preview audio:', err);
+      } finally {
+        setAudioLoadingPostId(null);
+      }
+    }
+
+    if (!previewUrl) {
+      setSelectedPostForDetail(post);
+      return;
+    }
+
+    try {
+      const audio = new Audio(previewUrl);
+      activeAudioRef.current = audio;
+      setPlayingPostId(post.id);
+
+      audio.onended = () => {
+        setPlayingPostId(null);
+      };
+
+      audio.onerror = () => {
+        setPlayingPostId(null);
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error('Audio playback failed:', err);
+      setPlayingPostId(null);
+    }
+  };
 
   // Comments state for Music Wall
   const [selectedPostForComments, setSelectedPostForComments] = useState<FreedomPost | null>(null);
@@ -440,77 +526,109 @@ export const MusicWall: React.FC = () => {
     const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = isPinnedActive(post);
+    const isThisPlaying = playingPostId === post.id;
+    const isThisLoading = audioLoadingPostId === post.id;
 
     return (
       <div
         key={post.id}
         id={`post-${post.id}`}
         onClick={() => setSelectedPostForDetail(post)}
-        style={{ backgroundColor: isPostAdmin ? '#701a31' : (post.color || '#fff1f3') }}
-        className={`p-2 sm:p-3.5 border-2 rounded-[0.5rem] sm:border-3 transition-all flex flex-col items-center justify-between group relative cursor-pointer select-none aspect-[3/4.4] sm:aspect-[3/4.1] text-center overflow-hidden ${
-          isPinned
-            ? 'border-3 sm:border-4 border-black ring-3 ring-[#ffc900] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
-            : isPostAdmin
-            ? 'border-3 sm:border-4 border-[#ffc900] ring-3 ring-[#701a31]/80 shadow-[0_0_15px_rgba(112,26,49,0.7)] text-white'
-            : 'border-black text-black shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1'
-        }`}
+        className="p-2.5 sm:p-3 rounded-2xl transition-all flex flex-col items-center justify-between group relative cursor-pointer select-none text-center bg-white/90 hover:bg-white hover:shadow-lg hover:-translate-y-1 duration-300"
       >
-        {/* Top Badges */}
-        <div className="w-full flex items-center justify-center gap-1 min-h-[20px] sm:min-h-[24px] px-1 pt-0.5">
+        {/* Top Dedicated To Badge */}
+        <div className="w-full flex items-center justify-center min-h-[22px] px-1 mb-1">
           {post.status === 'pending' ? (
-            <span className="px-1.5 py-0.5 bg-[#ffc900] text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full uppercase border border-black shadow-2xs truncate">
-              PENDING
+            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[8px] sm:text-[9px] font-extrabold rounded-full truncate">
+              ⏳ Pending
             </span>
           ) : isPinned ? (
-            <span className="px-1.5 py-0.5 bg-[#ffc900] text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full uppercase border border-black shadow-2xs truncate">
-              PINNED
+            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] sm:text-[9px] font-extrabold rounded-full truncate">
+              📌 Pinned
             </span>
           ) : post.dedicated_to ? (
-            <span className="px-1.5 py-0.5 text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full shadow-2xs truncate max-w-full">
-              To: {post.dedicated_to}
+            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[8.5px] sm:text-[10px] font-black rounded-full truncate max-w-full flex items-center gap-1">
+              <span className="shrink-0">💝 For:</span>
+              <span className="truncate">{post.dedicated_to}</span>
             </span>
           ) : (
-            <span className="px-1.5 py-0.5 bg-black/10 text-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] font-black rounded-full uppercase truncate">
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[8px] sm:text-[9px] font-bold rounded-full truncate">
               {post.department.replace('College of ', '')}
             </span>
           )}
         </div>
 
-        {/* Center Oval/Circular Artwork Cover */}
-        <div className="relative my-auto flex items-center justify-center">
-          <div className="w-14 h-14 xs:w-16 xs:h-16 sm:w-22 sm:h-22 rounded-full border-2 sm:border-3 border-black overflow-hidden shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white shrink-0 group-hover:scale-105 group-hover:rotate-3 transition-transform duration-300 relative flex items-center justify-center">
-            {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
-              <img
-                src={post.song_image_url}
-                alt={post.song_title}
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-[#fff1f3]">
-                <Music className="w-6 h-6 sm:w-8 sm:h-8 text-black/70" />
-              </div>
-            )}
-            {/* Play Overlay on Hover */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white backdrop-blur-[1px]">
-              <PlayCircle className="w-6 h-6 sm:w-8 sm:h-8 text-[#ffc900] fill-black" />
+        {/* Vintage CD Disc Player Artwork — Click to Play Automatically */}
+        <div
+          onClick={(e) => handleTogglePlaySong(e, post)}
+          className="relative my-auto flex items-center justify-center py-1 cursor-pointer group/cd"
+          title={isThisPlaying ? "Click to Pause" : "Click to Play Song"}
+        >
+          <div
+            className={`w-20 h-20 xs:w-24 xs:h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-neutral-950 via-neutral-800 to-neutral-900 shadow-md group-hover/cd:shadow-xl relative flex items-center justify-center transition-all duration-500 ${
+              isThisPlaying ? 'animate-spin shadow-xl scale-105' : 'group-hover/cd:scale-105 group-hover/cd:rotate-45'
+            }`}
+            style={{ animationDuration: '3.5s', animationTimingFunction: 'linear' }}
+          >
+            {/* CD Concentric Grooves */}
+            <div className="absolute inset-1.5 rounded-full border border-white/10 pointer-events-none" />
+            <div className="absolute inset-3.5 rounded-full border border-white/5 pointer-events-none" />
+            <div className="absolute inset-5 rounded-full border border-white/10 pointer-events-none" />
+
+            {/* Glossy Iridescent CD Sheen */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/15 via-transparent to-white/10 pointer-events-none" />
+
+            {/* Center Album Art Circular Sticker */}
+            <div className="w-9 h-9 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-full overflow-hidden border border-neutral-700/80 shadow-inner relative flex items-center justify-center bg-white shrink-0 z-10">
+              {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
+                <img
+                  src={post.song_image_url}
+                  alt={post.song_title}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-neutral-100">
+                  <Music className="w-4 h-4 sm:w-5 sm:h-5 text-neutral-500" />
+                </div>
+              )}
+
+              {/* Center CD Spindle Hole */}
+              <div className="absolute w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#f4f4f0] border border-neutral-800 shadow-inner z-20" />
+            </div>
+
+            {/* Hover / Playing Status Overlay */}
+            <div
+              className={`absolute inset-0 rounded-full bg-black/40 flex items-center justify-center text-white backdrop-blur-[0.5px] z-30 transition-opacity ${
+                isThisPlaying || isThisLoading ? 'opacity-100' : 'opacity-0 group-hover/cd:opacity-100'
+              }`}
+            >
+              {isThisLoading ? (
+                <RefreshCw className="w-6 h-6 sm:w-8 sm:h-8 text-[#ffc900] animate-spin drop-shadow" />
+              ) : isThisPlaying ? (
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/70 border border-white/40 flex items-center justify-center shadow-md">
+                  <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffc900] fill-[#ffc900]" />
+                </div>
+              ) : (
+                <PlayCircle className="w-6 h-6 sm:w-8 sm:h-8 text-[#ffc900] fill-black/60 drop-shadow" />
+              )}
             </div>
           </div>
         </div>
 
         {/* Music Title and Artist */}
         <div className="w-full flex flex-col items-center mt-1">
-          <h3 className={`text-[10.5px] xs:text-xs sm:text-sm font-black truncate w-full tracking-tight leading-tight ${isPostAdmin && !isPinned ? 'text-white' : 'text-black'}`}>
+          <h3 className="text-[10.5px] xs:text-xs sm:text-sm font-extrabold truncate w-full tracking-tight leading-tight text-neutral-900">
             {post.song_title || 'Untitled Track'}
           </h3>
-          <p className={`text-[8.5px] xs:text-[9.5px] sm:text-xs font-bold truncate w-full mt-0.5 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`}>
+          <p className="text-[8.5px] xs:text-[9.5px] sm:text-xs font-semibold truncate w-full mt-0.5 text-neutral-500">
             {post.song_artist || 'Unknown Artist'}
           </p>
 
-          {/* Admin Approve Button — shown on card when pending */}
+          {/* Admin Approve Button */}
           {isAdminUser && post.status === 'pending' && (
             <button
               type="button"
@@ -518,34 +636,34 @@ export const MusicWall: React.FC = () => {
                 e.stopPropagation();
                 approveFreedomPost(post.id);
               }}
-              className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-black bg-emerald-500 text-white font-black text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] shadow-xs active:scale-95 hover:bg-emerald-600 transition-all"
-              title="Admin: Approve & Publish to Music Wall"
+              className="mt-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold text-[8px] sm:text-[9px] shadow-xs active:scale-95 hover:bg-emerald-600 transition-all cursor-pointer"
+              title="Admin: Approve & Publish"
             >
               <CheckCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
               <span>Approve</span>
             </button>
           )}
 
-          {/* Bottom Indicators */}
-          <div className="mt-1.5 flex items-center justify-center gap-1 text-[8px] xs:text-[9px] sm:text-[10px] font-black">
+          {/* Bottom Indicators (Like & Comment) */}
+          <div className="mt-1 flex items-center justify-center gap-1.5 text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-bold text-gray-500">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 likeFreedomPost(post.id);
               }}
-              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-black shadow-2xs transition-all active:scale-95 ${
-                hasLiked ? 'bg-rose-100 text-rose-600 font-extrabold' : 'bg-white/80 text-black hover:bg-white'
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full transition-colors cursor-pointer ${
+                hasLiked ? 'text-rose-600 bg-rose-50 font-black' : 'hover:text-black hover:bg-gray-100'
               }`}
               title={hasLiked ? "Unlike song dedication" : "Like song dedication"}
             >
-              <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? 'fill-rose-500 text-rose-500' : 'text-black'}`} />
+              <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
               <span>{post.likes_count || 0}</span>
             </button>
             {(commentsCountMap[post.id] || 0) > 0 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/80 border border-black shadow-2xs text-black">
-                <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-black" />
-                {commentsCountMap[post.id]}
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-gray-400">
+                <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                <span>{commentsCountMap[post.id]}</span>
               </span>
             )}
           </div>
@@ -1343,6 +1461,66 @@ export const MusicWall: React.FC = () => {
             </div>
           </div>
         </div>
+        );
+      })()}
+
+      {/* ───────────────────── STICKY NOW PLAYING DOCK ───────────────────── */}
+      {(() => {
+        const activePlayingPost = playingPostId ? freedomPosts.find((p) => p.id === playingPostId) : null;
+        if (!activePlayingPost) return null;
+
+        return (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md bg-neutral-950/95 backdrop-blur-md text-white rounded-2xl p-2.5 sm:p-3 shadow-2xl border border-white/20 flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-200">
+            {/* Mini Spinning CD */}
+            <div
+              className="w-10 h-10 rounded-full bg-neutral-900 border border-white/30 overflow-hidden shrink-0 flex items-center justify-center animate-spin relative shadow-inner"
+              style={{ animationDuration: '3s', animationTimingFunction: 'linear' }}
+            >
+              {activePlayingPost.song_image_url && !activePlayingPost.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
+                <img src={activePlayingPost.song_image_url} alt={activePlayingPost.song_title} className="w-full h-full object-cover" />
+              ) : (
+                <Music className="w-4 h-4 text-white" />
+              )}
+              <div className="absolute w-2.5 h-2.5 rounded-full bg-black border border-white/60 shadow-inner" />
+            </div>
+
+            {/* Track Info */}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-black truncate">{activePlayingPost.song_title || 'Untitled Track'}</div>
+              <div className="text-[10px] text-gray-400 font-semibold truncate">{activePlayingPost.song_artist || 'Unknown Artist'}</div>
+              {activePlayingPost.dedicated_to && (
+                <div className="text-[9px] text-rose-400 font-bold truncate">💝 For: {activePlayingPost.dedicated_to}</div>
+              )}
+            </div>
+
+            {/* Controls */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={(e) => handleTogglePlaySong(e, activePlayingPost)}
+                className="w-8 h-8 rounded-full bg-[#ffc900] text-black flex items-center justify-center active:scale-95 transition-transform cursor-pointer shadow-md"
+                title="Pause / Resume"
+              >
+                {activeAudioRef.current && !activeAudioRef.current.paused ? (
+                  <Pause className="w-3.5 h-3.5 fill-black" />
+                ) : (
+                  <Play className="w-3.5 h-3.5 fill-black ml-0.5" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeAudioRef.current) activeAudioRef.current.pause();
+                  setPlayingPostId(null);
+                }}
+                className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close Player"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         );
       })()}
     </div>

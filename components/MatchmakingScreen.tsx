@@ -92,7 +92,7 @@ export const MatchmakingScreen: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   if (isTimedOut) {
     return (
-      <div className="min-h-[75vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300">
+      <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300">
         {/* Plain borderless Animation */}
         <div className="w-52 h-52 sm:w-60 sm:h-60 flex items-center justify-center">
           <DotLottieReact
@@ -156,7 +156,7 @@ export const MatchmakingScreen: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   if (isSearching) {
     return (
-      <div className="min-h-[75vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300">
+      <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300">
         {/* Plain borderless Animation */}
         <div className="w-52 h-52 sm:w-60 sm:h-60 flex items-center justify-center">
           <DotLottieReact

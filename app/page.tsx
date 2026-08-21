@@ -14,6 +14,7 @@ import { MusicWall } from '../components/MusicWall';
 import { BannedScreen } from '../components/BannedScreen';
 import { PrivacyPolicy } from '../components/PrivacyPolicy';
 import { TermsOfConduct } from '../components/TermsOfConduct';
+import { BlockedUsersPage } from '../components/BlockedUsersPage';
 import {
   Sparkles,
   ShieldCheck,
@@ -186,8 +187,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Top Navbar (Hidden in chatroom view) */}
-      {viewState !== 'chat' && <Navbar />}
+      {/* Top Navbar (Hidden in chatroom view and during active search) */}
+      {viewState !== 'chat' && !isSearching && <Navbar />}
 
       {/* Main Content View Switcher */}
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -205,6 +206,7 @@ export default function Home() {
         {viewState === 'music_wall' && <MusicWall />}
         {viewState === 'privacy' && <PrivacyPolicy />}
         {viewState === 'terms' && <TermsOfConduct onAccept={handleAcceptToc} isStandaloneView={true} />}
+        {viewState === 'blocked_users' && <BlockedUsersPage />}
 
         {viewState === 'landing' && (
           <div className="w-full">
@@ -614,8 +616,8 @@ export default function Home() {
         )}
       </main>
 
-      {/* FOOTER — hidden during active chat */}
-      {viewState !== 'chat' && (
+      {/* FOOTER — hidden during active chat and during active search */}
+      {viewState !== 'chat' && !isSearching && (
         <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] py-8 px-4 sm:px-8 mt-auto">
           <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType, getAvatarForPseudonym } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -41,6 +41,7 @@ interface ChatStoreState {
   partnerLeftReason: 'inactivity' | 'left' | 'disconnected' | 'exited' | 'skipped' | null;
   
   blockedUserIds: string[];
+  blockedUsers: BlockedUserInfo[];
   reports: UserReport[];
   bannedUserIds: string[];
   profanityStrikes: number;
@@ -78,6 +79,8 @@ interface ChatStoreState {
   reportPartner: (reason: string, description: string) => void;
   reportFreedomPost: (postId: string, postAuthorAlias: string, postMessage: string, reason: string, description: string) => void;
   blockPartner: () => void;
+  unblockUser: (userId: string) => void;
+  unblockAllUsers: () => void;
   triggerBotMatch: () => void;
 
   resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post', adminRemark?: string) => void;
@@ -296,6 +299,7 @@ export const useChatStore = create<ChatStoreState>()(
       partnerLeftReason: null,
 
       blockedUserIds: [],
+      blockedUsers: [],
       reports: [],
       bannedUserIds: [],
       profanityStrikes: 0,
@@ -1582,6 +1586,17 @@ export const useChatStore = create<ChatStoreState>()(
 
         const updatedReports = [newReport, ...reports];
         const updatedBlocked = [...new Set([...blockedUserIds, partner.id])];
+        const newBlockedInfo: BlockedUserInfo = {
+          id: partner.id,
+          username: partner.username,
+          department: partner.department,
+          avatar_url: partner.avatar_url,
+          blocked_at: new Date().toISOString(),
+        };
+        const updatedBlockedUsers = [
+          newBlockedInfo,
+          ...(get().blockedUsers || []).filter((u) => u.id !== partner.id),
+        ];
 
         if (typeof window !== 'undefined') {
           try {
@@ -1619,6 +1634,7 @@ export const useChatStore = create<ChatStoreState>()(
         set({
           reports: updatedReports,
           blockedUserIds: updatedBlocked,
+          blockedUsers: updatedBlockedUsers,
           actionToast: {
             type: 'report',
             message: `⚠️ Report submitted for ${partner.username}. Thank you for keeping CapiTalk safe.`,
@@ -1628,11 +1644,22 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       blockPartner: () => {
-        const { activeRoom, currentUser, blockedUserIds } = get();
+        const { activeRoom, currentUser, blockedUserIds, blockedUsers } = get();
         if (!activeRoom || !currentUser) return;
 
         const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
         const updatedBlocked = [...new Set([...blockedUserIds, partner.id])];
+        const newBlockedInfo: BlockedUserInfo = {
+          id: partner.id,
+          username: partner.username,
+          department: partner.department,
+          avatar_url: partner.avatar_url,
+          blocked_at: new Date().toISOString(),
+        };
+        const updatedBlockedUsers = [
+          newBlockedInfo,
+          ...(blockedUsers || []).filter((u) => u.id !== partner.id),
+        ];
 
         if (supabase && isSupabaseConfigured) {
           try {
@@ -1652,12 +1679,63 @@ export const useChatStore = create<ChatStoreState>()(
 
         set({
           blockedUserIds: updatedBlocked,
+          blockedUsers: updatedBlockedUsers,
           actionToast: {
             type: 'block',
             message: `🚫 ${partner.username} blocked. You will no longer be paired with them.`,
           },
         });
         get().nextMatch();
+      },
+
+      unblockUser: (userId: string) => {
+        const { currentUser, blockedUserIds, blockedUsers } = get();
+        const unblockedUser = (blockedUsers || []).find((u) => u.id === userId);
+        const name = unblockedUser ? unblockedUser.username : 'Student';
+
+        const updatedBlockedIds = (blockedUserIds || []).filter((id) => id !== userId);
+        const updatedBlockedUsers = (blockedUsers || []).filter((u) => u.id !== userId);
+
+        if (supabase && isSupabaseConfigured && currentUser) {
+          try {
+            supabase
+              .from('blocks')
+              .delete()
+              .or(`and(blocker_id.eq.${currentUser.id},blocked_id.eq.${userId}),and(blocker_id.eq.${userId},blocked_id.eq.${currentUser.id})`)
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        set({
+          blockedUserIds: updatedBlockedIds,
+          blockedUsers: updatedBlockedUsers,
+          actionToast: {
+            type: 'info',
+            message: `✅ ${name} unblocked. You can now match with them again.`,
+          },
+        });
+      },
+
+      unblockAllUsers: () => {
+        const { currentUser } = get();
+        if (supabase && isSupabaseConfigured && currentUser) {
+          try {
+            supabase
+              .from('blocks')
+              .delete()
+              .or(`blocker_id.eq.${currentUser.id},blocked_id.eq.${currentUser.id}`)
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        set({
+          blockedUserIds: [],
+          blockedUsers: [],
+          actionToast: {
+            type: 'info',
+            message: `✅ All blocked users have been unblocked.`,
+          },
+        });
       },
 
       triggerBotMatch: () => {
@@ -2461,6 +2539,7 @@ export const useChatStore = create<ChatStoreState>()(
         viewState: state.viewState,
         partnerLeft: state.partnerLeft,
         blockedUserIds: state.blockedUserIds,
+        blockedUsers: state.blockedUsers,
         reports: state.reports,
         bannedUserIds: state.bannedUserIds,
         wallNotifications: state.wallNotifications,

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CoinMascot } from './CoinMascot';
-import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft, Menu, ExternalLink } from 'lucide-react';
+import { ShieldAlert, Users, MessageSquare, ShieldCheck, UserCheck, Bell, Heart, MessageCircle, X, ArrowLeft, Menu, ExternalLink, UserX } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 import { WallNotification } from '../lib/types';
@@ -25,6 +25,7 @@ export const Navbar: React.FC = () => {
     markWallNotificationsAsRead,
     clearWallNotifications,
     setTargetPostId,
+    blockedUserIds,
   } = useChatStore();
 
   const [showNotifPopover, setShowNotifPopover] = useState(false);
@@ -116,6 +117,27 @@ export const Navbar: React.FC = () => {
               title="Campus Music Dedications"
             >
               <span> Music Wall</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewState('blocked_users')}
+              className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${
+                viewState === 'blocked_users'
+                  ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                  : 'bg-white text-black hover:bg-red-50 border border-gray-200'
+              }`}
+              title="Blocked Users"
+            >
+              <UserX className="w-3 h-3 text-red-600" />
+              <span>Blocked</span>
+              {blockedUserIds.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                  viewState === 'blocked_users' ? 'bg-white text-[#701a31]' : 'bg-red-600 text-white'
+                }`}>
+                  {blockedUserIds.length}
+                </span>
+              )}
             </button>
           </div>
 
@@ -307,6 +329,32 @@ export const Navbar: React.FC = () => {
                     🛡️ Privacy &amp; Data Policy
                   </span>
                   <span className="text-[10px] text-gray-500 font-semibold">Disclaimer</span>
+                </button>
+
+                {/* Blocked Users Section */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewState('blocked_users');
+                    setShowMenuDrawer(false);
+                  }}
+                  className={`w-full p-3 rounded-2xl border border-black/20 text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                    viewState === 'blocked_users'
+                      ? 'bg-[#701a31] text-white font-extrabold shadow-xs'
+                      : 'bg-red-50 hover:bg-red-100 text-red-700 hover:border-black'
+                  }`}
+                >
+                  <span className="flex items-center gap-2 font-black">
+                    <UserX className="w-3.5 h-3.5 text-red-600" />
+                    Blocked Users
+                  </span>
+                  {blockedUserIds.length > 0 ? (
+                    <span className="text-[10px] bg-red-600 text-white font-black px-2 py-0.5 rounded-full border border-black shadow-2xs">
+                      {blockedUserIds.length} Blocked
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-500 font-semibold">0 Blocked</span>
+                  )}
                 </button>
 
                 <a
