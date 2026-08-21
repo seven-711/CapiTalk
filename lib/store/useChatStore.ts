@@ -49,7 +49,8 @@ interface ChatStoreState {
   targetPostId: string | null;
   setTargetPostId: (id: string | null) => void;
 
-  actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error'; message: string } | null;
+  actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error' | 'info'; message: string } | null;
+  setActionToast: (toast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error' | 'info'; message: string } | null) => void;
   systemAnnouncement: { id: string; message: string; timestamp: string } | null;
   showQueueTimeoutModal: boolean;
   setShowQueueTimeoutModal: (show: boolean) => void;
@@ -66,6 +67,7 @@ interface ChatStoreState {
   startSearch: () => void;
   cancelSearch: () => void;
   sendMessage: (text?: string, imageUrl?: string, replyTo?: ChatMessage['reply_to'], gameData?: ChatMessage['game_data']) => void;
+  updateGameInviteStatus: (sessionId: string, status: 'accepted' | 'declined' | 'completed') => void;
   toggleReaction: (messageId: string, emojiKey: string) => void;
   sendTypingSignal: (isTyping: boolean) => void;
   nextMatch: () => void;
@@ -1420,6 +1422,31 @@ export const useChatStore = create<ChatStoreState>()(
         }
       },
 
+      updateGameInviteStatus: (sessionId: string, status: 'accepted' | 'declined' | 'completed') => {
+        const { messages, activeRoom } = get();
+        if (!activeRoom) return;
+
+        const updatedMessages = messages.map((msg) => {
+          if (msg.game_data && msg.game_data.session_id === sessionId) {
+            return {
+              ...msg,
+              game_data: {
+                ...msg.game_data,
+                status,
+              },
+            };
+          }
+          return msg;
+        });
+
+        set({ messages: updatedMessages });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_msgs_v4_' + activeRoom.id, JSON.stringify(updatedMessages));
+          } catch (e) {}
+        }
+      },
+
       toggleReaction: (messageId: string, emojiKey: string) => {
         const { messages, currentUser, activeRoom } = get();
         if (!currentUser || !activeRoom) return;
@@ -2225,6 +2252,7 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       clearToast: () => set({ actionToast: null }),
+      setActionToast: (toast) => set({ actionToast: toast }),
 
       broadcastAnnouncement: (message: string) => {
         const announcementObj = {

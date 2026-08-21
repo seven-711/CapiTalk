@@ -11,7 +11,7 @@ import { ReportModal } from './ReportModal';
 import { FeedbackModal } from './FeedbackModal';
 import { BlockUserModal } from './BlockUserModal';
 import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
-import { CampusGamesModal } from './CampusGamesModal';
+import { CampusGamesModal, GameType } from './CampusGamesModal';
 import {
   Send,
   Image as ImageIcon,
@@ -38,6 +38,7 @@ import {
   Flame,
   Scale,
   CheckCircle2,
+  RotateCcw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
@@ -194,6 +195,8 @@ export const ChatRoom: React.FC = () => {
     partnerLeft,
     partnerLeftReason,
     sendMessage,
+    updateGameInviteStatus,
+    setActionToast,
     toggleReaction,
     sendTypingSignal,
     nextMatch,
@@ -203,6 +206,10 @@ export const ChatRoom: React.FC = () => {
     dismissAnnouncement,
     setShowFeedbackModal,
   } = useChatStore();
+
+  const partner = activeRoom && currentUser
+    ? (activeRoom.user_one.id === currentUser.id ? activeRoom.user_two : activeRoom.user_one)
+    : null;
 
   const [text, setText] = useState('');
 
@@ -249,10 +256,28 @@ export const ChatRoom: React.FC = () => {
 
     const unsubGame = roomManager.onGameSignal((data) => {
       if (!data) return;
-      if (data.action === 'OPEN_DRAWER' || data.action === 'CHANGE_GAME') {
-        setShowGamesModal(true);
-      } else if (data.action === 'CLOSE_DRAWER') {
+      if (data.action === 'GAME_INVITE_ACCEPT') {
+        if (data.sessionId) {
+          updateGameInviteStatus(data.sessionId, 'accepted');
+        }
+        if (data.game) {
+          setTargetGame(data.game);
+          setShowGamesModal(true);
+        }
+      } else if (data.action === 'GAME_INVITE_DECLINE') {
+        if (data.sessionId) {
+          updateGameInviteStatus(data.sessionId, 'declined');
+        }
+      } else if (data.action === 'GAME_UNPARTICIPATE') {
         setShowGamesModal(false);
+        setTargetGame('menu');
+        setActionToast({
+          type: 'announcement',
+          message: `🎮 ${data.username || partner?.username || 'Partner'} left the game.`,
+        });
+      } else if (data.action === 'AUTO_RESET_AND_CLOSE') {
+        setShowGamesModal(false);
+        setTargetGame('menu');
       }
     });
 
@@ -261,7 +286,7 @@ export const ChatRoom: React.FC = () => {
       unsubStatus();
       unsubGame();
     };
-  }, []);
+  }, [partner?.username, updateGameInviteStatus, setActionToast]);
 
   // Broadcast own presence status ('online' | 'idle' | 'offline') and detect inactivity
   const broadcastMyStatus = React.useCallback((status: 'online' | 'idle' | 'offline') => {
@@ -440,12 +465,48 @@ export const ChatRoom: React.FC = () => {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGamesModal, setShowGamesModal] = useState(false);
+  const [targetGame, setTargetGame] = useState<GameType>('menu');
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
 
   const handleOpenGames = () => {
+    setTargetGame('menu');
     setShowGamesModal(true);
-    roomManager.sendGameSignal({ action: 'OPEN_DRAWER', game: 'menu' });
+  };
+
+  const handleAcceptGameInvite = (msg: ChatMessage) => {
+    if (!msg.game_data) return;
+    const game = (msg.game_data.game_id || 'menu') as GameType;
+    const sessionId = msg.game_data.session_id;
+
+    updateGameInviteStatus(sessionId, 'accepted');
+
+    roomManager.sendGameSignal({
+      action: 'GAME_INVITE_ACCEPT',
+      game,
+      sessionId,
+    });
+
+    setTargetGame(game);
+    setShowGamesModal(true);
+  };
+
+  const handleDeclineGameInvite = (msg: ChatMessage) => {
+    if (!msg.game_data) return;
+    const sessionId = msg.game_data.session_id;
+
+    updateGameInviteStatus(sessionId, 'declined');
+
+    roomManager.sendGameSignal({
+      action: 'GAME_INVITE_DECLINE',
+      game: msg.game_data.game_id,
+      sessionId,
+    });
+  };
+
+  const handleReopenGame = (game: GameType) => {
+    setTargetGame(game);
+    setShowGamesModal(true);
   };
   const [replyTo, setReplyTo] = useState<any | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -604,7 +665,7 @@ export const ChatRoom: React.FC = () => {
     prevTypingRef.current = partnerTyping;
   }, [messages, partnerTyping]);
 
-  if (!activeRoom || !currentUser) {
+  if (!activeRoom || !currentUser || !partner) {
     return (
       <div className="text-center py-16">
         <p className="text-[#242423]">No active chat room found.</p>
@@ -615,13 +676,11 @@ export const ChatRoom: React.FC = () => {
     );
   }
 
-  const partner = activeRoom.user_one.id === currentUser.id ? activeRoom.user_two : activeRoom.user_one;
-
   // Premium background & dark mode UI for BOTH participants whenever an Admin or bot_admin is in the room
   const isAdminRoom = Boolean(
     currentUser?.is_admin === true ||
-    partner?.is_admin === true ||
-    partner?.id === 'bot_admin'
+    partner.is_admin === true ||
+    partner.id === 'bot_admin'
   );
 
   const handleSend = (e?: React.FormEvent) => {
@@ -915,7 +974,7 @@ export const ChatRoom: React.FC = () => {
       >
         <div className="space-y-3 sm:space-y-4">
           {messages.map((msg) => {
-          if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
+          if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.game_data && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
             return null;
           }
 
@@ -1202,6 +1261,211 @@ export const ChatRoom: React.FC = () => {
                               💬 Drop your takes in the chat!
                             </span>
                           </div>
+                        </div>
+                      );
+                    })() : msg.game_data ? (() => {
+                      const gd = msg.game_data;
+                      const isInviter = isMe;
+                      const isPending = gd.status === 'invited';
+                      const isAccepted = gd.status === 'accepted';
+                      const isDeclined = gd.status === 'declined';
+                      const isCompleted = gd.status === 'completed';
+
+                      return (
+                        <div className="space-y-2.5 my-0.5 w-full max-w-[310px] sm:max-w-[340px] select-text">
+                          {/* Mini Header Card */}
+                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-black/10 dark:border-white/10">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-[#ffc900] text-black border-2 border-black flex items-center justify-center text-base shadow-xs font-black shrink-0">
+                                {gd.game_emoji || '🎮'}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className={`text-xs font-black tracking-tight leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                                  {gd.game_name || 'Campus Mini-Game'}
+                                </h4>
+                                <span className={`text-[10px] font-bold block leading-tight ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                  {isCompleted
+                                    ? 'Match Finished'
+                                    : isInviter
+                                    ? 'Game Invitation Sent'
+                                    : `${msg.sender_username} invited you`}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Status Badge */}
+                            {isPending && (
+                              <span className="px-2 py-0.5 bg-amber-400/20 text-amber-600 dark:text-amber-300 font-extrabold text-[10px] rounded-full border border-amber-400/40 shrink-0">
+                                ⏳ Pending
+                              </span>
+                            )}
+                            {isAccepted && (
+                              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-extrabold text-[10px] rounded-full border border-emerald-500/40 shrink-0">
+                                🎮 Playing
+                              </span>
+                            )}
+                            {isDeclined && (
+                              <span className="px-2 py-0.5 bg-zinc-500/20 text-zinc-500 dark:text-zinc-400 font-extrabold text-[10px] rounded-full border border-zinc-500/40 shrink-0">
+                                ✕ Declined
+                              </span>
+                            )}
+                            {isCompleted && (
+                              <span className="px-2 py-0.5 bg-[#00e599]/20 text-[#0f5132] dark:text-[#00e599] font-black text-[10px] rounded-full border border-[#00e599]/40 shrink-0">
+                                🏁 Result
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Completed Game Feedback Banner */}
+                          {isCompleted && (
+                            <div className="space-y-2.5">
+                              <div className={`p-3 rounded-2xl border-2 border-black text-center space-y-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                                gd.winner_id === 'draw'
+                                  ? 'bg-[#ffc900] text-black'
+                                  : gd.winner_id === currentUser.id
+                                  ? 'bg-[#00e599] text-black'
+                                  : 'bg-[#ff90e8] text-black'
+                              }`}>
+                                <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm font-black tracking-tight text-black">
+                                  {gd.winner_id === 'draw' ? (
+                                    <span>🤝 Match Ended in a Draw!</span>
+                                  ) : gd.winner_id === currentUser.id ? (
+                                    <span>🏆 Victory! You Won!</span>
+                                  ) : (
+                                    <span>🎉 {gd.game_state?.winnerName || partner.username} Won!</span>
+                                  )}
+                                </div>
+
+                                {/* Connect 4 Match Result Breakdown */}
+                                {gd.game_id === 'connect4' && gd.game_state?.scores && (
+                                  <div className="p-2 bg-white/95 rounded-xl border border-black text-[11px] font-black flex items-center justify-around gap-2 text-black shadow-2xs">
+                                    <span className="flex items-center gap-1">
+                                      <span className="w-2.5 h-2.5 rounded-full bg-[#dc341e] border border-black" />
+                                      {gd.game_state.p1Name}: {gd.game_state.scores.p1}
+                                    </span>
+                                    <span className="text-black/30 font-bold">•</span>
+                                    <span className="flex items-center gap-1">
+                                      <span className="w-2.5 h-2.5 rounded-full bg-[#ffc900] border border-black" />
+                                      {gd.game_state.p2Name}: {gd.game_state.scores.p2}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Tic-Tac-Toe Match Result Breakdown */}
+                                {gd.game_id === 'tictactoe' && gd.game_state?.scores && (
+                                  <div className="p-2 bg-white/95 rounded-xl border border-black text-[11px] font-black flex items-center justify-around gap-2 text-black shadow-2xs">
+                                    <span className="flex items-center gap-1 text-[#701a31]">
+                                      ✕ {gd.game_state.p1Name}: {gd.game_state.scores.p1}
+                                    </span>
+                                    <span className="text-black/30 font-bold">•</span>
+                                    <span className="flex items-center gap-1 text-[#dc341e]">
+                                      ◯ {gd.game_state.p2Name}: {gd.game_state.scores.p2}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Rock Paper Scissors Series Breakdown */}
+                                {gd.game_id === 'rockpaperscissors' && (
+                                  <div className="p-2 bg-white/95 rounded-xl border border-black text-[11px] font-black flex items-center justify-around gap-2 text-black shadow-2xs">
+                                    <span className="flex items-center gap-1">
+                                      ✌️ {gd.game_state?.p1Name || currentUser.username}: {gd.game_state?.scores?.me ?? 3}
+                                    </span>
+                                    <span className="text-black/30 font-bold">•</span>
+                                    <span className="flex items-center gap-1">
+                                      ✌️ {gd.game_state?.p2Name || partner.username}: {gd.game_state?.scores?.partner ?? 0}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action: Play Another Round */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenGames();
+                                }}
+                                className="w-full py-2 px-3 bg-white hover:bg-black hover:text-white text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Play Another Game</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Invitation Body / Action Section */}
+                          {isPending && (
+                            <div>
+                              {isInviter ? (
+                                <div className={`p-2.5 rounded-xl border text-center space-y-1 ${
+                                  isDarkMode ? 'bg-zinc-800/60 border-zinc-700' : 'bg-zinc-50 border-zinc-200'
+                                }`}>
+                                  <p className={`text-xs font-bold ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                    Waiting for <span className="font-extrabold text-black dark:text-white">{partner.username}</span> to accept...
+                                  </p>
+                                  <span className="text-[10px] text-zinc-400 block">
+                                    The match will start automatically once accepted!
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <p className={`text-xs font-bold leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                    Ready to play a quick round of <span className="font-extrabold text-black dark:text-white">{gd.game_name}</span> together?
+                                  </p>
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAcceptGameInvite(msg);
+                                      }}
+                                      className="flex-1 py-2 px-3 bg-[#00e599] hover:bg-[#00c985] text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Gamepad2 className="w-3.5 h-3.5" />
+                                      <span>Accept &amp; Play</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeclineGameInvite(msg);
+                                      }}
+                                      className="py-2 px-3 bg-white hover:bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                    >
+                                      <span>Decline</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {isAccepted && (
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                                <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                                <span>Invitation accepted!</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReopenGame(gd.game_id as GameType);
+                                }}
+                                className="px-2.5 py-1 bg-black text-[#00e599] font-black text-[11px] rounded-lg border border-black shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                              >
+                                Open Game
+                              </button>
+                            </div>
+                          )}
+
+                          {isDeclined && (
+                            <div className="p-2.5 bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-xl text-center">
+                              <p className={`text-xs font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                                {isInviter ? `${partner.username} declined this invitation.` : 'You declined this game invitation.'}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })() : msg.message ? (
@@ -1673,10 +1937,14 @@ export const ChatRoom: React.FC = () => {
       {/* Campus Games & Icebreakers Bottom Sheet Modal */}
       <CampusGamesModal
         isOpen={showGamesModal}
-        onClose={() => setShowGamesModal(false)}
+        onClose={() => {
+          setShowGamesModal(false);
+          setTargetGame('menu');
+        }}
         currentUser={currentUser}
         partner={partner}
         isDarkMode={isDarkMode || isAdminRoom}
+        initialGame={targetGame}
       />
 
 

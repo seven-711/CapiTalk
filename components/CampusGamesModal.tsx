@@ -42,6 +42,7 @@ interface CampusGamesModalProps {
   currentUser: UserProfile;
   partner: UserProfile;
   isDarkMode?: boolean;
+  initialGame?: GameType;
 }
 
 export interface FlagQuestion {
@@ -343,8 +344,15 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   currentUser,
   partner,
   isDarkMode = false,
+  initialGame = 'menu',
 }) => {
-  const [activeGame, setActiveGame] = useState<GameType>('menu');
+  const [activeGame, setActiveGame] = useState<GameType>(initialGame);
+
+  useEffect(() => {
+    if (isOpen && initialGame) {
+      setActiveGame(initialGame);
+    }
+  }, [isOpen, initialGame]);
 
   // Determines who is Player 1 (Red / X / Host) vs Player 2 (Yellow / O / Guest) based on deterministic ID sort
   const isHost = currentUser.id < partner.id;
@@ -385,7 +393,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [flagFeedbackStep, setFlagFeedbackStep] = useState<number>(0);
   const [isAutoPlayingFeedback, setIsAutoPlayingFeedback] = useState<boolean>(true);
   const [flagSharedToChat, setFlagSharedToChat] = useState(false);
-  const { sendMessage } = useChatStore();
+  const { sendMessage, setActionToast } = useChatStore();
 
   const flagTimerRef = useRef<NodeJS.Timeout | null>(null);
   const flagAutoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -424,6 +432,8 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
   const [rpsPartnerChoice, setRpsPartnerChoice] = useState<'rock' | 'paper' | 'scissors' | null>(null);
   const [rpsResult, setRpsResult] = useState<'win' | 'lose' | 'draw' | null>(null);
   const [rpsScores, setRpsScores] = useState({ me: 0, partner: 0 });
+  const [rpsRoundNumber, setRpsRoundNumber] = useState(1);
+  const rpsNextRoundTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [victoryData, setVictoryData] = useState<{
     winnerUsername: string;
@@ -443,10 +453,13 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     setTttTurn(1);
     setTttWinner(null);
 
-    // Fresh RPS state
+    // Fresh RPS state (First to 3 wins, Best of 5)
     setRpsMyChoice(null);
     setRpsPartnerChoice(null);
     setRpsResult(null);
+    setRpsScores({ me: 0, partner: 0 });
+    setRpsRoundNumber(1);
+    if (rpsNextRoundTimerRef.current) clearTimeout(rpsNextRoundTimerRef.current);
 
     // Fresh Red Flag or Green Flag state
     setFlagIndex(0);
@@ -520,6 +533,13 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           break;
 
         case 'CLOSE_DRAWER':
+          onClose();
+          break;
+
+        case 'GAME_UNPARTICIPATE':
+          setVictoryData(null);
+          resetAllGameBoards();
+          setActiveGame('menu');
           onClose();
           break;
 
@@ -637,10 +657,22 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           setRpsPartnerChoice(data.choice);
           break;
 
-        case 'RPS_RESET':
+        case 'RPS_NEXT_ROUND':
+          if (rpsNextRoundTimerRef.current) clearTimeout(rpsNextRoundTimerRef.current);
           setRpsMyChoice(null);
           setRpsPartnerChoice(null);
           setRpsResult(null);
+          if (data.roundNumber) setRpsRoundNumber(data.roundNumber);
+          if (data.scores) setRpsScores(data.scores);
+          break;
+
+        case 'RPS_RESET':
+          if (rpsNextRoundTimerRef.current) clearTimeout(rpsNextRoundTimerRef.current);
+          setRpsMyChoice(null);
+          setRpsPartnerChoice(null);
+          setRpsResult(null);
+          setRpsScores({ me: 0, partner: 0 });
+          setRpsRoundNumber(1);
           break;
       }
     });
@@ -898,30 +930,76 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     }
   };
 
-  // ─── RPS EVALUATION ─────────────────────────────────────────────────────────
+  // ─── RPS EVALUATION (BEST OF 5 / FIRST TO 3 WINS) ─────────────────────────
   useEffect(() => {
     if (activeGame !== 'rockpaperscissors') return;
     if (rpsMyChoice && rpsPartnerChoice && !rpsResult) {
+      let result: 'win' | 'lose' | 'draw' = 'draw';
+      let nextScores = { ...rpsScores };
       if (rpsMyChoice === rpsPartnerChoice) {
+        result = 'draw';
         setRpsResult('draw');
       } else if (
         (rpsMyChoice === 'rock' && rpsPartnerChoice === 'scissors') ||
         (rpsMyChoice === 'paper' && rpsPartnerChoice === 'rock') ||
         (rpsMyChoice === 'scissors' && rpsPartnerChoice === 'paper')
       ) {
+        result = 'win';
+        nextScores.me += 1;
         setRpsResult('win');
-        setRpsScores((s) => ({ ...s, me: s.me + 1 }));
-        triggerVictory(myPlayerId, 'Rock Paper Scissors');
+        setRpsScores(nextScores);
       } else {
+        result = 'lose';
+        nextScores.partner += 1;
         setRpsResult('lose');
-        setRpsScores((s) => ({ ...s, partner: s.partner + 1 }));
-        triggerVictory(myPlayerId === 1 ? 2 : 1, 'Rock Paper Scissors');
+        setRpsScores(nextScores);
+      }
+
+      // Check if match won (first to 3 wins)
+      const isMatchOver = nextScores.me >= 3 || nextScores.partner >= 3;
+      if (isMatchOver) {
+        const matchWinnerId = nextScores.me >= 3 ? myPlayerId : (myPlayerId === 1 ? 2 : 1);
+        triggerVictory(matchWinnerId, 'Rock Paper Scissors (Best of 5)');
+
+        // Automatically broadcast completed match banner to chat (invoker or host sends once)
+        if (isHost) {
+          const winnerName = nextScores.me >= 3 ? currentUser.username : partner.username;
+          const loserScore = nextScores.me >= 3 ? nextScores.partner : nextScores.me;
+          const msgText = `👑 ${winnerName} won the Rock Paper Scissors Series (3 - ${loserScore})!`;
+
+          sendMessage(
+            msgText,
+            undefined,
+            undefined,
+            {
+              game_id: 'rockpaperscissors',
+              game_name: 'Rock Paper Scissors (Best of 5)',
+              game_emoji: '✌️',
+              session_id: 'rps_' + Date.now(),
+              status: 'completed',
+              scores: {
+                [currentUser.username]: nextScores.me,
+                [partner.username]: nextScores.partner,
+              },
+              winner_id: nextScores.me >= 3 ? currentUser.id : partner.id,
+              game_state: {
+                gameType: 'rockpaperscissors',
+                winnerName,
+                isDraw: false,
+                p1Name: currentUser.username,
+                p2Name: partner.username,
+                scores: nextScores,
+                totalRounds: rpsRoundNumber,
+              }
+            }
+          );
+        }
       }
     }
-  }, [activeGame, rpsMyChoice, rpsPartnerChoice, rpsResult]);
+  }, [activeGame, rpsMyChoice, rpsPartnerChoice, rpsResult, isHost, currentUser.username, partner.username, currentUser.id, partner.id, myPlayerId, rpsScores, rpsRoundNumber, sendMessage]);
 
   const handleRpsPick = (choice: 'rock' | 'paper' | 'scissors') => {
-    if (rpsMyChoice) return;
+    if (rpsMyChoice || (rpsScores.me >= 3 || rpsScores.partner >= 3)) return;
     setRpsMyChoice(choice);
     roomManager.sendGameSignal({
       action: 'RPS_PICK',
@@ -929,10 +1007,31 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     });
   };
 
-  const handleRpsReset = () => {
+  const handleRpsNextRound = () => {
+    if (rpsNextRoundTimerRef.current) clearTimeout(rpsNextRoundTimerRef.current);
+    const nextRound = rpsResult === 'draw' ? rpsRoundNumber : rpsRoundNumber + 1;
     setRpsMyChoice(null);
     setRpsPartnerChoice(null);
     setRpsResult(null);
+    setRpsRoundNumber(nextRound);
+
+    roomManager.sendGameSignal({
+      action: 'RPS_NEXT_ROUND',
+      roundNumber: nextRound,
+      scores: {
+        me: rpsScores.partner, // partner's perspective
+        partner: rpsScores.me,
+      },
+    });
+  };
+
+  const handleRpsReset = () => {
+    if (rpsNextRoundTimerRef.current) clearTimeout(rpsNextRoundTimerRef.current);
+    setRpsMyChoice(null);
+    setRpsPartnerChoice(null);
+    setRpsResult(null);
+    setRpsScores({ me: 0, partner: 0 });
+    setRpsRoundNumber(1);
     roomManager.sendGameSignal({ action: 'RPS_RESET' });
   };
 
@@ -994,6 +1093,45 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
       triggerVictory(winnerResult, 'Connect 4');
     }
 
+    // Automatically post completed match banner to chat
+    if (winnerResult !== null) {
+      const winnerName = winnerResult === 'draw'
+        ? 'Draw Game'
+        : (winnerResult === 1 ? (isHost ? currentUser.username : partner.username) : (isHost ? partner.username : currentUser.username));
+      const isMeWinner = (winnerResult === myPlayerId);
+
+      const msgText = winnerResult === 'draw'
+        ? `🤝 Connect 4: Match ended in a draw between ${currentUser.username} and ${partner.username}!`
+        : `🏆 ${winnerName} won the Connect 4 match (${updatedScores.p1} - ${updatedScores.p2})!`;
+
+      sendMessage(
+        msgText,
+        undefined,
+        undefined,
+        {
+          game_id: 'connect4',
+          game_name: 'Connect 4 in a Row',
+          game_emoji: '🔴',
+          session_id: 'c4_' + Date.now(),
+          status: 'completed',
+          scores: {
+            [isHost ? currentUser.username : partner.username]: updatedScores.p1,
+            [isHost ? partner.username : currentUser.username]: updatedScores.p2,
+          },
+          winner_id: winnerResult === 'draw' ? 'draw' : (isMeWinner ? currentUser.id : partner.id),
+          game_state: {
+            gameType: 'connect4',
+            winnerResult,
+            winnerName,
+            isDraw: winnerResult === 'draw',
+            p1Name: isHost ? currentUser.username : partner.username,
+            p2Name: isHost ? partner.username : currentUser.username,
+            scores: updatedScores,
+          }
+        }
+      );
+    }
+
     roomManager.sendGameSignal({
       action: 'C4_MOVE',
       board: nextBoard,
@@ -1044,6 +1182,45 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
       triggerVictory(winnerResult, 'Tic-Tac-Toe');
     }
 
+    // Automatically post completed match banner to chat
+    if (winnerResult !== null) {
+      const winnerName = winnerResult === 'draw'
+        ? 'Draw Game'
+        : (winnerResult === 1 ? (isHost ? currentUser.username : partner.username) : (isHost ? partner.username : currentUser.username));
+      const isMeWinner = (winnerResult === myPlayerId);
+
+      const msgText = winnerResult === 'draw'
+        ? `🤝 Tic-Tac-Toe: Match ended in a draw between ${currentUser.username} and ${partner.username}!`
+        : `🏆 ${winnerName} won the Tic-Tac-Toe match (${updatedScores.p1} - ${updatedScores.p2})!`;
+
+      sendMessage(
+        msgText,
+        undefined,
+        undefined,
+        {
+          game_id: 'tictactoe',
+          game_name: 'Tic-Tac-Toe',
+          game_emoji: '✕',
+          session_id: 'ttt_' + Date.now(),
+          status: 'completed',
+          scores: {
+            [isHost ? currentUser.username : partner.username]: updatedScores.p1,
+            [isHost ? partner.username : currentUser.username]: updatedScores.p2,
+          },
+          winner_id: winnerResult === 'draw' ? 'draw' : (isMeWinner ? currentUser.id : partner.id),
+          game_state: {
+            gameType: 'tictactoe',
+            winnerResult,
+            winnerName,
+            isDraw: winnerResult === 'draw',
+            p1Name: isHost ? currentUser.username : partner.username,
+            p2Name: isHost ? partner.username : currentUser.username,
+            scores: updatedScores,
+          }
+        }
+      );
+    }
+
     roomManager.sendGameSignal({
       action: 'TTT_MOVE',
       board: nextBoard,
@@ -1060,14 +1237,73 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     roomManager.sendGameSignal({ action: 'TTT_RESET' });
   };
 
+  const handleSendGameInvite = (game: GameType) => {
+    let gameName = 'Campus Mini-Game';
+    let gameEmoji = '🎮';
+    if (game === 'redgreenflag') {
+      gameName = 'Red Flag or Green Flag?';
+      gameEmoji = '🚩';
+    } else if (game === 'connect4') {
+      gameName = 'Connect 4 in a Row';
+      gameEmoji = '🔴';
+    } else if (game === 'tictactoe') {
+      gameName = 'Tic-Tac-Toe';
+      gameEmoji = '✕';
+    } else if (game === 'rockpaperscissors') {
+      gameName = 'Rock Paper Scissors';
+      gameEmoji = '✌️';
+    }
+
+    const sessionId = `invite_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    sendMessage(
+      `🎮 Let's play ${gameName}!`,
+      undefined,
+      undefined,
+      {
+        game_id: game,
+        game_name: gameName,
+        game_emoji: gameEmoji,
+        session_id: sessionId,
+        status: 'invited',
+      }
+    );
+
+    setActionToast({
+      type: 'announcement',
+      message: `🎮 Invitation to play ${gameName} sent in chat!`,
+    });
+
+    onClose();
+  };
+
   const switchGame = (game: GameType) => {
     setActiveGame(game);
-    roomManager.sendGameSignal({ action: 'CHANGE_GAME', game });
+  };
+
+  const handleLeaveGame = () => {
+    if (activeGame !== 'menu') {
+      roomManager.sendGameSignal({
+        action: 'GAME_UNPARTICIPATE',
+        game: activeGame,
+        username: currentUser.username,
+      });
+      resetAllGameBoards();
+      setActiveGame('menu');
+      onClose();
+    }
   };
 
   const handleClose = () => {
+    if (activeGame !== 'menu' && !flagIsFinished) {
+      roomManager.sendGameSignal({
+        action: 'GAME_UNPARTICIPATE',
+        game: activeGame,
+        username: currentUser.username,
+      });
+      resetAllGameBoards();
+      setActiveGame('menu');
+    }
     onClose();
-    roomManager.sendGameSignal({ action: 'CLOSE_DRAWER' });
   };
 
   if (!isOpen) return null;
@@ -1076,21 +1312,19 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       {/* Bottom Sheet Modal Container */}
       <div
-        className={`w-full max-w-2xl mx-auto rounded-t-3xl border-t-3 border-x-3 border-black shadow-[0px_-8px_24px_rgba(0,0,0,0.3)] flex flex-col max-h-[88vh] overflow-hidden relative animate-in slide-in-from-bottom duration-300 ${
-          isDarkMode ? 'bg-[#18181b] text-white' : 'bg-[#f4f4f0] text-black'
-        }`}
+        className={`w-full max-w-2xl mx-auto rounded-t-3xl border-t-3 border-x-3 border-black shadow-[0px_-8px_24px_rgba(0,0,0,0.3)] flex flex-col max-h-[88vh] overflow-hidden relative animate-in slide-in-from-bottom duration-300 bg-[#f4f4f0] text-black`}
       >
         {/* Modal Top Header Bar */}
         <div className="px-4 sm:px-6 py-3.5 border-b-2 border-black flex items-center justify-between bg-[#ffc900] text-black shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center border border-black shadow-xs">
-              <Gamepad2 className="w-4 h-4" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-black text-[#ffc900] flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <Gamepad2 className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black tracking-tight leading-tight">
+              <h3 className="text-base sm:text-lg font-black tracking-tight leading-tight text-black">
                 Games &amp; Icebreakers
               </h3>
-              <p className="text-[10px] font-bold opacity-85">
+              <p className="text-[11px] font-black text-black/85">
                 Playing with {partner.username}
               </p>
             </div>
@@ -1100,16 +1334,17 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
             {activeGame !== 'menu' && (
               <button
                 type="button"
-                onClick={() => switchGame('menu')}
-                className="px-2.5 py-1 text-xs font-black bg-white hover:bg-black hover:text-white text-black rounded-lg border border-black transition-all shadow-xs"
+                onClick={handleLeaveGame}
+                className="px-3 py-1.5 text-xs font-black bg-white hover:bg-red-500 hover:text-white text-black rounded-xl border-2 border-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer flex items-center gap-1"
+                title="Leave this game for both players"
               >
-                All Games
+                <span>Leave Game</span>
               </button>
             )}
             <button
               type="button"
               onClick={handleClose}
-              className="w-8 h-8 rounded-full bg-white hover:bg-black hover:text-white text-black border border-black flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-xs"
+              className="w-9 h-9 rounded-full bg-white hover:bg-black hover:text-white text-black border-2 border-black flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
               title="Close Games Drawer"
             >
               <X className="w-4 h-4 stroke-[3]" />
@@ -1125,85 +1360,142 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
              ═══════════════════════════════════════════════════════════════════ */}
           {activeGame === 'menu' && (
             <div className="w-full space-y-4 max-w-lg mx-auto py-2">
-              <div className="text-center space-y-1">
-                <h4 className="text-lg sm:text-xl font-black">Choose a Game to Play Together</h4>
-                <p className="text-xs text-[#fffff] font-medium">
-                  Both of you will be synced in realtime automatically!
+              <div className="text-center space-y-1 bg-white p-3.5 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                <h4 className="text-lg sm:text-xl font-black text-black tracking-tight">Choose a Game to Invite</h4>
+                <p className="text-xs font-bold text-black leading-relaxed">
+                  Select a mini-game below to send an interactive invitation to <span className="underline decoration-2 decoration-[#ffc900]">{partner.username}</span> in chat!
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                 {/* Game Card 1: Red Flag or Green Flag */}
                 <button
                   type="button"
-                  onClick={() => switchGame('redgreenflag')}
-                  className="p-4 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
+                  onClick={() => handleSendGameInvite('redgreenflag')}
+                  className="p-4 bg-white hover:bg-[#fff0f3] border-2 border-black rounded-2xl flex flex-col items-start justify-between gap-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#dc341e] to-[#00e599] text-white flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                    <Flag className="w-5 h-5 stroke-[2.5]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-black text-black">Red Flag or Green Flag?</span>
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-[#ff90e8] text-black border border-black rounded-full">10s Vibe Check</span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#dc341e] to-[#00e599] text-white flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform">
+                      <Flag className="w-5 h-5 stroke-[2.5]" />
                     </div>
-                    <p className="text-xs text-gray-600 font-medium mt-0.5">
-                      10-second rapid dating & campus dilemma vibe check with instant compatibility stats.
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#ff90e8] text-black border border-black rounded-full shadow-2xs">
+                      10s Vibe Check
+                    </span>
+                  </div>
+
+                  <div className="w-full space-y-1">
+                    <h5 className="text-sm sm:text-base font-black text-black leading-snug">
+                      Red Flag or Green Flag?
+                    </h5>
+                    <p className="text-xs text-black font-semibold leading-relaxed">
+                      10-second rapid dating &amp; campus dilemma vibe check with instant compatibility stats.
                     </p>
+                  </div>
+
+                  <div className="pt-2 border-t-2 border-black/10 flex items-center justify-between w-full">
+                    <span className="text-[11px] font-black px-2.5 py-1 bg-[#ffc900] text-black rounded-xl border border-black shadow-xs group-hover:bg-black group-hover:text-white transition-colors">
+                      Send Invitation 🚀
+                    </span>
+                    <span className="text-sm font-black">🚩🟢</span>
                   </div>
                 </button>
 
                 {/* Game Card 2: Connect 4 */}
                 <button
                   type="button"
-                  onClick={() => switchGame('connect4')}
-                  className="p-4 bg-white hover:bg-[#fff1f3] border-2 border-black rounded-2xl flex flex-col items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
+                  onClick={() => handleSendGameInvite('connect4')}
+                  className="p-4 bg-white hover:bg-[#fff3eb] border-2 border-black rounded-2xl flex flex-col items-start justify-between gap-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#dc341e] text-white flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform">
-                    <div className="flex gap-0.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-white border border-black" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-300 border border-black" />
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-11 h-11 rounded-2xl bg-[#dc341e] text-white flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform">
+                      <div className="flex gap-0.5">
+                        <span className="w-3 h-3 rounded-full bg-white border border-black" />
+                        <span className="w-3 h-3 rounded-full bg-amber-300 border border-black" />
+                      </div>
                     </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#ffc900] text-black border border-black rounded-full shadow-2xs">
+                      Classic 4-in-Row
+                    </span>
                   </div>
-                  <div>
-                    <span className="text-sm font-black text-black">Connect 4 in a Row</span>
-                    <p className="text-xs text-gray-600 font-medium mt-0.5">
+
+                  <div className="w-full space-y-1">
+                    <h5 className="text-sm sm:text-base font-black text-black leading-snug">
+                      Connect 4 in a Row
+                    </h5>
+                    <p className="text-xs text-black font-semibold leading-relaxed">
                       Classic 7x6 tactical board game. Connect 4 discs to defeat your partner.
                     </p>
+                  </div>
+
+                  <div className="pt-2 border-t-2 border-black/10 flex items-center justify-between w-full">
+                    <span className="text-[11px] font-black px-2.5 py-1 bg-[#ffc900] text-black rounded-xl border border-black shadow-xs group-hover:bg-black group-hover:text-white transition-colors">
+                      Send Invitation 🚀
+                    </span>
+                    <span className="text-sm font-black">🔴🟡</span>
                   </div>
                 </button>
 
                 {/* Game Card 3: Tic Tac Toe */}
                 <button
                   type="button"
-                  onClick={() => switchGame('tictactoe')}
-                  className="p-4 bg-white hover:bg-[#fff8e6] border-2 border-black rounded-2xl flex flex-col items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
+                  onClick={() => handleSendGameInvite('tictactoe')}
+                  className="p-4 bg-white hover:bg-[#fff9e6] border-2 border-black rounded-2xl flex flex-col items-start justify-between gap-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#ffc900] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform font-black text-base">
-                    ✕ ◯
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-11 h-11 rounded-2xl bg-[#ffc900] text-black flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform font-black text-lg">
+                      ✕ ◯
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#00e599] text-black border border-black rounded-full shadow-2xs">
+                      15s Quick Duel
+                    </span>
                   </div>
-                  <div>
-                    <span className="text-sm font-black text-black">Tic-Tac-Toe</span>
-                    <p className="text-xs text-gray-600 font-medium mt-0.5">
+
+                  <div className="w-full space-y-1">
+                    <h5 className="text-sm sm:text-base font-black text-black leading-snug">
+                      Tic-Tac-Toe
+                    </h5>
+                    <p className="text-xs text-black font-semibold leading-relaxed">
                       Quick 3x3 match to settle campus debates in 15 seconds.
                     </p>
+                  </div>
+
+                  <div className="pt-2 border-t-2 border-black/10 flex items-center justify-between w-full">
+                    <span className="text-[11px] font-black px-2.5 py-1 bg-[#ffc900] text-black rounded-xl border border-black shadow-xs group-hover:bg-black group-hover:text-white transition-colors">
+                      Send Invitation 🚀
+                    </span>
+                    <span className="text-sm font-black">✕◯</span>
                   </div>
                 </button>
 
                 {/* Game Card 4: Rock Paper Scissors */}
                 <button
                   type="button"
-                  onClick={() => switchGame('rockpaperscissors')}
-                  className="p-4 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
+                  onClick={() => handleSendGameInvite('rockpaperscissors')}
+                  className="p-4 bg-white hover:bg-[#ffeaf8] border-2 border-black rounded-2xl flex flex-col items-start justify-between gap-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#ff90e8] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-110 transition-transform text-lg">
-                    ✌️
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-11 h-11 rounded-2xl bg-[#ff90e8] text-black flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform text-xl">
+                      ✌️
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#ff90e8] text-black border border-black rounded-full shadow-2xs">
+                      Best of 5
+                    </span>
                   </div>
-                  <div>
-                    <span className="text-sm font-black text-black">Rock Paper Scissors</span>
-                    <p className="text-xs text-gray-600 font-medium mt-0.5">
-                      Rapid-fire shootout. Pick secretly and reveal at the exact same moment.
+
+                  <div className="w-full space-y-1">
+                    <h5 className="text-sm sm:text-base font-black text-black leading-snug">
+                      Rock Paper Scissors
+                    </h5>
+                    <p className="text-xs text-black font-semibold leading-relaxed">
+                      First to 3 wins (Best of 5 series). Rapid shootout series with live score tracker.
                     </p>
+                  </div>
+
+                  <div className="pt-2 border-t-2 border-black/10 flex items-center justify-between w-full">
+                    <span className="text-[11px] font-black px-2.5 py-1 bg-[#ffc900] text-black rounded-xl border border-black shadow-xs group-hover:bg-black group-hover:text-white transition-colors">
+                      Send Invitation 🚀
+                    </span>
+                    <span className="text-sm font-black">✊✋✌️</span>
                   </div>
                 </button>
               </div>
@@ -1613,17 +1905,18 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     <span className="px-2 py-0.5 bg-[#00e599] text-black rounded-md flex items-center gap-1 border border-black shadow-2xs">
                       <span>{synergyPct}% Alignment</span>
                     </span>
-                    <span className="text-gray-500 font-bold">({flagStats.matches} matches)</span>
+                    <span className="text-black font-extrabold text-[11px]">({flagStats.matches} matches)</span>
                   </div>
                 </div>
 
                 {/* 10-Second Animated Timer Bar */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs font-black">
+                  <div className="flex items-center justify-between text-xs font-black text-black">
                     <span className="flex items-center gap-1 text-[#dc341e]">
                       <Timer className="w-3.5 h-3.5" />
+                      <span className="text-black font-black">Time Remaining</span>
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full border border-black ${
+                    <span className={`px-2 py-0.5 rounded-full border border-black font-black ${
                       flagTimerSeconds <= 3 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffc900] text-black'
                     }`}>
                       {flagTimerSeconds}s
@@ -1641,15 +1934,15 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
 
                 {/* Auto Skip Alert Notice */}
                 {flagAutoSkipNotice && (
-                  <div className="p-2.5 bg-amber-200 border-2 border-black text-black rounded-xl text-center text-xs font-extrabold animate-bounce">
+                  <div className="p-2.5 bg-amber-200 border-2 border-black text-black rounded-xl text-center text-xs font-black animate-bounce shadow-xs">
                     ⏳ 10 seconds expired! Moving to the next scenario...
                   </div>
                 )}
 
                 {/* Scenario Presentation Card */}
                 <div className="p-5 sm:p-6 bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
-                  <div className="absolute top-2 left-3 text-4xl text-gray-200 select-none font-serif leading-none">“</div>
-                  <div className="absolute bottom-1 right-3 text-4xl text-gray-200 select-none font-serif leading-none">”</div>
+                  <div className="absolute top-2 left-3 text-4xl text-black/10 select-none font-serif leading-none">“</div>
+                  <div className="absolute bottom-1 right-3 text-4xl text-black/10 select-none font-serif leading-none">”</div>
                   
                   <div className="relative z-10 space-y-2">
                     <p className="text-xs font-black uppercase tracking-wider text-[#701a31]">
@@ -1672,7 +1965,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                   }`}>
                     {isMatch ? (
                       <div className="space-y-0.5">
-                        <div className="font-black text-sm flex items-center justify-center gap-1.5">
+                        <div className="font-black text-sm flex items-center justify-center gap-1.5 text-black">
                           <span>
                             {flagMyChoice === 'RED'
                               ? 'You BOTH called this a Red Flag! 🚩'
@@ -1682,10 +1975,10 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                       </div>
                     ) : (
                       <div className="space-y-0.5">
-                        <div className="font-black text-sm">
-                          hmm.. a little disagreement there.
+                        <div className="font-black text-sm flex items-center justify-center gap-1.5 text-black">
+                          <span>⚡ Debate Alert! You had different takes.</span>
                         </div>
-                        <p className="text-xs font-bold">
+                        <p className="text-xs font-black text-black">
                           You chose <span className="font-black">{flagMyChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>, while {partner.username} chose <span className="font-black">{flagPartnerChoice === 'RED' ? '🚩 Red Flag' : '🟢 Green Flag'}</span>.
                         </p>
                       </div>
@@ -1694,7 +1987,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                 )}
 
                 {/* Red Flag & Green Flag Choice Buttons */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-2 gap-3.5">
                   {/* RED FLAG BUTTON */}
                   <button
                     type="button"
@@ -1702,7 +1995,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                     onClick={() => handleFlagPick('RED')}
                     className={`p-4 rounded-2xl border-3 border-black flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden group cursor-pointer ${
                       flagMyChoice === 'RED'
-                        ? 'bg-[#dc341e] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.03] ring-4 ring-red-400'
+                        ? 'bg-[#dc341e] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.03] ring-4 ring-rose-300'
                         : 'bg-white text-black hover:bg-[#ffe3e8] hover:border-[#dc341e] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px]'
                     }`}
                   >
@@ -1712,7 +2005,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                       🚩
                     </div>
                     <div className="text-center">
-                      <span className="text-sm sm:text-base font-black tracking-tight block">
+                      <span className="text-sm sm:text-base font-black tracking-tight block text-black">
                         RED FLAG
                       </span>
                     </div>
@@ -1725,7 +2018,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
 
                     {/* Partner Reveal Badge */}
                     {isAnsweredBoth && flagPartnerChoice === 'RED' && (
-                      <div className="w-full mt-1 pt-1.5 border-t border-black/20 text-[10px] font-black text-center flex items-center justify-center gap-1">
+                      <div className="w-full mt-1 pt-1.5 border-t border-black/20 text-[10px] font-black text-center flex items-center justify-center gap-1 text-black">
                         <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
                         <span>{partner.username} picked Red Flag</span>
                       </div>
@@ -1749,7 +2042,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                       🟢
                     </div>
                     <div className="text-center">
-                      <span className="text-sm sm:text-base font-black tracking-tight block">
+                      <span className="text-sm sm:text-base font-black tracking-tight block text-black">
                         GREEN FLAG
                       </span>
                     </div>
@@ -1932,75 +2225,197 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
           )}
 
           {/* ═══════════════════════════════════════════════════════════════════
-              VIEW: ROCK PAPER SCISSORS
+              VIEW: ROCK PAPER SCISSORS (BEST OF 5 / FIRST TO 3 WINS)
              ═══════════════════════════════════════════════════════════════════ */}
-          {activeGame === 'rockpaperscissors' && (
-            <div className="w-full max-w-sm mx-auto space-y-4">
-              <div className="flex items-center justify-between p-2.5 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black">
-                <span>You: {rpsScores.me} wins</span>
-                <span className="px-2 py-0.5 bg-[#ff90e8] text-black border border-black rounded-full uppercase">Shootout</span>
-                <span>{partner.username}: {rpsScores.partner} wins</span>
-              </div>
+          {activeGame === 'rockpaperscissors' && (() => {
+            const isSeriesOver = rpsScores.me >= 3 || rpsScores.partner >= 3;
+            const isMeChampion = rpsScores.me >= 3;
 
-              {/* Result Reveal Banner */}
-              {rpsResult && (
-                <div className={`p-4 border-2 border-black rounded-2xl text-center shadow-xs font-black text-sm ${
-                  rpsResult === 'win'
-                    ? 'bg-[#00e599] text-black'
-                    : rpsResult === 'lose'
-                    ? 'bg-[#dc341e] text-white'
-                    : 'bg-[#ffc900] text-black'
-                }`}>
-                  {rpsResult === 'win' && '🎉 Victory! You won this round!'}
-                  {rpsResult === 'lose' && `🏆 ${partner.username} won this round!`}
-                  {rpsResult === 'draw' && "🤝 It's a Tie! Both picked the same!"}
+            return (
+              <div className="w-full max-w-sm mx-auto space-y-3.5">
+                {/* Series Scoreboard Tracker */}
+                <div className="flex items-center justify-between p-3 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black text-black">
+                  {/* Left: Your Score & Indicators */}
+                  <div className="flex flex-col items-start gap-1">
+                    <div className="flex items-center gap-1">
+                      <span>You</span>
+                      <span className="text-[10px] bg-black text-white px-1.5 py-0.2 rounded-md font-bold">
+                        {rpsScores.me}/3
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[0, 1, 2].map((dotIdx) => (
+                        <span
+                          key={dotIdx}
+                          className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all ${
+                            rpsScores.me > dotIdx ? 'bg-[#00e599] shadow-xs scale-110' : 'bg-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Center: Best of 5 & Round Indicator */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="px-2.5 py-0.5 bg-[#ffc900] text-black border border-black rounded-full text-[10px] font-black uppercase shadow-2xs">
+                      Best of 5
+                    </span>
+                    <span className="text-[10px] font-extrabold text-black/75">
+                      {isSeriesOver ? 'Series Complete' : `Round ${rpsRoundNumber} of 5`}
+                    </span>
+                  </div>
+
+                  {/* Right: Partner's Score & Indicators */}
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] bg-black text-white px-1.5 py-0.2 rounded-md font-bold">
+                        {rpsScores.partner}/3
+                      </span>
+                      <span className="truncate max-w-[70px]">{partner.username}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[0, 1, 2].map((dotIdx) => (
+                        <span
+                          key={dotIdx}
+                          className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all ${
+                            rpsScores.partner > dotIdx ? 'bg-[#dc341e] shadow-xs scale-110' : 'bg-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              {/* Pick Options */}
-              <div className="grid grid-cols-3 gap-2.5">
-                {[
-                  { key: 'rock' as const, label: 'Rock', icon: '✊' },
-                  { key: 'paper' as const, label: 'Paper', icon: '✋' },
-                  { key: 'scissors' as const, label: 'Scissors', icon: '✌️' },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    disabled={Boolean(rpsMyChoice)}
-                    onClick={() => handleRpsPick(item.key)}
-                    className={`p-3.5 sm:p-5 rounded-2xl border-2 sm:border-3 border-black flex flex-col items-center gap-1.5 transition-all ${
-                      rpsMyChoice === item.key
-                        ? 'bg-[#701a31] text-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] scale-105'
-                        : 'bg-white text-black hover:bg-[#fff1f3] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-95 cursor-pointer'
-                    }`}
-                  >
-                    <span className="text-3xl sm:text-4xl">{item.icon}</span>
-                    <span className="text-xs font-black">{item.label}</span>
-                  </button>
-                ))}
-              </div>
+                {/* Series Champion Conclusion Banner */}
+                {isSeriesOver && (
+                  <div className={`p-4 border-3 border-black rounded-2xl text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-2.5 animate-in zoom-in-95 ${
+                    isMeChampion ? 'bg-[#00e599] text-black' : 'bg-[#ff90e8] text-black'
+                  }`}>
+                    <div className="space-y-1">
+                      <span className="text-2xl block">{isMeChampion ? '👑🏆' : '🎉👏'}</span>
+                      <h4 className="font-black text-base sm:text-lg">
+                        {isMeChampion
+                          ? `Series Champion! You won ${rpsScores.me} - ${rpsScores.partner}!`
+                          : `${partner.username} won the series ${rpsScores.partner} - ${rpsScores.me}!`}
+                      </h4>
+                      <p className="text-xs font-bold">
+                        {isMeChampion
+                          ? 'Outstanding performance in the Best-of-5 Shootout!'
+                          : 'Great duel! Ready for a rematch?'}
+                      </p>
+                    </div>
 
-              {/* Status or Rematch */}
-              <div className="text-center text-xs font-bold">
-                {rpsMyChoice && !rpsPartnerChoice && (
-                  <span className="text-[#701a31] font-extrabold animate-pulse">
-                    Locked in! Waiting for {partner.username} to reveal...
-                  </span>
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleRpsReset}
+                        className="px-4 py-2 bg-white hover:bg-black hover:text-white text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Play Another Series</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => switchGame('menu')}
+                        className="px-3.5 py-2 bg-[#ffc900] hover:bg-black hover:text-white text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+                      >
+                        <span>Menu</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
-                {rpsResult && (
-                  <button
-                    type="button"
-                    onClick={handleRpsReset}
-                    className="px-4 py-2 bg-white hover:bg-black hover:text-white text-black font-extrabold text-xs rounded-xl border-2 border-black shadow-xs flex items-center gap-1.5 mx-auto transition-all active:scale-95 cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Play Another Round</span>
-                  </button>
+
+                {/* Round Result Reveal Banner (During active series) */}
+                {!isSeriesOver && rpsResult && (
+                  <div className={`p-3.5 border-2 border-black rounded-2xl text-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-2 animate-in zoom-in-95 ${
+                    rpsResult === 'win'
+                      ? 'bg-[#e6fcf5] border-[#00e599] text-black'
+                      : rpsResult === 'lose'
+                      ? 'bg-[#ffe3e8] border-[#dc341e] text-black'
+                      : 'bg-[#fff8e6] border-[#ffc900] text-black'
+                  }`}>
+                    {/* Visual Clash Badges */}
+                    <div className="flex items-center justify-center gap-3 text-xs font-black">
+                      <span className="px-2.5 py-1 bg-white border border-black rounded-xl shadow-2xs">
+                        You: {rpsMyChoice === 'rock' ? '✊ Rock' : rpsMyChoice === 'paper' ? '✋ Paper' : '✌️ Scissors'}
+                      </span>
+                      <span className="text-black/40 font-black">vs</span>
+                      <span className="px-2.5 py-1 bg-white border border-black rounded-xl shadow-2xs">
+                        {partner.username}: {rpsPartnerChoice === 'rock' ? '✊ Rock' : rpsPartnerChoice === 'paper' ? '✋ Paper' : '✌️ Scissors'}
+                      </span>
+                    </div>
+
+                    <div className="font-black text-sm text-black">
+                      {rpsResult === 'win' && `🎉 You won Round ${rpsRoundNumber}! (+1 Win)`}
+                      {rpsResult === 'lose' && `🏆 ${partner.username} won Round ${rpsRoundNumber}! (+1 Win)`}
+                      {rpsResult === 'draw' && "🤝 Tie Round! Both picked the same (Replaying round)!"}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRpsNextRound}
+                      className="px-4 py-2 bg-[#ffc900] hover:bg-[#ffb700] text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex items-center justify-center gap-1.5 mx-auto transition-all cursor-pointer"
+                    >
+                      <span>Next Round ({rpsResult === 'draw' ? `Replay Round ${rpsRoundNumber}` : `Round ${rpsRoundNumber + 1}`}) →</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 3 Choice Option Buttons */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  {[
+                    { key: 'rock' as const, label: 'Rock', icon: '✊' },
+                    { key: 'paper' as const, label: 'Paper', icon: '✋' },
+                    { key: 'scissors' as const, label: 'Scissors', icon: '✌️' },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      disabled={Boolean(rpsMyChoice) || isSeriesOver}
+                      onClick={() => handleRpsPick(item.key)}
+                      className={`p-3.5 sm:p-5 rounded-2xl border-2 sm:border-3 border-black flex flex-col items-center gap-1.5 transition-all ${
+                        rpsMyChoice === item.key
+                          ? 'bg-[#701a31] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-105 ring-2 ring-black'
+                          : isSeriesOver
+                          ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                          : 'bg-white text-black hover:bg-[#fff1f3] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 cursor-pointer'
+                      }`}
+                    >
+                      <span className="text-3xl sm:text-4xl">{item.icon}</span>
+                      <span className="text-xs font-black">{item.label}</span>
+                      {rpsMyChoice === item.key && (
+                        <span className="text-[9px] font-black bg-white text-black px-1.5 py-0.2 rounded-full border border-black shadow-2xs">
+                          Locked In
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Status Indicator */}
+                {!isSeriesOver && (
+                  <div className="text-center text-xs font-black text-black">
+                    {rpsMyChoice && !rpsPartnerChoice && (
+                      <span className="inline-flex items-center gap-1.5 text-black font-black animate-pulse bg-white px-3 py-1 rounded-xl border border-black shadow-2xs">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Move locked in! Waiting for {partner.username} to pick...
+                      </span>
+                    )}
+                    {!rpsMyChoice && rpsPartnerChoice && (
+                      <span className="inline-flex items-center gap-1.5 text-black font-black bg-[#ffc900] px-3 py-1 rounded-xl border border-black shadow-2xs animate-bounce">
+                        ⚡ {partner.username} is locked in! Make your pick!
+                      </span>
+                    )}
+                    {!rpsMyChoice && !rpsPartnerChoice && (
+                      <span className="text-black font-bold">
+                        Pick Rock, Paper, or Scissors for Round {rpsRoundNumber}!
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
 
