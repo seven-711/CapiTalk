@@ -29,6 +29,7 @@ class RoomManager {
   private themeCallbacks: Set<ThemeCallback> = new Set();
   private statusCallbacks: Set<StatusCallback> = new Set();
   private gameCallbacks: Set<(data: any) => void> = new Set();
+  private friendAddCallbacks: Set<(partnerProfile: UserProfile) => void> = new Set();
 
   private getSocket(): WebSocket | null {
     try {
@@ -52,6 +53,11 @@ class RoomManager {
   public onGameSignal(cb: (data: any) => void) {
     this.gameCallbacks.add(cb);
     return () => { this.gameCallbacks.delete(cb); };
+  }
+
+  public onFriendAdd(cb: (partnerProfile: UserProfile) => void) {
+    this.friendAddCallbacks.add(cb);
+    return () => { this.friendAddCallbacks.delete(cb); };
   }
 
   public joinRoom(
@@ -96,6 +102,8 @@ class RoomManager {
                 this.statusCallbacks.forEach((cb) => cb(signal.status));
               } else if (signal.type === 'GAME') {
                 this.gameCallbacks.forEach((cb) => cb(signal.gameData));
+              } else if (signal.type === 'FRIEND_ADD') {
+                this.friendAddCallbacks.forEach((cb) => cb(signal.partnerProfile || signal.sender));
               }
             }
           } catch (err) {}
@@ -146,6 +154,11 @@ class RoomManager {
           .on('broadcast', { event: 'game' }, ({ payload }: { payload: { senderId: string; gameData: any } }) => {
             if (payload && payload.senderId !== user.id) {
               this.gameCallbacks.forEach((cb) => cb(payload.gameData));
+            }
+          })
+          .on('broadcast', { event: 'friend_add' }, ({ payload }: { payload: { senderId: string; partnerProfile?: any; sender?: any } }) => {
+            if (payload && payload.senderId !== user.id) {
+              this.friendAddCallbacks.forEach((cb) => cb(payload.partnerProfile || payload.sender));
             }
           })
           .subscribe();
@@ -324,6 +337,38 @@ class RoomManager {
           type: 'broadcast',
           event: 'status',
           payload: { senderId: this.currentUserId, status },
+        });
+      } catch (e) {}
+    }
+  }
+
+  public sendFriendAddSignal(partnerProfile: UserProfile) {
+    if (!this.currentRoomId) return;
+
+    const signal = { type: 'FRIEND_ADD', partnerProfile, senderId: this.currentUserId, t: Date.now() };
+
+    // Broadcast 1: LocalStorage signal
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify(signal));
+    }
+
+    // Broadcast 2: WebSocket server
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'FRIEND_ADD',
+        roomId: this.currentRoomId,
+        partnerProfile,
+      }));
+    }
+
+    // Broadcast 3: Supabase Realtime
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'friend_add',
+          payload: { senderId: this.currentUserId, partnerProfile },
         });
       } catch (e) {}
     }

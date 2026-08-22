@@ -25,6 +25,7 @@ import {
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 import { WallNotification } from '../lib/types';
+import { getAvatarForPseudonym } from '../lib/constants';
 
 const FacebookIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -47,11 +48,28 @@ export const Navbar: React.FC = () => {
     setTargetPostId,
     blockedUserIds,
     keptConnection,
+    hasNewConnectionNotif,
+    setHasNewConnectionNotif,
   } = useChatStore();
 
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
   const onlineCount = useOnlineCount();
+
+  const unreadNotifs = wallNotifications.filter((n) => !n.read);
+  const unreadCount = unreadNotifs.length + (hasNewConnectionNotif ? 1 : 0);
+
+  const formatRelativeTime = (isoString?: string) => {
+    if (!isoString) return 'just now';
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    if (diffMs < 60000) return 'just now';
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
 
   // Secret admin access: tap the logo 5 times within 2 seconds
   const logoTapCount = useRef(0);
@@ -144,11 +162,21 @@ export const Navbar: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setViewState('kept_connections')}
-                className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white text-black hover:bg-[#fff1f3] border border-gray-200"
+                onClick={() => {
+                  setHasNewConnectionNotif(false);
+                  setViewState('kept_connections');
+                }}
+                className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white text-black hover:bg-[#fff1f3] border border-gray-200 relative"
                 title="Your Kept Connection"
               >
+                <Heart className="w-3 h-3 text-[#ff90e8]" />
                 <span>Kept Contact</span>
+                {hasNewConnectionNotif && (
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ffc900]"></span>
+                  </span>
+                )}
               </button>
 
               <button
@@ -168,6 +196,27 @@ export const Navbar: React.FC = () => {
                     viewState === 'blocked_users' ? 'bg-white text-[#701a31]' : 'bg-red-600 text-white'
                   }`}>
                     {blockedUserIds.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Desktop-Only Notification Bell Button */}
+              <button
+                type="button"
+                onClick={() => setShowNotifPopover(!showNotifPopover)}
+                className={`hidden md:inline-flex p-1.5 sm:p-2 rounded-full border border-black/30 transition-all cursor-pointer relative ${
+                  showNotifPopover ? 'bg-black text-white' : 'bg-white hover:bg-[#fff1f3] text-black'
+                }`}
+                title="Notifications"
+                aria-label="Notifications"
+              >
+                <Bell className="w-4 h-4" fill={showNotifPopover ? 'currentColor' : 'none'} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-[#e02424] text-[9px] font-black text-white items-center justify-center border border-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
                   </span>
                 )}
               </button>
@@ -212,28 +261,34 @@ export const Navbar: React.FC = () => {
       {/* ── Mobile Bottom Navigation Bar (Icon Only) ───────────────────────── */}
       <nav
         aria-label="Mobile Navigation Bar"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-[#f4f4f0]/95 backdrop-blur-md border-t border-[#d1d5dc] px-3 py-2 flex items-center justify-around md:hidden pb-[max(0.65rem,env(safe-area-inset-bottom))]"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-[#f4f4f0]/95 backdrop-blur-md border-t border-[#d1d5dc] px-2 sm:px-3 py-2 flex items-center justify-around md:hidden pb-[max(0.65rem,env(safe-area-inset-bottom))]"
       >
         {/* 1. Home Button */}
         <button
           type="button"
-          onClick={() => setViewState('landing')}
-          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
-            viewState === 'landing'
+          onClick={() => {
+            setShowNotifPopover(false);
+            setViewState('landing');
+          }}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
+            viewState === 'landing' && !showNotifPopover
               ? 'bg-[#000000] text-[#ffffff]'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
           aria-label="Home"
         >
-          <Home className="w-5 h-5" fill={viewState === 'landing' ? 'currentColor' : 'none'} strokeWidth={2} />
+          <Home className="w-5 h-5" fill={viewState === 'landing' && !showNotifPopover ? 'currentColor' : 'none'} strokeWidth={2} />
         </button>
 
         {/* 2. Search / Matchmaking Button */}
         <button
           type="button"
-          onClick={() => setViewState('queue')}
-          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
-            viewState === 'queue'
+          onClick={() => {
+            setShowNotifPopover(false);
+            setViewState('queue');
+          }}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
+            viewState === 'queue' && !showNotifPopover
               ? 'bg-[#000000] text-[#ffffff]'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
@@ -245,38 +300,79 @@ export const Navbar: React.FC = () => {
         {/* 3. Add Note / Post Button (Gumroad Center Action) */}
         <button
           type="button"
-          onClick={() => setViewState('add_note')}
-          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
-            viewState === 'add_note'
+          onClick={() => {
+            setShowNotifPopover(false);
+            setViewState('add_note');
+          }}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
+            viewState === 'add_note' && !showNotifPopover
               ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
-              : 'bg-[#ffffff] text-[#000000] border border-[#d1d5dc] hover:border-[#000000]'
+              : 'text-[#000000]'
           }`}
           aria-label="Add Note"
         >
           <Plus className="w-5 h-5 stroke-[2.5]" />
         </button>
 
-        {/* 4. Messages / Kept Connections Button */}
+        {/* 4. Real-Time Notification Bell Icon */}
         <button
           type="button"
-          onClick={() => setViewState('kept_connections')}
-          className="p-2.5 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]"
-          aria-label="Kept Connections"
+          onClick={() => setShowNotifPopover(!showNotifPopover)}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
+            showNotifPopover
+              ? 'bg-[#000000] text-[#ffffff]'
+              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+          }`}
+          aria-label="Notifications"
         >
           <div className="relative flex items-center justify-center">
-            <Mail className="w-5 h-5 stroke-[2]" fill="none" />
-            {keptConnection && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ff90e8] ring-1 ring-[#000000]" />
+            <Bell className="w-5 h-5 stroke-[2]" fill={showNotifPopover ? 'currentColor' : 'none'} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              </span>
             )}
           </div>
         </button>
 
-        {/* 5. Profile / User Account Button */}
+        {/* 5. Messages / Kept Connections Button */}
         <button
           type="button"
-          onClick={() => setViewState('register')}
-          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
-            viewState === 'register'
+          onClick={() => {
+            setShowNotifPopover(false);
+            setHasNewConnectionNotif(false);
+            setViewState('kept_connections');
+          }}
+          className="p-2 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]"
+          aria-label="Kept Connections"
+        >
+          <div className="relative flex items-center justify-center">
+            <Mail className="w-5 h-5 stroke-[2]" fill="none" />
+            {hasNewConnectionNotif ? (
+              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
+                  !
+                </span>
+              </span>
+            ) : keptConnection ? (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ff90e8] ring-1 ring-[#000000]" />
+            ) : null}
+          </div>
+        </button>
+
+        {/* 6. Profile / User Account Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setShowNotifPopover(false);
+            setViewState('register');
+          }}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
+            viewState === 'register' && !showNotifPopover
               ? 'bg-[#000000] text-[#ffffff]'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
@@ -295,6 +391,199 @@ export const Navbar: React.FC = () => {
           )}
         </button>
       </nav>
+
+      {/* ── Real-Time Notifications Modal / Popover Sheet ───────────────────── */}
+      {showNotifPopover && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-start sm:justify-end p-0 sm:p-4 sm:pt-16 animate-in fade-in duration-150">
+          <div
+            className="w-full sm:max-w-md bg-[#f4f4f0] border-t-4 sm:border-4 border-black rounded-t-3xl sm:rounded-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.25)] sm:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-top-4 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 bg-white border-b-2 border-black flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-[#701a31] text-white flex items-center justify-center border border-black shadow-2xs">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-black">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-[#ffc900] text-black rounded-full border border-black">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-semibold">Campus wall reactions &amp; friend updates</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      markWallNotificationsAsRead();
+                      setHasNewConnectionNotif(false);
+                    }}
+                    className="text-[11px] font-black text-[#701a31] hover:underline cursor-pointer"
+                  >
+                    Mark read
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowNotifPopover(false)}
+                  className="p-1.5 rounded-full bg-gray-100 hover:bg-black hover:text-white border border-black transition-all cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Notification List */}
+            <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2.5 max-h-[60vh]">
+              {/* Active Friend Connection Card */}
+              {hasNewConnectionNotif && keptConnection && (
+                <div
+                  onClick={() => {
+                    setHasNewConnectionNotif(false);
+                    setShowNotifPopover(false);
+                    setViewState('kept_connections');
+                  }}
+                  className="p-3 bg-[#fff1f3] border-2 border-black rounded-2xl cursor-pointer hover:bg-[#ffe3e8] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px]"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="relative shrink-0">
+                      <img
+                        src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
+                        alt={keptConnection.username}
+                        className="w-10 h-10 rounded-full border-2 border-black object-cover bg-amber-50 shadow-xs"
+                      />
+                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#701a31] text-white flex items-center justify-center text-[9px] border border-black shadow-2xs">
+                        ✨
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-xs font-black text-black">New Friend Connection</p>
+                        <span className="text-[9px] font-black px-1.5 py-0.2 bg-[#00e599] text-black rounded-full border border-black">
+                          Connected
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-800 font-bold mt-0.5">
+                        <span className="text-[#701a31]">@{keptConnection.username}</span> added you as a friend!
+                      </p>
+                      <p className="text-[10px] text-gray-500 font-semibold mt-1">Tap to chat in direct messages →</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Wall Notifications */}
+              {wallNotifications.length > 0 ? (
+                wallNotifications.map((item) => {
+                  const rawUsername = item.actor_username || (item.actor_alias?.startsWith('@') ? item.actor_alias.slice(1) : (item.actor_alias?.startsWith('Someone from') ? '' : item.actor_alias)) || 'Student';
+                  const displayName = item.actor_username
+                    ? (item.actor_username.startsWith('@') ? item.actor_username : `@${item.actor_username}`)
+                    : item.actor_alias && !item.actor_alias.startsWith('Someone from')
+                    ? (item.actor_alias.startsWith('@') ? item.actor_alias : `@${item.actor_alias}`)
+                    : '@Student';
+                  const avatarUrl = item.actor_avatar || (item.type === 'admin_remark' ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(rawUsername));
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        markWallNotificationsAsRead();
+                        setShowNotifPopover(false);
+                        if (item.type === 'friend_add' || item.type === 'dm') {
+                          setViewState('kept_connections');
+                        } else {
+                          setTargetPostId(item.post_id);
+                          setViewState('freedom_wall');
+                        }
+                      }}
+                      className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                        item.read
+                          ? 'bg-white hover:bg-gray-50 border-black/20'
+                          : 'bg-[#fffdf5] hover:bg-[#fff9e6] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className="relative shrink-0">
+                          <img
+                            src={avatarUrl}
+                            alt={displayName}
+                            className="w-9 h-9 rounded-full border-2 border-black object-cover bg-amber-50 shadow-xs"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(rawUsername));
+                            }}
+                          />
+                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center text-[9px] border border-black shadow-2xs">
+                            {item.type === 'like' && '💖'}
+                            {item.type === 'comment' && '💬'}
+                            {item.type === 'friend_add' && '👥'}
+                            {item.type === 'dm' && '💌'}
+                            {item.type === 'admin_remark' && '👑'}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-black text-black truncate">
+                              {item.type === 'like' && `${displayName} reacted`}
+                              {item.type === 'comment' && `${displayName} commented`}
+                              {item.type === 'friend_add' && `${displayName} added you`}
+                              {item.type === 'dm' && `Message from ${displayName}`}
+                              {item.type === 'admin_remark' && 'CapiTalk Admin'}
+                            </p>
+                            <span className="text-[9px] text-gray-400 font-medium shrink-0">
+                              {formatRelativeTime(item.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-700 font-medium line-clamp-2 mt-0.5">
+                            {item.comment_text || item.admin_remark || item.message_snippet}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : !hasNewConnectionNotif ? (
+                <div className="py-10 text-center flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 rounded-full bg-white border-2 border-black flex items-center justify-center shadow-xs">
+                    <Bell className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-xs font-black text-black">No notifications yet</p>
+                  <p className="text-[11px] text-gray-500 max-w-xs font-medium">
+                    When someone reacts to your confession on the Freedom Wall or adds you as a friend, updates will show up here in real time!
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Bottom Actions */}
+            {wallNotifications.length > 0 && (
+              <div className="p-3 bg-white border-t border-black/10 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={clearWallNotifications}
+                  className="text-[10px] text-gray-500 hover:text-red-600 font-bold cursor-pointer"
+                >
+                  Clear all notifications
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNotifPopover(false)}
+                  className="px-3 py-1 bg-black text-white text-xs font-black rounded-xl cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Hamburger Slide-out Drawer */}
       {showMenuDrawer && (

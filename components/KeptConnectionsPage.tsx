@@ -12,6 +12,10 @@ import {
   MoreVertical,
   Check,
   CheckCheck,
+  MessageCircle,
+  ChevronRight,
+  Sparkles,
+  Shield,
 } from 'lucide-react';
 
 interface DirectMessage {
@@ -31,8 +35,10 @@ export const KeptConnectionsPage: React.FC = () => {
     setViewState,
     goBack,
     currentUser,
+    setHasNewConnectionNotif,
   } = useChatStore();
 
+  const [activeChatOpen, setActiveChatOpen] = useState(false);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [partnerTyping, setPartnerTyping] = useState(false);
@@ -44,6 +50,7 @@ export const KeptConnectionsPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const partnerTypingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const presenceHeartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSignalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const supabaseChannelRef = useRef<any>(null);
@@ -62,6 +69,22 @@ export const KeptConnectionsPage: React.FC = () => {
       localStorage.setItem(storageKey, JSON.stringify(newMsgs));
     } catch {}
   }, [storageKey]);
+
+  // Partner typing watchdog with 3.5s automatic fallback reset
+  const handlePartnerTyping = useCallback((isTyping: boolean) => {
+    if (partnerTypingTimerRef.current) {
+      clearTimeout(partnerTypingTimerRef.current);
+      partnerTypingTimerRef.current = null;
+    }
+    if (isTyping) {
+      setPartnerTyping(true);
+      partnerTypingTimerRef.current = setTimeout(() => {
+        setPartnerTyping(false);
+      }, 3500);
+    } else {
+      setPartnerTyping(false);
+    }
+  }, []);
 
   // Mark partner online and reset offline countdown timer (14s)
   const markPartnerOnline = useCallback(() => {
@@ -163,6 +186,9 @@ export const KeptConnectionsPage: React.FC = () => {
   useEffect(() => {
     if (!keptConnection || !currentUser) return;
 
+    // Clear unread notification when viewing conversation
+    setHasNewConnectionNotif(false);
+
     // Send read receipt and presence ping on mount
     sendReadReceipt();
     sendPresencePing();
@@ -182,6 +208,7 @@ export const KeptConnectionsPage: React.FC = () => {
           const data = e.data;
           if (data?.type === 'dm_message' && data.payload?.senderId !== currentUser.id) {
             markPartnerOnline();
+            handlePartnerTyping(false);
             setMessages((prev) => {
               if (prev.some((m) => m.id === data.payload.id)) return prev;
               // Mark all my sent messages as read since partner responded
@@ -200,7 +227,7 @@ export const KeptConnectionsPage: React.FC = () => {
             });
           } else if (data?.type === 'dm_typing' && data.payload?.senderId !== currentUser.id) {
             markPartnerOnline();
-            setPartnerTyping(Boolean(data.payload.isTyping));
+            handlePartnerTyping(Boolean(data.payload.isTyping));
           } else if (data?.type === 'dm_presence_ping' && data.payload?.senderId !== currentUser.id) {
             markPartnerOnline();
             sendPresencePong();
@@ -241,6 +268,7 @@ export const KeptConnectionsPage: React.FC = () => {
           .on('broadcast', { event: 'dm_message' }, ({ payload }: { payload: DirectMessage }) => {
             if (payload && payload.senderId !== currentUser.id) {
               markPartnerOnline();
+              handlePartnerTyping(false);
               setMessages((prev) => {
                 if (prev.some((m) => m.id === payload.id)) return prev;
                 const marked = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
@@ -264,7 +292,7 @@ export const KeptConnectionsPage: React.FC = () => {
           .on('broadcast', { event: 'dm_typing' }, ({ payload }: { payload: { senderId: string; isTyping: boolean } }) => {
             if (payload && payload.senderId !== currentUser.id) {
               markPartnerOnline();
-              setPartnerTyping(Boolean(payload.isTyping));
+              handlePartnerTyping(Boolean(payload.isTyping));
             }
           })
           .on('broadcast', { event: 'dm_presence_ping' }, ({ payload }: { payload: { senderId: string } }) => {
@@ -288,9 +316,7 @@ export const KeptConnectionsPage: React.FC = () => {
             const partnerPresent = Object.values(state).some((presences: any) =>
               presences.some((p: any) => p.userId === keptConnection.user_id || p.username === keptConnection.username)
             );
-            if (partnerPresent) {
-              markPartnerOnline();
-            }
+            if (partnerPresent) markPartnerOnline();
           })
           .on('presence', { event: 'join' }, ({ newPresences }: any) => {
             const joined = newPresences.some((p: any) => p.userId === keptConnection.user_id || p.username === keptConnection.username);
@@ -337,6 +363,7 @@ export const KeptConnectionsPage: React.FC = () => {
 
       if (presenceHeartbeatTimerRef.current) clearInterval(presenceHeartbeatTimerRef.current);
       if (lastSignalTimeoutRef.current) clearTimeout(lastSignalTimeoutRef.current);
+      if (partnerTypingTimerRef.current) clearTimeout(partnerTypingTimerRef.current);
 
       if (broadcastChannelRef.current) {
         broadcastChannelRef.current.close();
@@ -349,22 +376,25 @@ export const KeptConnectionsPage: React.FC = () => {
         supabaseChannelRef.current = null;
       }
     };
-  }, [keptConnection, currentUser, pairKey, storageKey, persistMessages, sendReadReceipt, sendPresencePing, sendPresencePong, markPartnerOnline, markPartnerOffline]);
+  }, [keptConnection, currentUser, pairKey, storageKey, persistMessages, sendReadReceipt, sendPresencePing, sendPresencePong, markPartnerOnline, markPartnerOffline, handlePartnerTyping, setHasNewConnectionNotif]);
 
-  // Scroll to bottom on new message or typing state change
+  // Scroll to bottom on new message or typing state change when chat is open
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, partnerTyping]);
+    if (activeChatOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, partnerTyping, activeChatOpen]);
 
   // Handle typing signal broadcast
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
+    const val = e.target.value;
+    setInputText(val);
 
     // Broadcast typing indicator
     if (currentUser) {
       broadcastChannelRef.current?.postMessage({
         type: 'dm_typing',
-        payload: { senderId: currentUser.id, isTyping: true },
+        payload: { senderId: currentUser.id, isTyping: val.length > 0 },
       });
 
       if (supabaseChannelRef.current) {
@@ -372,7 +402,7 @@ export const KeptConnectionsPage: React.FC = () => {
           supabaseChannelRef.current.send({
             type: 'broadcast',
             event: 'dm_typing',
-            payload: { senderId: currentUser.id, isTyping: true },
+            payload: { senderId: currentUser.id, isTyping: val.length > 0 },
           });
         } catch {}
       }
@@ -433,6 +463,35 @@ export const KeptConnectionsPage: React.FC = () => {
       } catch {}
     }
 
+    // 3. Global notification broadcast so recipient gets notified anywhere in the app
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const globalBc = new BroadcastChannel('capitalk_global_realtime');
+        globalBc.postMessage({
+          type: 'GLOBAL_DM_MESSAGE',
+          message: myMessage,
+          recipientId: keptConnection.user_id,
+          senderName: currentUser.username,
+        });
+        setTimeout(() => globalBc.close(), 1000);
+      } catch {}
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const globalChan = supabase.channel('capitalk_global_announcements_v1');
+        globalChan.send({
+          type: 'broadcast',
+          event: 'global_dm_message',
+          payload: {
+            message: myMessage,
+            recipientId: keptConnection.user_id,
+            senderName: currentUser.username,
+          },
+        });
+      } catch {}
+    }
+
     // Clear typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     broadcastChannelRef.current?.postMessage({
@@ -446,233 +505,320 @@ export const KeptConnectionsPage: React.FC = () => {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+
   return (
     <div className="h-[100dvh] max-h-[100dvh] bg-[#121214] text-white font-sans flex flex-col max-w-2xl mx-auto w-full border-x border-zinc-800/80 overflow-hidden select-none">
       {keptConnection ? (
-        <>
-          {/* ── Messenger Top Header (Dark Mode) ─────────────────────────────── */}
-          <header className="bg-[#18181b] border-b border-zinc-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-10">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <button
-                type="button"
-                onClick={() => (goBack ? goBack() : setViewState('landing'))}
-                className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                title="Back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-
-              <div className="relative shrink-0">
-                <img
-                  src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
-                  alt={keptConnection.username}
-                  className="w-10 h-10 rounded-full border border-zinc-700 object-cover bg-zinc-900"
-                />
-                <span
-                  className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-[#18181b] transition-all ${
-                    isPartnerOnline
-                      ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
-                      : 'bg-zinc-500'
-                  }`}
-                />
-              </div>
-
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h2 className="font-extrabold text-sm sm:text-base text-white truncate leading-tight">
-                    {keptConnection.username}
-                  </h2>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#701a31]/60 text-[#ff90e8] rounded-md border border-[#701a31] shrink-0">
-                    {keptConnection.department.replace('College of ', '')}
-                  </span>
-                </div>
-                {isPartnerOnline ? (
-                  <p className="text-[11px] font-bold text-emerald-400 truncate leading-tight mt-0.5">
-                    Online
-                  </p>
-                ) : (
-                  <p className="text-[11px] font-medium text-zinc-400 truncate leading-tight mt-0.5">
-                    {lastSeenTime
-                      ? (() => {
-                          const diffSec = Math.max(0, Math.floor((Date.now() - lastSeenTime) / 1000));
-                          if (diffSec < 60) return 'Offline · Active just now';
-                          const diffMin = Math.floor(diffSec / 60);
-                          if (diffMin < 60) return `Offline · Active ${diffMin}m ago`;
-                          const diffHr = Math.floor(diffMin / 60);
-                          if (diffHr < 24) return `Offline · Active ${diffHr}h ago`;
-                          return 'Offline';
-                        })()
-                      : 'Offline'}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Top Right Options */}
-            <div className="relative flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setShowMenu(!showMenu)}
-                className="p-2 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                title="Options"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
-
-              {showMenu && (
-                <div className="absolute right-0 top-11 bg-[#1e1e24] border border-zinc-700 rounded-2xl shadow-2xl p-1.5 min-w-[170px] z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMenu(false);
-                      setShowRemoveConfirm(true);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs font-bold text-rose-400 hover:bg-rose-950/40 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Unfriend</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </header>
-
-          {/* ── Messenger Messages Scroll Canvas (Dark Mode) ────────────────── */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#121214]">
-            {/* Header intro info inside chat */}
-            <div className="text-center py-4 space-y-1">
-              <img
-                src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
-                alt={keptConnection.username}
-                className="w-16 h-16 rounded-full border-2 border-zinc-700 object-cover bg-zinc-900 mx-auto shadow-md"
-              />
-              <h3 className="font-extrabold text-base text-white">
-                {keptConnection.username}
-              </h3>
-              <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                Messages sent here are delivered directly in real time.
-              </p>
-            </div>
-
-            {/* Empty Chat State Notice */}
-            {messages.length === 0 && (
-              <div className="text-center py-6 text-xs text-zinc-400 space-y-1">
-                <p className="font-bold text-zinc-200">No messages yet 👋</p>
-                <p>Say hi to @{keptConnection.username} to start the conversation!</p>
-              </div>
-            )}
-
-            {/* Real-time Message Bubbles */}
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
-              >
-                <div
-                  className={`max-w-[78%] sm:max-w-[70%] px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm ${
-                    msg.isMe
-                      ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
-                      : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
-                  }`}
+        activeChatOpen ? (
+          /* ═══════════════════════════════════════════════════════════════════════
+             VIEW A: ACTIVE DIRECT MESSAGE CHATROOM
+             ═══════════════════════════════════════════════════════════════════════ */
+          <>
+            {/* Header */}
+            <header className="bg-[#18181b] border-b border-zinc-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-10">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveChatOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                  title="Back to Chats List"
                 >
-                  {msg.text}
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+
+                <div className="relative shrink-0">
+                  <img
+                    src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
+                    alt={keptConnection.username}
+                    className="w-10 h-10 rounded-full border border-zinc-700 object-cover bg-zinc-900"
+                  />
+                  <span
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-[#18181b] transition-all ${
+                      isPartnerOnline
+                        ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
+                        : 'bg-zinc-500'
+                    }`}
+                  />
                 </div>
-                <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium">
-                  <span>{formatTime(msg.timestamp)}</span>
-                  {/* Read Receipt Icon Indicator: 2 checks for read, 1 check for unread */}
-                  {msg.isMe && (
-                    <span className="flex items-center ml-0.5" title={msg.read ? 'Read by partner' : 'Sent (Unread)'}>
-                      {msg.read ? (
-                        <CheckCheck className="w-3.5 h-3.5 text-[#38bdf8]" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5 text-zinc-400" />
-                      )}
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="font-extrabold text-sm sm:text-base text-white truncate leading-tight">
+                      {keptConnection.username}
+                    </h2>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#701a31]/60 text-[#ff90e8] rounded-md border border-[#701a31] shrink-0">
+                      {keptConnection.department.replace('College of ', '')}
                     </span>
+                  </div>
+                  {partnerTyping ? (
+                    <p className="text-[11px] font-bold text-amber-400 truncate leading-tight mt-0.5 animate-pulse">
+                      typing...
+                    </p>
+                  ) : isPartnerOnline ? (
+                    <p className="text-[11px] font-bold text-emerald-400 truncate leading-tight mt-0.5">
+                      Online
+                    </p>
+                  ) : (
+                    <p className="text-[11px] font-medium text-zinc-400 truncate leading-tight mt-0.5">
+                      {lastSeenTime
+                        ? (() => {
+                            const diffSec = Math.max(0, Math.floor((Date.now() - lastSeenTime) / 1000));
+                            if (diffSec < 60) return 'Offline · Active just now';
+                            const diffMin = Math.floor(diffSec / 60);
+                            if (diffMin < 60) return `Offline · Active ${diffMin}m ago`;
+                            const diffHr = Math.floor(diffMin / 60);
+                            if (diffHr < 24) return `Offline · Active ${diffHr}h ago`;
+                            return 'Offline';
+                          })()
+                        : 'Offline'}
+                    </p>
                   )}
                 </div>
               </div>
-            ))}
 
-            {/* Partner Live Typing indicator */}
-            {partnerTyping && (
-              <div className="flex items-center gap-1.5 py-1 px-3 bg-[#27272a] border border-zinc-700/60 text-xs font-semibold rounded-2xl rounded-bl-xs w-fit text-zinc-400 animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" />
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]" />
+              {/* Top Right Options */}
+              <div className="relative flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-2 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  title="Options"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+
+                {showMenu && (
+                  <div className="absolute right-0 top-11 bg-[#1e1e24] border border-zinc-700 rounded-2xl shadow-2xl p-1.5 min-w-[170px] z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        setShowRemoveConfirm(true);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-bold text-rose-400 hover:bg-rose-950/40 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Unfriend</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </header>
 
-            <div ref={messagesEndRef} />
-          </div>
+            {/* Messages Scroll Area */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#121214]">
+              {/* Profile Intro Banner */}
+              <div className="text-center py-4 space-y-1">
+                <img
+                  src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
+                  alt={keptConnection.username}
+                  className="w-16 h-16 rounded-full border-2 border-zinc-700 object-cover bg-zinc-900 mx-auto shadow-md"
+                />
+                <h3 className="font-extrabold text-base text-white">
+                  {keptConnection.username}
+                </h3>
+                <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                  Mutual 1:1 friend connection. Messages are encrypted and delivered in real time.
+                </p>
+              </div>
 
-          {/* ── Messenger Bottom Input Bar (Dark Mode) ──────────────────────── */}
-          <form
-            onSubmit={handleSendMessage}
-            className="bg-[#18181b] border-t border-zinc-800 p-2.5 sm:p-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-          >
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputText}
-              onChange={handleInputChange}
-              placeholder={`Message @${keptConnection.username}...`}
-              className="flex-1 bg-[#27272a] hover:bg-[#2f2f35] focus:bg-[#27272a] text-[13.5px] text-white placeholder-zinc-500 px-4 py-2 rounded-full border border-zinc-700 focus:border-zinc-500 focus:outline-none transition-all"
-            />
-
-            <button
-              type="submit"
-              disabled={!inputText.trim()}
-              className="w-9 h-9 rounded-full bg-[#ffc900] hover:bg-[#ffd633] disabled:opacity-20 disabled:hover:bg-[#ffc900] text-black flex items-center justify-center transition-all shrink-0 cursor-pointer active:scale-95 shadow-sm font-bold"
-              title="Send Message"
-            >
-              <Send className="w-4 h-4 ml-0.5" />
-            </button>
-          </form>
-
-          {/* Remove Confirmation Modal (Dark Mode) */}
-          {showRemoveConfirm && (
-            <div
-              className="fixed inset-0 z-50 bg-black/80 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-              onClick={() => setShowRemoveConfirm(false)}
-            >
-              <div
-                className="bg-[#18181b] border-2 border-zinc-700 rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl animate-in zoom-in-95 duration-150 text-white"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="w-10 h-10 rounded-2xl bg-rose-950/60 border border-rose-800 text-rose-400 flex items-center justify-center mx-auto">
-                  <Trash2 className="w-5 h-5" />
+              {/* Empty Chat State Notice */}
+              {messages.length === 0 && (
+                <div className="text-center py-6 text-xs text-zinc-400 space-y-1">
+                  <p className="font-bold text-zinc-200">No messages yet 👋</p>
+                  <p>Say hi to @{keptConnection.username} to start the conversation!</p>
                 </div>
-                <div className="text-center space-y-1">
-                  <h3 className="text-base font-black text-white">Unfriend?</h3>
-                  <p className="text-xs text-zinc-400">
-                    Are you sure you want to remove <span className="font-bold text-white">@{keptConnection.username}</span>? This will clear your direct message history.
+              )}
+
+              {/* Real-time Message Bubbles */}
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+                >
+                  <div
+                    className={`max-w-[78%] sm:max-w-[70%] px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm ${
+                      msg.isMe
+                        ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
+                        : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium">
+                    <span>{formatTime(msg.timestamp)}</span>
+                    {msg.isMe && (
+                      <span className="flex items-center ml-0.5" title={msg.read ? 'Read by partner' : 'Sent (Unread)'}>
+                        {msg.read ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-[#38bdf8]" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-zinc-400" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Partner Live Typing indicator */}
+              {partnerTyping && (
+                <div className="flex items-center gap-1.5 py-1.5 px-3 bg-[#27272a] border border-zinc-700/60 text-xs font-semibold rounded-2xl rounded-bl-xs w-fit text-zinc-300 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.2s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]" />
+                  <span className="text-[11px] text-zinc-400 ml-1">@{keptConnection.username} is typing...</span>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Message Input Bar */}
+            <form
+              onSubmit={handleSendMessage}
+              className="bg-[#18181b] border-t border-zinc-800 p-2.5 sm:p-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+            >
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputText}
+                onChange={handleInputChange}
+                placeholder={`Message @${keptConnection.username}...`}
+                className="flex-1 bg-[#27272a] hover:bg-[#2f2f35] focus:bg-[#27272a] text-[13.5px] text-white placeholder-zinc-500 px-4 py-2 rounded-full border border-zinc-700 focus:border-zinc-500 focus:outline-none transition-all"
+              />
+
+              <button
+                type="submit"
+                disabled={!inputText.trim()}
+                className="w-9 h-9 rounded-full bg-[#ffc900] hover:bg-[#ffd633] disabled:opacity-20 disabled:hover:bg-[#ffc900] text-black flex items-center justify-center transition-all shrink-0 cursor-pointer active:scale-95 shadow-sm font-bold"
+                title="Send Message"
+              >
+                <Send className="w-4 h-4 ml-0.5" />
+              </button>
+            </form>
+          </>
+        ) : (
+          /* ═══════════════════════════════════════════════════════════════════════
+             VIEW B: MESSENGER-STYLE FRIENDS & CHATS LIST
+             ═══════════════════════════════════════════════════════════════════════ */
+          <>
+            {/* Header */}
+            <header className="bg-[#18181b] border-b border-zinc-800 px-4 py-3.5 flex items-center justify-between gap-2 shrink-0 z-10">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => (goBack ? goBack() : setViewState('landing'))}
+                  className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                  title="Back to Home"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-extrabold text-lg sm:text-xl text-white tracking-tight leading-tight">
+                      Chats
+                    </h1>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 font-medium">Your kept connections &amp; direct messages</p>
+                </div>
+              </div>
+            </header>
+
+            {/* Messenger Conversation List Content */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-[#121214]">
+              {/* 1:1 Rule Notice Banner */}
+              <div className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-2xl flex items-start gap-2.5 text-xs text-zinc-300">
+                <Shield className="w-4 h-4 text-[#ffc900] shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <p className="text-[11px] text-zinc-400">
+                    You can only hold 1 active friend connection at a time. To connect with someone new from chat, you must unfriend your current contact.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 pt-2">
+              </div>
+
+              {/* Section Header */}
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400">
+                  Active Friends ({keptConnection ? '1' : '0'})
+                </h3>
+              </div>
+
+              {/* Friend Conversation Card */}
+              <div
+                onClick={() => setActiveChatOpen(true)}
+                className="group p-3.5 bg-[#18181b] hover:bg-[#202024] border-2 border-zinc-800 hover:border-zinc-700 rounded-2xl cursor-pointer transition-all shadow-sm active:scale-[0.99] flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="relative shrink-0">
+                    <img
+                      src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
+                      alt={keptConnection.username}
+                      className="w-12 h-12 rounded-full border-2 border-zinc-700 object-cover bg-zinc-900"
+                    />
+                    <span
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-[#18181b] transition-all ${
+                        isPartnerOnline
+                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
+                          : 'bg-zinc-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <p className="font-extrabold text-sm text-white truncate">
+                          @{keptConnection.username}
+                        </p>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 bg-[#701a31]/60 text-[#ff90e8] rounded-md border border-[#701a31] shrink-0">
+                          {keptConnection.department.replace('College of ', '')}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-zinc-400 font-medium shrink-0">
+                        {lastMessage ? formatTime(lastMessage.timestamp) : (keptConnection.last_chat_date || 'Recent')}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-zinc-400 truncate flex items-center gap-1">
+                      {partnerTyping ? (
+                        <span className="text-amber-400 font-bold animate-pulse">typing...</span>
+                      ) : lastMessage ? (
+                        <>
+                          <span className="font-semibold text-zinc-300">
+                            {lastMessage.isMe ? 'You: ' : ''}
+                          </span>
+                          <span className="truncate">{lastMessage.text}</span>
+                        </>
+                      ) : (
+                        <span className="text-zinc-500 italic">Connected · Tap to chat</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setShowRemoveConfirm(false)}
-                    className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs rounded-xl border border-zinc-600 cursor-pointer transition-colors"
-                  >
-                    Keep
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      removeKeptConnection();
-                      setShowRemoveConfirm(false);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowRemoveConfirm(true);
                     }}
-                    className="flex-1 py-2 bg-[#dc341e] hover:bg-red-700 text-white font-black text-xs rounded-xl border border-black shadow-xs cursor-pointer transition-colors"
+                    className="p-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                    title="Unfriend"
                   >
-                    Yes, Remove
+                    <Trash2 className="w-4 h-4" />
                   </button>
+                  <ChevronRight className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" />
                 </div>
               </div>
             </div>
-          )}
-        </>
+          </>
+        )
       ) : (
-        /* ── Empty State (Dark Mode) ───────────────────────────────────────── */
+        /* ═══════════════════════════════════════════════════════════════════════
+           VIEW C: EMPTY STATE (NO MUTUALS)
+           ═══════════════════════════════════════════════════════════════════════ */
         <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 text-center space-y-4 bg-[#121214]">
           <div className="w-20 h-20 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center mx-auto shadow-md overflow-hidden p-2">
             <DotLottieReact
@@ -688,7 +834,7 @@ export const KeptConnectionsPage: React.FC = () => {
               No mutuals yet
             </h3>
             <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
-              Found someone in chat worth keeping even after they skip? Tap <span className="font-bold text-[#ff90e8]">&ldquo;Worth keeping? Add friend&rdquo;</span> at the end of a chat session to continue chatting with them here!
+              Found someone in chat worth keeping even after they skip? Tap <span className="font-bold text-[#ff90e8]">&ldquo;Worth keeping? Add friend&rdquo;</span> at the end of a chat session to save your 1 connection and chat with them!
             </p>
           </div>
 
@@ -700,6 +846,49 @@ export const KeptConnectionsPage: React.FC = () => {
             >
               <span>Look for someone</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Confirmation Modal (Dark Mode) */}
+      {showRemoveConfirm && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShowRemoveConfirm(false)}
+        >
+          <div
+            className="bg-[#18181b] border-2 border-zinc-700 rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl animate-in zoom-in-95 duration-150 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-10 rounded-2xl bg-rose-950/60 border border-rose-800 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-black text-white">Unfriend?</h3>
+              <p className="text-xs text-zinc-400">
+                Are you sure you want to remove <span className="font-bold text-white">@{keptConnection?.username}</span>? This will clear your direct message history and free up your 1 friend slot.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRemoveConfirm(false)}
+                className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs rounded-xl border border-zinc-600 cursor-pointer transition-colors"
+              >
+                Keep
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeKeptConnection();
+                  setShowRemoveConfirm(false);
+                  setActiveChatOpen(false);
+                }}
+                className="flex-1 py-2 bg-[#dc341e] hover:bg-red-700 text-white font-black text-xs rounded-xl border border-black shadow-xs cursor-pointer transition-colors"
+              >
+                Yes, Remove
+              </button>
+            </div>
           </div>
         </div>
       )}

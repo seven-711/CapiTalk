@@ -242,6 +242,18 @@ wss.on('connection', (ws) => {
       }
     }
 
+    else if (type === 'FRIEND_ADD') {
+      const { roomId, partnerProfile, sender } = msg;
+      const roomInfo = rooms.get(clientUserId);
+      if (roomInfo && roomInfo.roomId === roomId) {
+        broadcastToRoom(roomId, clientUserId, {
+          type: 'FRIEND_ADD',
+          partnerProfile,
+          sender,
+        });
+      }
+    }
+
     else if (type === 'REPORT_SUBMITTED') {
       const { report } = msg;
       console.log(`[Report] New incident report logged: ${report.reporter_username} -> ${report.reported_username}`);

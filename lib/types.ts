@@ -151,9 +151,11 @@ export interface UserFeedback {
 export interface WallNotification {
   id: string;
   post_id: string;
-  type: 'like' | 'comment' | 'admin_remark';
+  type: 'like' | 'comment' | 'admin_remark' | 'friend_add' | 'dm';
   actor_alias: string; // e.g. "Someone from Engr." or "👑 CapiTalk Admin"
+  actor_username?: string;
   actor_department?: string;
+  actor_avatar?: string;
   message_snippet: string;
   comment_text?: string;
   admin_remark?: string;

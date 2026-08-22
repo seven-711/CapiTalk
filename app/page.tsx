@@ -34,6 +34,7 @@ import {
   Compass,
   Heart,
   MessageCircle,
+  Flame,
 } from 'lucide-react';
 
 const FacebookIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
@@ -326,21 +327,37 @@ export default function Home() {
               </div>
 
               <div className="text-center max-w-4xl mx-auto relative z-10">
-                {/* School Tagline Pill */}
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border-2 border-black rounded-full text-xs font-extrabold text-black mb-4 sm:mb-6 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#c41e3a] animate-pulse" />
-                  <span>CU Student Hub</span>
-                </div>
-
-                {/* Oversized Display Headline */}
-                <h1 className="text-3xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.05] text-black">
-                  Connect Beyond Your Department.
-                </h1>
-
-                {/* Subtitle */}
-                <p className="mt-4 sm:mt-6 text-base sm:text-xl text-[#242423] max-w-2xl mx-auto font-normal leading-relaxed">
-                  The anonymous, real-time campus platform built for CU students. Chat, share confessions on the Freedom Wall, and dedicate songs.
-                </p>
+                {/* ── MIDTERM SEASON BANNER ──────────────────────────────────────── */}
+                <button
+                  id="midterm-banner-btn"
+                  type="button"
+                  onClick={handleMidtermBannerClick}
+                  className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 cursor-pointer text-left block mb-6 sm:mb-8"
+                >
+                  {/* Banner image */}
+                  <div className="relative w-full aspect-[16/6] sm:aspect-[16/4.5] overflow-hidden bg-[#0d2a0d]">
+                    <img
+                      src="/images/banner.webp"
+                      alt="Midterm Season — Ready naka?"
+                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                      draggable={false}
+                    />
+                    {/* Dark overlay gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+                    {/* Call to action overlay */}
+                    <div className="absolute inset-0 flex flex-col justify-center pl-5 sm:pl-8">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#ffc900] text-black text-[10px] sm:text-xs font-extrabold rounded-full border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] w-fit mb-2 uppercase tracking-wider">
+                        📢 Midterm Season
+                      </span>
+                      <h2 className="text-white font-extrabold text-lg sm:text-2xl md:text-3xl leading-tight tracking-tight drop-shadow-md">
+                        Midterm na! Ready naka?
+                      </h2>
+                      <p className="text-white/80 text-xs sm:text-sm font-semibold mt-1 drop-shadow">
+                        React and let the campus know how you feel! 📚
+                      </p>
+                    </div>
+                  </div>
+                </button>
 
                 {/* Mobile & Desktop Quick Feature Jump Bar */}
                 <div className="mt-6 sm:mt-8 grid grid-cols-3 gap-2.5 sm:gap-4 max-w-lg mx-auto w-full">
@@ -429,39 +446,6 @@ export default function Home() {
               </div>
             </section>
 
-            {/* ── MIDTERM SEASON BANNER ──────────────────────────────────────── */}
-            <section className="px-3 sm:px-6 pb-4 max-w-[1200px] mx-auto">
-              <button
-                id="midterm-banner-btn"
-                type="button"
-                onClick={handleMidtermBannerClick}
-                className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 cursor-pointer text-left block"
-              >
-                {/* Banner image */}
-                <div className="relative w-full aspect-[16/5] sm:aspect-[16/4] overflow-hidden bg-[#0d2a0d]">
-                  <img
-                    src="/images/banner.webp"
-                    alt="Midterm Season — Ready naka?"
-                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                    draggable={false}
-                  />
-                  {/* Dark overlay gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
-                  {/* Call to action overlay */}
-                  <div className="absolute inset-0 flex flex-col justify-center pl-5 sm:pl-8">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#ffc900] text-black text-[10px] sm:text-xs font-extrabold rounded-full border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] w-fit mb-2 uppercase tracking-wider">
-                      📢 Midterm Season
-                    </span>
-                    <h2 className="text-white font-extrabold text-lg sm:text-2xl md:text-3xl leading-tight tracking-tight drop-shadow-md">
-                      Midterm na! Ready naka?
-                    </h2>
-                    <p className="text-white/80 text-xs sm:text-sm font-semibold mt-1 drop-shadow">
-                      React and let the campus know how you feel! 📚
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </section>
 
             {/* FEATURE CARDS GRID (Gumroad Hairline Aesthetic) */}
             <section id="features" className="py-8 sm:py-16 px-3 sm:px-8 max-w-[1200px] mx-auto">

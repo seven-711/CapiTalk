@@ -1,9 +1,8 @@
-'use client';
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { getAvatarForPseudonym } from '../lib/constants';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   ArrowLeft,
@@ -204,6 +203,8 @@ const renderReactionBadge = (key: string) => {
 export const MidtermSzn: React.FC = () => {
   const { setViewState, currentUser } = useChatStore();
 
+  const currentUserId = currentUser?.id || (typeof window !== 'undefined' ? getOrCreatePersistentUUID() : 'guest_anon');
+
   // Real-time clock updated on interval
   const [now, setNow] = useState<number>(Date.now());
   const [postCreatedAt] = useState<number>(() => {
@@ -226,6 +227,26 @@ export const MidtermSzn: React.FC = () => {
     }, 10000); // Check every 10s
     return () => clearInterval(timer);
   }, []);
+
+  // User reactions map (userId -> reactionKey) for robust real-time synchronization
+  const [userReactionsMap, setUserReactionsMap] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const stored = localStorage.getItem('capitalk_midterm_user_reactions_map');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return {};
+  });
+
+  const calculateTalliesFromMap = (map: Record<string, string>): Record<string, number> => {
+    const tallies: Record<string, number> = { like: 0, heart: 0, care: 0, haha: 0, wow: 0, sad: 0 };
+    Object.values(map || {}).forEach((rKey) => {
+      if (rKey && tallies[rKey] !== undefined) {
+        tallies[rKey]++;
+      }
+    });
+    return tallies;
+  };
 
   // Fresh reaction counts starting at 0
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(() => {
@@ -313,9 +334,36 @@ export const MidtermSzn: React.FC = () => {
     const targetId = replyId || commentId;
     return (
       myCommentIds.includes(targetId) ||
-      (authorId && currentUser?.id && authorId === currentUser.id) ||
+      (authorId && currentUserId && authorId === currentUserId) ||
       (authorName && currentUser?.username && authorName === currentUser.username)
     );
+  };
+
+  // Sync and Persist Reactions across devices & tabs
+  const syncAndSaveReactions = (newMap: Record<string, string>) => {
+    const tallies = calculateTalliesFromMap(newMap);
+    setUserReactionsMap(newMap);
+    setReactionCounts(tallies);
+
+    try {
+      localStorage.setItem('capitalk_midterm_user_reactions_map', JSON.stringify(newMap));
+      localStorage.setItem('capitalk_midterm_reactions_zero', JSON.stringify(tallies));
+    } catch {}
+
+    broadcastChannelRef.current?.postMessage({
+      type: 'midterm_sync_reactions_map',
+      payload: newMap,
+    });
+
+    if (supabaseChannelRef.current) {
+      try {
+        supabaseChannelRef.current.send({
+          type: 'broadcast',
+          event: 'midterm_sync_reactions_map',
+          payload: newMap,
+        });
+      } catch {}
+    }
   };
 
   // Sync and Persist Comments across users & tabs
@@ -341,8 +389,99 @@ export const MidtermSzn: React.FC = () => {
     }
   };
 
-  // Real-Time Subscriptions (Supabase Realtime + BroadcastChannel + Storage Event)
+  // Fetch initial reactions & comments from Supabase Database
+  const fetchMidtermDataFromDB = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      // 1. Fetch Reactions tallies
+      const { data: reactData, error: reactErr } = await supabase
+        .from('midterm_reactions')
+        .select('reaction_type, user_id')
+        .eq('post_id', 'midterm_szn_post_1');
+
+      if (!reactErr && Array.isArray(reactData)) {
+        const mapFromDB: Record<string, string> = {};
+        reactData.forEach((row: any) => {
+          if (row.user_id && row.reaction_type) {
+            mapFromDB[row.user_id] = row.reaction_type;
+          }
+        });
+
+        setUserReactionsMap(prev => {
+          const merged = { ...prev, ...mapFromDB };
+          const tallies = calculateTalliesFromMap(merged);
+          setReactionCounts(tallies);
+
+          try {
+            localStorage.setItem('capitalk_midterm_user_reactions_map', JSON.stringify(merged));
+            localStorage.setItem('capitalk_midterm_reactions_zero', JSON.stringify(tallies));
+          } catch {}
+
+          if (merged[currentUserId]) {
+            setUserReaction(merged[currentUserId]);
+            try { localStorage.setItem('capitalk_midterm_user_reaction_zero', merged[currentUserId]); } catch {}
+          }
+          return merged;
+        });
+      } else if (reactErr) {
+        console.warn('Supabase reactions fetch error:', reactErr);
+      }
+
+      // 2. Fetch Comments & Replies
+      const { data: commentData, error: commentErr } = await supabase
+        .from('midterm_comments')
+        .select('*, replies:midterm_comment_replies(*)')
+        .eq('post_id', 'midterm_szn_post_1')
+        .order('created_at', { ascending: false });
+
+      if (!commentErr && Array.isArray(commentData)) {
+        const mapped: CommentItem[] = commentData.map((c: any) => ({
+          id: c.id,
+          authorId: c.author_id,
+          author: c.author,
+          department: c.department,
+          avatarUrl: c.avatar_url,
+          avatarColor: c.avatar_color || '#701a31',
+          createdAt: Number(c.created_at) || Date.now(),
+          text: c.text,
+          likesCount: c.likes_count || 0,
+          isLiked: Array.isArray(c.liked_by_users) && c.liked_by_users.includes(currentUserId),
+          replies: Array.isArray(c.replies)
+            ? c.replies.map((r: any) => ({
+                id: r.id,
+                authorId: r.author_id,
+                author: r.author,
+                department: r.department,
+                avatarUrl: r.avatar_url,
+                createdAt: Number(r.created_at) || Date.now(),
+                text: r.text,
+                likesCount: r.likes_count || 0,
+                isLiked: Array.isArray(r.liked_by_users) && r.liked_by_users.includes(currentUserId),
+              })).sort((a: any, b: any) => a.createdAt - b.createdAt)
+            : [],
+        }));
+
+        if (mapped.length > 0) {
+          setComments(mapped);
+          try { localStorage.setItem('capitalk_midterm_comments_zero', JSON.stringify(mapped)); } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch initial Midterm Szn data:', err);
+    }
+  }, [currentUserId]);
+
+  // Real-Time Subscriptions (Supabase Realtime + BroadcastChannel + Periodic Polling)
   useEffect(() => {
+    // 1. Initial fetch from DB
+    fetchMidtermDataFromDB();
+
+    // 2. Background polling every 2.5s to ensure live multi-device reflection
+    const pollTimer = setInterval(() => {
+      fetchMidtermDataFromDB();
+    }, 2500);
+
+    // 3. Local BroadcastChannel for instant cross-tab sync
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         const bc = new BroadcastChannel('capitalk_midterm_channel');
@@ -353,6 +492,21 @@ export const MidtermSzn: React.FC = () => {
             try {
               localStorage.setItem('capitalk_midterm_comments_zero', JSON.stringify(e.data.payload));
             } catch {}
+          } else if (e.data?.type === 'midterm_sync_reactions_map' && e.data.payload) {
+            const incomingMap = e.data.payload;
+            setUserReactionsMap(prev => {
+              const merged = { ...prev, ...incomingMap };
+              const tallies = calculateTalliesFromMap(merged);
+              setReactionCounts(tallies);
+              try {
+                localStorage.setItem('capitalk_midterm_user_reactions_map', JSON.stringify(merged));
+                localStorage.setItem('capitalk_midterm_reactions_zero', JSON.stringify(tallies));
+              } catch {}
+              if (merged[currentUserId]) {
+                setUserReaction(merged[currentUserId]);
+              }
+              return merged;
+            });
           }
         };
       } catch {}
@@ -364,13 +518,23 @@ export const MidtermSzn: React.FC = () => {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setComments(parsed);
         } catch {}
+      } else if (e.key === 'capitalk_midterm_reactions_zero' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed) setReactionCounts(parsed);
+        } catch {}
       }
     };
     window.addEventListener('storage', handleStorage);
 
+    // 4. Supabase Realtime Channel
     if (isSupabaseConfigured && supabase) {
       try {
-        const channel = supabase.channel('capitalk:midterm_szn');
+        const channel = supabase.channel('capitalk:midterm_szn', {
+          config: {
+            broadcast: { ack: true, self: false },
+          },
+        });
         supabaseChannelRef.current = channel;
         channel
           .on('broadcast', { event: 'midterm_sync_comments' }, ({ payload }: { payload: CommentItem[] }) => {
@@ -381,11 +545,38 @@ export const MidtermSzn: React.FC = () => {
               } catch {}
             }
           })
+          .on('broadcast', { event: 'midterm_sync_reactions_map' }, ({ payload }: any) => {
+            if (payload && typeof payload === 'object') {
+              setUserReactionsMap(prev => {
+                const merged = { ...prev, ...payload };
+                const tallies = calculateTalliesFromMap(merged);
+                setReactionCounts(tallies);
+                try {
+                  localStorage.setItem('capitalk_midterm_user_reactions_map', JSON.stringify(merged));
+                  localStorage.setItem('capitalk_midterm_reactions_zero', JSON.stringify(tallies));
+                } catch {}
+                if (merged[currentUserId]) {
+                  setUserReaction(merged[currentUserId]);
+                }
+                return merged;
+              });
+            }
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'midterm_reactions' }, () => {
+            fetchMidtermDataFromDB();
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'midterm_comments' }, () => {
+            fetchMidtermDataFromDB();
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'midterm_comment_replies' }, () => {
+            fetchMidtermDataFromDB();
+          })
           .subscribe();
       } catch {}
     }
 
     return () => {
+      clearInterval(pollTimer);
       window.removeEventListener('storage', handleStorage);
       if (broadcastChannelRef.current) {
         broadcastChannelRef.current.close();
@@ -396,7 +587,7 @@ export const MidtermSzn: React.FC = () => {
         supabaseChannelRef.current = null;
       }
     };
-  }, []);
+  }, [fetchMidtermDataFromDB, currentUserId]);
 
   // Persist reactions
   useEffect(() => {
@@ -414,29 +605,56 @@ export const MidtermSzn: React.FC = () => {
     }, 1600);
   };
 
-  // Select reaction
-  const handleSelectReaction = (key: string) => {
+  // Select reaction (Live cross-device sync & Supabase DB write)
+  const handleSelectReaction = async (key: string) => {
     const react = REACTIONS.find(r => r.key === key);
     setShowPicker(false);
     setHoveredReactionKey(null);
 
+    const nextMap = { ...userReactionsMap };
+    let nextReaction: string | null = null;
+
     if (userReaction === key) {
       // Toggle off
+      delete nextMap[currentUserId];
+      nextReaction = null;
       setUserReaction(null);
-      setReactionCounts(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 1) - 1) }));
       try { localStorage.removeItem('capitalk_midterm_user_reaction_zero'); } catch {}
     } else {
       // Set new reaction
-      const prevKey = userReaction;
-      setReactionCounts(prev => {
-        const next = { ...prev };
-        if (prevKey) next[prevKey] = Math.max(0, (next[prevKey] || 1) - 1);
-        next[key] = (next[key] || 0) + 1;
-        return next;
-      });
+      nextMap[currentUserId] = key;
+      nextReaction = key;
       setUserReaction(key);
       try { localStorage.setItem('capitalk_midterm_user_reaction_zero', key); } catch {}
       if (react) triggerFloat(react.emoji);
+    }
+
+    // 1. Sync & Broadcast Map Immediately
+    syncAndSaveReactions(nextMap);
+
+    // 2. Persist to Supabase Database
+    if (isSupabaseConfigured && supabase) {
+      try {
+        if (!nextReaction) {
+          await supabase
+            .from('midterm_reactions')
+            .delete()
+            .eq('post_id', 'midterm_szn_post_1')
+            .eq('user_id', currentUserId);
+        } else {
+          await supabase
+            .from('midterm_reactions')
+            .upsert({
+              post_id: 'midterm_szn_post_1',
+              user_id: currentUserId,
+              user_name: currentUser?.username || 'CU Student',
+              reaction_type: nextReaction,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'post_id,user_id' });
+        }
+      } catch (err) {
+        console.warn('Could not persist reaction to Supabase:', err);
+      }
     }
   };
 
@@ -546,30 +764,61 @@ export const MidtermSzn: React.FC = () => {
     const updated = [newComment, ...comments];
     syncAndSaveComments(updated);
     setCommentInput('');
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('midterm_comments').insert({
+        id: newComment.id,
+        post_id: 'midterm_szn_post_1',
+        author_id: newComment.authorId,
+        author: newComment.author,
+        department: newComment.department,
+        avatar_url: newComment.avatarUrl,
+        avatar_color: newComment.avatarColor,
+        text: newComment.text,
+        likes_count: 0,
+        liked_by_users: [],
+        created_at: newComment.createdAt,
+      }).then(() => {}, () => {});
+    }
   };
 
   // Toggle like on comment
   const handleToggleCommentLike = (commentId: string) => {
+    let nextLikesCount = 0;
+    let nextLikedBy: string[] = [];
+
     const updated = comments.map(c => {
       if (c.id === commentId) {
         const isLiked = !c.isLiked;
-        const likesCount = isLiked ? (c.likesCount || 0) + 1 : Math.max(0, (c.likesCount || 1) - 1);
-        return { ...c, isLiked, likesCount };
+        nextLikesCount = isLiked ? (c.likesCount || 0) + 1 : Math.max(0, (c.likesCount || 1) - 1);
+        nextLikedBy = isLiked ? [currentUserId] : [];
+        return { ...c, isLiked, likesCount: nextLikesCount };
       }
       return c;
     });
     syncAndSaveComments(updated);
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('midterm_comments').update({
+        likes_count: nextLikesCount,
+        liked_by_users: nextLikedBy,
+      }).eq('id', commentId).then(() => {}, () => {});
+    }
   };
 
   // Toggle like on reply
   const handleToggleReplyLike = (commentId: string, replyId: string) => {
+    let nextLikesCount = 0;
+    let nextLikedBy: string[] = [];
+
     const updated = comments.map(c => {
       if (c.id === commentId && c.replies) {
         const updatedReplies = c.replies.map(r => {
           if (r.id === replyId) {
             const isLiked = !r.isLiked;
-            const likesCount = isLiked ? (r.likesCount || 0) + 1 : Math.max(0, (r.likesCount || 1) - 1);
-            return { ...r, isLiked, likesCount };
+            nextLikesCount = isLiked ? (r.likesCount || 0) + 1 : Math.max(0, (r.likesCount || 1) - 1);
+            nextLikedBy = isLiked ? [currentUserId] : [];
+            return { ...r, isLiked, likesCount: nextLikesCount };
           }
           return r;
         });
@@ -578,6 +827,13 @@ export const MidtermSzn: React.FC = () => {
       return c;
     });
     syncAndSaveComments(updated);
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('midterm_comment_replies').update({
+        likes_count: nextLikesCount,
+        liked_by_users: nextLikedBy,
+      }).eq('id', replyId).then(() => {}, () => {});
+    }
   };
 
   // Start reply to a comment
@@ -623,6 +879,21 @@ export const MidtermSzn: React.FC = () => {
     syncAndSaveComments(updated);
     setReplyInput('');
     setActiveReplyCommentId(null);
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('midterm_comment_replies').insert({
+        id: newReply.id,
+        comment_id: commentId,
+        author_id: newReply.authorId,
+        author: newReply.author,
+        department: newReply.department,
+        avatar_url: newReply.avatarUrl,
+        text: newReply.text,
+        likes_count: 0,
+        liked_by_users: [],
+        created_at: newReply.createdAt,
+      }).then(() => {}, () => {});
+    }
   };
 
   // Delete Comment / Reply Confirmed
@@ -641,8 +912,14 @@ export const MidtermSzn: React.FC = () => {
         }
         return c;
       });
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('midterm_comment_replies').delete().eq('id', replyId).then(() => {}, () => {});
+      }
     } else {
       updated = comments.filter(c => c.id !== commentId);
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('midterm_comments').delete().eq('id', commentId).then(() => {}, () => {});
+      }
     }
 
     syncAndSaveComments(updated);
@@ -662,9 +939,9 @@ export const MidtermSzn: React.FC = () => {
     .filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] text-[#050505] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#f0f2f5] text-[#050505] flex flex-col font-sans pb-16 sm:pb-6">
       {/* ── Main Feed Column ───────────────────────────────────────────────── */}
-      <main className="flex-1 py-3 sm:py-5 px-0 sm:px-3 max-w-[620px] mx-auto w-full">
+      <main className="flex-1 py-3 sm:py-5 px-0 sm:px-3 max-w-[620px] mx-auto w-full pb-20 sm:pb-8">
 
         {/* ── Facebook Post Card ───────────────────────────────────────────── */}
         <article className="bg-white sm:rounded-xl shadow-xs border-y sm:border border-[#e4e6eb] overflow-visible relative">
@@ -1294,6 +1571,28 @@ export const MidtermSzn: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── Mobile View Footer Bar (Redirect to Campus Wall) ────────────────── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-[#e4e6eb] px-4 py-2.5 flex items-center justify-between shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-[#701a31] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs border border-white">
+            CW
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-black truncate">Campus Wall</p>
+            <p className="text-[10px] text-gray-500 font-medium truncate">Read student confessions</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setViewState('freedom_wall')}
+          className="px-4 py-2 bg-black hover:bg-zinc-800 text-white font-black text-xs rounded-xl shadow-xs shrink-0 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-[#ffc900]" />
+          <span>Go to Wall</span>
+        </button>
+      </div>
 
       {/* ── Keyframes for floating Facebook reaction animations ─────────────── */}
       <style>{`

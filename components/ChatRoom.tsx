@@ -234,6 +234,7 @@ export const ChatRoom: React.FC = () => {
     return 'maroon';
   });
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showSlotFullModal, setShowSlotFullModal] = useState(false);
   const activeThemeConfig = getThemeConfig(chatTheme);
 
   // Alive Status State: 'online' | 'idle' | 'offline'
@@ -284,12 +285,19 @@ export const ChatRoom: React.FC = () => {
       }
     });
 
+    const unsubFriendAdd = roomManager.onFriendAdd((partnerProfile) => {
+      if (partnerProfile) {
+        keepPartner(partnerProfile, true);
+      }
+    });
+
     return () => {
       unsubTheme();
       unsubStatus();
       unsubGame();
+      unsubFriendAdd();
     };
-  }, [partner?.username, updateGameInviteStatus, setActionToast]);
+  }, [partner?.username, updateGameInviteStatus, setActionToast, keepPartner]);
 
   // Broadcast own presence status ('online' | 'idle' | 'offline') and detect inactivity
   const broadcastMyStatus = React.useCallback((status: 'online' | 'idle' | 'offline') => {
@@ -1702,13 +1710,21 @@ export const ChatRoom: React.FC = () => {
                 >
                   ✓ Kept (View)
                 </button>
+              ) : keptConnection && keptConnection.user_id !== partner.id ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSlotFullModal(true)}
+                  className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-amber-800 text-xs font-black rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                >
+                  <span>Slot Full (1/1)</span>
+                </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => {
                     const res = keepPartner(partner);
                     if (!res.success) {
-                      setViewState('kept_connections');
+                      setShowSlotFullModal(true);
                     }
                   }}
                   className="px-3.5 py-1.5 bg-[#ffc900] hover:bg-[#ffb700] text-black text-xs font-black rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
@@ -2071,6 +2087,51 @@ export const ChatRoom: React.FC = () => {
         }}
         isDarkMode={isDarkMode}
       />
+
+      {/* 1:1 Connection Slot Full Alert Modal */}
+      {showSlotFullModal && keptConnection && partner && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShowSlotFullModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-[#18181b] border-4 border-black rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-150 text-black dark:text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-11 h-11 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border-2 border-black text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto shadow-xs text-xl">
+              🔒
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-black">1 Connection Limit Reached</h3>
+              <p className="text-xs text-gray-600 dark:text-zinc-400 leading-relaxed">
+                You already have <span className="font-extrabold text-black dark:text-white">@{keptConnection.username}</span> saved. CapiTalk restricts each account to strictly <span className="font-extrabold text-[#701a31] dark:text-[#ff90e8]">1 mutual connection</span> at a time.
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-zinc-500">
+                To connect with @{partner.username}, you must first unfriend @{keptConnection.username} in your Chats list.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowSlotFullModal(false)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-black text-xs rounded-xl border-2 border-black cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSlotFullModal(false);
+                  setViewState('kept_connections');
+                }}
+                className="flex-1 py-2.5 bg-[#ffc900] hover:bg-[#ffd633] text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer transition-all"
+              >
+                Manage Friends
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

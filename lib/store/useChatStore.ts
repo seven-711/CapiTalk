@@ -98,7 +98,9 @@ interface ChatStoreState {
   markWallNotificationsAsRead: () => void;
   clearWallNotifications: () => void;
   keptConnection: KeptConnection | null;
-  keepPartner: (partnerProfile: UserProfile) => { success: boolean; message: string };
+  hasNewConnectionNotif: boolean;
+  setHasNewConnectionNotif: (hasNotif: boolean) => void;
+  keepPartner: (partnerProfile: UserProfile, isReciprocal?: boolean) => { success: boolean; message: string };
   removeKeptConnection: () => void;
 
   clearToast: () => void;
@@ -141,8 +143,20 @@ export const useChatStore = create<ChatStoreState>()(
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
+      hasNewConnectionNotif: typeof window !== 'undefined' ? localStorage.getItem('capitalk_has_new_conn_notif') === 'true' : false,
+      setHasNewConnectionNotif: (hasNotif: boolean) => {
+        set({ hasNewConnectionNotif: hasNotif });
+        if (typeof window !== 'undefined') {
+          if (hasNotif) {
+            try { localStorage.setItem('capitalk_has_new_conn_notif', 'true'); } catch (e) {}
+          } else {
+            try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+          }
+        }
+      },
+
       keptConnection: null,
-      keepPartner: (partnerProfile: UserProfile) => {
+      keepPartner: (partnerProfile: UserProfile, isReciprocal = false) => {
         const current = get().keptConnection;
         if (current && current.user_id !== partnerProfile.id) {
           return {
@@ -164,22 +178,109 @@ export const useChatStore = create<ChatStoreState>()(
           keptConnection: newConn,
           actionToast: {
             type: 'info',
-            message: `✨ @${partnerProfile.username} has been added to your Kept Connections!`,
+            message: isReciprocal
+              ? `✨ @${partnerProfile.username} added you as a friend!`
+              : `✨ @${partnerProfile.username} has been added to your Kept Connections!`,
           },
         });
+
+        if (isReciprocal) {
+          set({ hasNewConnectionNotif: true });
+          if (typeof window !== 'undefined') {
+            try { localStorage.setItem('capitalk_has_new_conn_notif', 'true'); } catch (e) {}
+          }
+          get().addWallNotification({
+            post_id: 'conn_' + Date.now(),
+            type: 'friend_add',
+            actor_alias: `@${partnerProfile.username}`,
+            actor_username: partnerProfile.username,
+            actor_avatar: partnerProfile.avatar_url || getAvatarForPseudonym(partnerProfile.username),
+            actor_department: partnerProfile.department,
+            message_snippet: `✨ @${partnerProfile.username} added you as a friend!`,
+          });
+        }
+
+        // Broadcast to partner if this is the originating action
+        if (!isReciprocal) {
+          const currentUser = get().currentUser;
+          if (currentUser) {
+            if (broadcastChannel) {
+              try {
+                broadcastChannel.postMessage({
+                  type: 'CONNECTION_ADDED_TWO_WAY',
+                  sender: currentUser,
+                  targetUserId: partnerProfile.id,
+                  timestamp: Date.now(),
+                });
+              } catch (e) {}
+            }
+
+            if (supabase && isSupabaseConfigured) {
+              try {
+                const globalChan = supabase.channel('capitalk_global_announcements_v1');
+                globalChan.send({
+                  type: 'broadcast',
+                  event: 'connection_added_two_way',
+                  payload: {
+                    sender: currentUser,
+                    targetUserId: partnerProfile.id,
+                    timestamp: Date.now(),
+                  },
+                });
+              } catch (e) {}
+            }
+
+            try {
+              roomManager.sendFriendAddSignal(currentUser);
+            } catch (e) {}
+          }
+        }
+
         return {
           success: true,
           message: `Added @${partnerProfile.username} to your Kept Connections.`,
         };
       },
       removeKeptConnection: () => {
+        const current = get().keptConnection;
+        const currentUser = get().currentUser;
         set({
           keptConnection: null,
+          hasNewConnectionNotif: false,
           actionToast: {
             type: 'info',
             message: '🗑️ Connection removed from your list.',
           },
         });
+        if (typeof window !== 'undefined') {
+          try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+        }
+
+        if (current && currentUser) {
+          if (broadcastChannel) {
+            try {
+              broadcastChannel.postMessage({
+                type: 'CONNECTION_REMOVED_TWO_WAY',
+                senderId: currentUser.id,
+                targetUserId: current.user_id,
+              });
+            } catch (e) {}
+          }
+
+          if (supabase && isSupabaseConfigured) {
+            try {
+              const globalChan = supabase.channel('capitalk_global_announcements_v1');
+              globalChan.send({
+                type: 'broadcast',
+                event: 'connection_removed_two_way',
+                payload: {
+                  senderId: currentUser.id,
+                  targetUserId: current.user_id,
+                },
+              });
+            } catch (e) {}
+          }
+        }
       },
 
       viewState: 'landing',
@@ -677,27 +778,35 @@ export const useChatStore = create<ChatStoreState>()(
                     }
                   }
                 } else if (event.data?.type === 'FREEDOM_WALL_LIKE') {
-                  const { postId, actorAlias, actorDept, messageSnippet, likerId } = event.data;
+                  const { postId, actorAlias, actorDept, messageSnippet, likerId, actorUsername, actorAvatar } = event.data;
                   const { myPostIds, currentUser } = get();
                   const currentUserId = currentUser ? currentUser.id : '';
                   if (myPostIds.includes(postId) && likerId !== currentUserId) {
+                    const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
+                    const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                     get().addWallNotification({
                       post_id: postId,
                       type: 'like',
-                      actor_alias: actorAlias,
+                      actor_alias: resolvedAlias,
+                      actor_username: resolvedUsername,
+                      actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                       actor_department: actorDept,
                       message_snippet: messageSnippet,
                     });
                   }
                 } else if (event.data?.type === 'FREEDOM_WALL_COMMENT') {
-                  const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId } = event.data;
+                  const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId, actorUsername, actorAvatar } = event.data;
                   const { myPostIds, currentUser } = get();
                   const currentUserId = currentUser ? currentUser.id : '';
                   if (myPostIds.includes(postId) && commenterId !== currentUserId) {
+                    const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
+                    const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                     get().addWallNotification({
                       post_id: postId,
                       type: 'comment',
-                      actor_alias: actorAlias,
+                      actor_alias: resolvedAlias,
+                      actor_username: resolvedUsername,
+                      actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                       actor_department: actorDept,
                       message_snippet: messageSnippet,
                       comment_text: commentText,
@@ -715,6 +824,70 @@ export const useChatStore = create<ChatStoreState>()(
                       message_snippet: messageSnippet,
                       admin_remark: adminRemark,
                     });
+                  }
+                } else if (event.data?.type === 'CONNECTION_ADDED_TWO_WAY') {
+                  const { sender, targetUserId } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && targetUserId === myUserId && sender) {
+                    const currentKept = store.keptConnection;
+                    if (!currentKept || currentKept.user_id === sender.id) {
+                      store.keepPartner(sender, true);
+                      set({ hasNewConnectionNotif: true });
+                      try { localStorage.setItem('capitalk_has_new_conn_notif', 'true'); } catch (e) {}
+                      store.addWallNotification({
+                        post_id: 'conn_' + Date.now(),
+                        type: 'friend_add',
+                        actor_alias: `@${sender.username}`,
+                        actor_username: sender.username,
+                        actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                        actor_department: sender.department,
+                        message_snippet: `✨ @${sender.username} added you as a friend!`,
+                      });
+                      store.setActionToast({
+                        type: 'info',
+                        message: `✨ @${sender.username} added you as a friend!`,
+                      });
+                    } else {
+                      store.setActionToast({
+                        type: 'info',
+                        message: `✨ @${sender.username} wants to connect with you, but your 1 connection slot is currently full.`,
+                      });
+                    }
+                  }
+                } else if (event.data?.type === 'CONNECTION_REMOVED_TWO_WAY') {
+                  const { senderId, targetUserId } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && targetUserId === myUserId && store.keptConnection?.user_id === senderId) {
+                    set({ keptConnection: null, hasNewConnectionNotif: false });
+                    try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+                    store.setActionToast({
+                      type: 'info',
+                      message: '🗑️ Your connection was removed by your partner.',
+                    });
+                  }
+                } else if (event.data?.type === 'GLOBAL_DM_MESSAGE') {
+                  const { message, recipientId, senderName } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && recipientId === myUserId) {
+                    if (store.viewState !== 'kept_connections') {
+                      set({ hasNewConnectionNotif: true });
+                      try { localStorage.setItem('capitalk_has_new_conn_notif', 'true'); } catch (e) {}
+                      store.addWallNotification({
+                        post_id: 'dm_' + Date.now(),
+                        type: 'dm',
+                        actor_alias: `@${senderName}`,
+                        actor_username: senderName,
+                        actor_avatar: getAvatarForPseudonym(senderName),
+                        message_snippet: message.text || 'Sent you a direct message',
+                      });
+                      store.setActionToast({
+                        type: 'info',
+                        message: `💬 Message from @${senderName}: "${message.text ? (message.text.length > 25 ? message.text.slice(0, 25) + '...' : message.text) : 'Sent a message'}"`,
+                      });
+                    }
                   }
                 }
               };
@@ -758,33 +931,114 @@ export const useChatStore = create<ChatStoreState>()(
                       }
                     }
                   })
+                  .on('broadcast', { event: 'connection_added_two_way' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { sender, targetUserId } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && targetUserId === myUserId && sender) {
+                        const currentKept = store.keptConnection;
+                        if (!currentKept || currentKept.user_id === sender.id) {
+                          store.keepPartner(sender, true);
+                          set({ hasNewConnectionNotif: true });
+                          try { localStorage.setItem('capitalk_has_new_conn_notif', 'true'); } catch (e) {}
+                          store.addWallNotification({
+                            post_id: 'conn_' + Date.now(),
+                            type: 'friend_add',
+                            actor_alias: `@${sender.username}`,
+                            actor_username: sender.username,
+                            actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                            actor_department: sender.department,
+                            message_snippet: `✨ @${sender.username} added you as a friend!`,
+                          });
+                          store.setActionToast({
+                            type: 'info',
+                            message: `✨ @${sender.username} added you as a friend!`,
+                          });
+                        } else {
+                          store.setActionToast({
+                            type: 'info',
+                            message: `✨ @${sender.username} wants to connect with you, but your 1 connection slot is currently full.`,
+                          });
+                        }
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'connection_removed_two_way' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { senderId, targetUserId } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && targetUserId === myUserId && store.keptConnection?.user_id === senderId) {
+                        set({ keptConnection: null, hasNewConnectionNotif: false });
+                        try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+                        store.setActionToast({
+                          type: 'info',
+                          message: '🗑️ Your connection was removed by your partner.',
+                        });
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'global_dm_message' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { message, recipientId, senderName } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && recipientId === myUserId) {
+                        if (store.viewState !== 'kept_connections') {
+                          set({ hasNewConnectionNotif: true });
+                          try { localStorage.setItem('capitalk_has_new_conn_notif', 'true'); } catch (e) {}
+                          store.addWallNotification({
+                            post_id: 'dm_' + Date.now(),
+                            type: 'dm',
+                            actor_alias: `@${senderName}`,
+                            actor_username: senderName,
+                            actor_avatar: getAvatarForPseudonym(senderName),
+                            message_snippet: message.text || 'Sent you a direct message',
+                          });
+                          store.setActionToast({
+                            type: 'info',
+                            message: `💬 Message from @${senderName}: "${message.text ? (message.text.length > 25 ? message.text.slice(0, 25) + '...' : message.text) : 'Sent a message'}"`,
+                          });
+                        }
+                      }
+                    }
+                  })
                   .subscribe();
 
                 const wallChannel = supabase.channel('capitalk_global_wall_events');
                 wallChannel
                   .on('broadcast', { event: 'FREEDOM_WALL_LIKE' }, (payload: any) => {
-                    const { postId, actorAlias, actorDept, messageSnippet, likerId } = payload?.payload || {};
+                    const { postId, actorAlias, actorDept, messageSnippet, likerId, actorUsername, actorAvatar } = payload?.payload || {};
                     const { myPostIds, currentUser } = get();
                     const currentUserId = currentUser ? currentUser.id : '';
                     if (myPostIds.includes(postId) && likerId !== currentUserId) {
+                      const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
+                      const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                       get().addWallNotification({
                         post_id: postId,
                         type: 'like',
-                        actor_alias: actorAlias,
+                        actor_alias: resolvedAlias,
+                        actor_username: resolvedUsername,
+                        actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                         actor_department: actorDept,
                         message_snippet: messageSnippet,
                       });
                     }
                   })
                   .on('broadcast', { event: 'FREEDOM_WALL_COMMENT' }, (payload: any) => {
-                    const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId } = payload?.payload || {};
+                    const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId, actorUsername, actorAvatar } = payload?.payload || {};
                     const { myPostIds, currentUser } = get();
                     const currentUserId = currentUser ? currentUser.id : '';
                     if (myPostIds.includes(postId) && commenterId !== currentUserId) {
+                      const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
+                      const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                       get().addWallNotification({
                         post_id: postId,
                         type: 'comment',
-                        actor_alias: actorAlias,
+                        actor_alias: resolvedAlias,
+                        actor_username: resolvedUsername,
+                        actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                         actor_department: actorDept,
                         message_snippet: messageSnippet,
                         comment_text: commentText,
@@ -814,10 +1068,14 @@ export const useChatStore = create<ChatStoreState>()(
                   .on('broadcast', { event: 'new_notification' }, (payload: any) => {
                     const notif = payload?.payload;
                     if (notif) {
+                      const resolvedUsername = notif.actor_username || (notif.actor_alias?.startsWith('@') ? notif.actor_alias.slice(1) : notif.actor_alias);
+                      const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : notif.actor_alias;
                       get().addWallNotification({
                         post_id: notif.post_id,
                         type: notif.type,
-                        actor_alias: notif.actor_alias,
+                        actor_alias: resolvedAlias,
+                        actor_username: resolvedUsername,
+                        actor_avatar: notif.actor_avatar || getAvatarForPseudonym(resolvedUsername),
                         actor_department: notif.actor_department,
                         message_snippet: notif.message_snippet,
                         comment_text: notif.comment_text,
@@ -2280,12 +2538,15 @@ export const useChatStore = create<ChatStoreState>()(
           try {
             broadcastChannel.postMessage({ type: 'FREEDOM_WALL_UPDATE', posts: updated });
             if (isNewLike && targetPost) {
-              const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');
-              const actorAlias = `Someone from ${deptShort}`;
+              const actorUsername = currentUser?.username || 'CU Student';
+              const actorAlias = `@${actorUsername}`;
+              const actorAvatar = currentUser?.avatar_url || getAvatarForPseudonym(actorUsername);
               broadcastChannel.postMessage({
                 type: 'FREEDOM_WALL_LIKE',
                 postId,
                 actorAlias,
+                actorUsername,
+                actorAvatar,
                 actorDept: currentUser?.department || 'Engineering',
                 messageSnippet: targetPost.message.slice(0, 60),
                 likerId: userId,
@@ -2319,8 +2580,9 @@ export const useChatStore = create<ChatStoreState>()(
                 );
 
               if (isNewLike) {
-                const deptShort = (currentUser?.department || 'Engineering').replace('College of ', '');
-                const actorAlias = `Someone from ${deptShort}`;
+                const actorUsername = currentUser?.username || 'CU Student';
+                const actorAlias = `@${actorUsername}`;
+                const actorAvatar = currentUser?.avatar_url || getAvatarForPseudonym(actorUsername);
                 const targetUserId = targetPost.author_id || targetPost.id;
                 
                 const userChannel = supabase.channel(`user:${targetUserId}:notifications`);
@@ -2332,6 +2594,8 @@ export const useChatStore = create<ChatStoreState>()(
                     post_id: postId,
                     type: 'like',
                     actor_alias: actorAlias,
+                    actor_username: actorUsername,
+                    actor_avatar: actorAvatar,
                     actor_department: currentUser?.department || 'Engineering',
                     message_snippet: targetPost.message.slice(0, 60),
                   },
