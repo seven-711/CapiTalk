@@ -945,6 +945,7 @@ export const ChatRoom: React.FC = () => {
             }`}
             title={confirmNext ? 'Click again to skip to next chat' : 'Skip to next chat'}
           >
+            <FastForward className={`w-3.5 h-3.5 shrink-0 ${confirmNext ? 'text-white' : 'text-amber-300'}`} />
             <span className={confirmNext ? 'inline' : 'hidden sm:inline'}>
               {confirmNext ? 'Sure?' : 'Next Chat'}
             </span>

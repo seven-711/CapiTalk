@@ -233,6 +233,48 @@ export const KeptConnectionsPage: React.FC = () => {
     } catch {}
   }, []);
 
+  // Long press mobile reaction trigger handlers
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleBubbleTouchStart = useCallback((msgId: string, e: React.TouchEvent) => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    longPressTimerRef.current = setTimeout(() => {
+      setActivePickerMsgId(msgId);
+      touchStartPosRef.current = null;
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        window.navigator.vibrate(40);
+      }
+    }, 400);
+  }, []);
+
+  const handleBubbleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+
+    // Cancel long press immediately if finger moves more than 6px (e.g. scrolling or swiping)
+    if (dx > 6 || dy > 6) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      touchStartPosRef.current = null;
+    }
+  }, []);
+
+  const handleBubbleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchStartPosRef.current = null;
+  }, []);
+
   // Toggle emoji reaction on direct message
   const toggleReaction = useCallback((messageId: string, reactionKey: string) => {
     if (!currentUser) return;
@@ -900,7 +942,10 @@ export const KeptConnectionsPage: React.FC = () => {
             </header>
 
             {/* Messages Scroll Area */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#121214]">
+            <div
+              onClick={() => activePickerMsgId && setActivePickerMsgId(null)}
+              className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#121214]"
+            >
               {/* Profile Intro Banner */}
               <div className="text-center py-4 space-y-1">
                 <img
@@ -956,7 +1001,17 @@ export const KeptConnectionsPage: React.FC = () => {
 
                     <div className="flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%]">
                       <div
-                        className={`relative px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm transition-all ${
+                        onTouchStart={(e) => handleBubbleTouchStart(msg.id, e)}
+                        onTouchMove={handleBubbleTouchMove}
+                        onTouchEnd={handleBubbleTouchEnd}
+                        onTouchCancel={handleBubbleTouchEnd}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setActivePickerMsgId(msg.id);
+                        }}
+                        className={`relative px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm transition-all select-none cursor-pointer ${
+                          activePickerMsgId === msg.id ? 'ring-2 ring-amber-400/80 shadow-2xl' : ''
+                        } ${
                           msg.isMe
                             ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
                             : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
