@@ -19,6 +19,8 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
+  BarChart2,
+  Sparkles,
 } from 'lucide-react';
 
 interface CampusGifItem {
@@ -96,6 +98,11 @@ export const PostNotePage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNoteSentSuccess, setIsNoteSentSuccess] = useState(false);
 
+  // Poll Feature State
+  const [showPollForm, setShowPollForm] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+
   // Attached Media State
   const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'gif'; name?: string } | null>(null);
   const [isProcessingMedia, setIsProcessingMedia] = useState(false);
@@ -104,6 +111,24 @@ export const PostNotePage: React.FC = () => {
   const [gifCategory, setGifCategory] = useState('all');
   const [gifSearchTerm, setGifSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAddPollOption = () => {
+    if (pollOptions.length < 4) {
+      setPollOptions([...pollOptions, '']);
+    }
+  };
+
+  const handleRemovePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(pollOptions.filter((_, i) => i !== index));
+    }
+  };
+
+  const handlePollOptionChange = (index: number, val: string) => {
+    const next = [...pollOptions];
+    next[index] = val;
+    setPollOptions(next);
+  };
 
   // Rate limit / cooldown
   const COOLDOWN_SECONDS = 60;
@@ -253,6 +278,33 @@ export const PostNotePage: React.FC = () => {
       return;
     }
 
+    let finalPollQuestion: string | undefined = undefined;
+    let pollOptionsList: FreedomPollOption[] | undefined = undefined;
+
+    if (showPollForm) {
+      const validOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
+      if (validOptions.length < 2) {
+        setModerationError('Please provide at least 2 options for the poll.');
+        return;
+      }
+
+      for (const opt of validOptions) {
+        const check = analyzeContentModeration(opt);
+        if (check.contains_profanity) {
+          setModerationError(`Poll option contains inappropriate term ("${check.matched_terms.join(', ')}").`);
+          return;
+        }
+      }
+
+      finalPollQuestion = pollQuestion.trim() || message.trim();
+      pollOptionsList = validOptions.map((optText, idx) => ({
+        id: `opt_${Date.now()}_${idx}`,
+        text: optText,
+        votes_count: 0,
+        voted_users: [],
+      }));
+    }
+
     setIsSubmitting(true);
     try {
       const authorAlias = postAsAdmin
@@ -279,6 +331,8 @@ export const PostNotePage: React.FC = () => {
         is_admin: postAsAdmin,
         image_url: attachedMedia?.url,
         image_type: attachedMedia?.type,
+        poll_question: finalPollQuestion,
+        poll_options: pollOptionsList,
       }, honeypot, deviceId);
 
       if (success) {
@@ -407,6 +461,74 @@ export const PostNotePage: React.FC = () => {
             </div>
           )}
 
+          {/* Campus Poll Creator Form */}
+          {showPollForm && (
+            <div className="p-3 sm:p-4 bg-[#fbfbfa] border border-[#d1d5dc] rounded-xl space-y-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-black flex items-center gap-1.5">
+                  <BarChart2 className="w-4 h-4 text-[#701a31]" />
+                  <span>Campus Poll</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPollForm(false);
+                    setPollQuestion('');
+                    setPollOptions(['', '']);
+                  }}
+                  className="text-xs text-gray-400 hover:text-rose-600 font-bold cursor-pointer"
+                >
+                  Remove
+                </button>
+              </div>
+
+              <input
+                type="text"
+                value={pollQuestion}
+                onChange={(e) => setPollQuestion(e.target.value)}
+                placeholder="Poll question / topic (optional)"
+                maxLength={100}
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black transition-colors"
+              />
+
+              <div className="space-y-2">
+                {pollOptions.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={(e) => handlePollOptionChange(idx, e.target.value)}
+                      placeholder={`Option ${idx + 1}`}
+                      maxLength={60}
+                      className="flex-1 px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black transition-colors"
+                    />
+                    {pollOptions.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePollOption(idx)}
+                        className="p-1.5 text-gray-400 hover:text-rose-600 rounded cursor-pointer"
+                        title="Delete option"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {pollOptions.length < 4 && (
+                <button
+                  type="button"
+                  onClick={handleAddPollOption}
+                  className="text-xs font-bold text-[#701a31] hover:underline flex items-center gap-1 cursor-pointer pt-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Option ({pollOptions.length}/4)</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Color & Toolbar Actions + Bottom Buttons */}
           <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
             {/* Color Palette & Media Actions */}
@@ -435,7 +557,7 @@ export const PostNotePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Media Action Buttons */}
+              {/* Media & Poll Action Buttons */}
               <div className="flex items-center gap-1">
                 <input
                   ref={fileInputRef}
@@ -467,10 +589,23 @@ export const PostNotePage: React.FC = () => {
                 >
                   <Film className="w-4 h-4" />
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPollForm(!showPollForm)}
+                  className={`p-2 rounded-full transition-colors cursor-pointer ${
+                    showPollForm
+                      ? 'bg-black text-white'
+                      : 'hover:bg-gray-100 text-gray-600 hover:text-black'
+                  }`}
+                  title={showPollForm ? 'Remove Poll' : 'Add Poll'}
+                >
+                  <BarChart2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            {/* Relocated Bottom Action Controls (Cancel & Share Note) */}
+            {/* Bottom Action Controls (Cancel & Share Note) */}
             <div className="flex items-center gap-2 ml-auto">
               <button
                 type="button"
@@ -497,6 +632,110 @@ export const PostNotePage: React.FC = () => {
                   <span>Share</span>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Live Note Preview Card ────────────────────────────────────────── */}
+        <div className="space-y-2 mt-5 px-3 sm:px-0">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#ffc900]" />
+              <span>Live Note Preview</span>
+            </span>
+            <span className="text-[10px] text-gray-400 font-medium">How it appears on Campus Wall</span>
+          </div>
+
+          {/* Note Card Simulation */}
+          <div
+            style={{ backgroundColor: postAsAdmin ? '#701a31' : selectedColor }}
+            className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all flex flex-col justify-between relative overflow-hidden shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
+              postAsAdmin ? 'border-4 border-[#ffc900] text-white' : 'border-black text-black'
+            }`}
+          >
+            <div>
+              {/* Top Header inside preview */}
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0 ${
+                    postAsAdmin ? 'bg-[#ffc900] text-black border border-black' : 'bg-black text-white'
+                  }`}>
+                    {postAsAdmin ? 'ADMIN NOTE' : currentAuthorDept.replace('College of ', '')}
+                  </span>
+                  <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs">
+                    YOU
+                  </span>
+                </div>
+                <span className={`text-[10px] font-bold ${postAsAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
+                  Just now
+                </span>
+              </div>
+
+              {/* Note Message */}
+              <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-3 ${
+                postAsAdmin ? 'text-white' : 'text-black'
+              }`}>
+                {message.trim() ? `"${message.trim()}"` : '"Your note message will appear here..."'}
+              </p>
+
+              {/* Attached Media Preview */}
+              {attachedMedia && (
+                <div className="mb-3 rounded-2xl border-2 border-black overflow-hidden bg-black/5 relative shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                  <img
+                    src={attachedMedia.url}
+                    alt="Attachment Preview"
+                    className="w-full max-h-52 object-cover object-center rounded-xl"
+                  />
+                  {attachedMedia.type === 'gif' && (
+                    <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/85 text-[#ffc900] text-[9px] font-black uppercase rounded-md border border-black shadow-xs pointer-events-none">
+                      GIF
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Poll Preview */}
+              {showPollForm && (
+                <div className="my-2.5 p-2.5 sm:p-3 rounded-xl border-2 border-black bg-white/95 text-black shadow-xs">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-black flex items-center gap-1.5 truncate">
+                      <BarChart2 className="w-3.5 h-3.5 text-[#701a31] shrink-0" />
+                      <span className="truncate">{pollQuestion.trim() || 'Campus Poll'}</span>
+                    </span>
+                    <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-black text-white rounded-full shrink-0">
+                      Tap to vote
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {pollOptions.map((opt, idx) => (
+                      <div
+                        key={idx}
+                        className="w-full text-left p-1.5 sm:p-2 rounded-lg border-2 border-black bg-gray-50 text-xs font-bold truncate"
+                      >
+                        {opt.trim() || `Option ${idx + 1}`}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Note Footer */}
+            <div className="pt-3 border-t border-black/15 flex items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <img
+                  src={previewAvatar}
+                  alt={currentAuthorAlias}
+                  className="w-6 h-6 rounded-full border border-black/30 object-cover bg-amber-50 shrink-0"
+                />
+                <span className={`text-xs font-black truncate ${postAsAdmin ? 'text-white' : 'text-black'}`}>
+                  @{currentAuthorAlias}
+                </span>
+              </div>
+              <span className={`text-[10px] font-bold ${postAsAdmin ? 'text-white/80' : 'text-black/70'}`}>
+                0 likes · 0 comments
+              </span>
             </div>
           </div>
         </div>
