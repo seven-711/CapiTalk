@@ -36,12 +36,16 @@ export const KeptConnectionsPage: React.FC = () => {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [partnerTyping, setPartnerTyping] = useState(false);
+  const [isPartnerOnline, setIsPartnerOnline] = useState(false);
+  const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const presenceHeartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSignalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const supabaseChannelRef = useRef<any>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -59,6 +63,24 @@ export const KeptConnectionsPage: React.FC = () => {
     } catch {}
   }, [storageKey]);
 
+  // Mark partner online and reset offline countdown timer (14s)
+  const markPartnerOnline = useCallback(() => {
+    setIsPartnerOnline(true);
+    setLastSeenTime(Date.now());
+
+    if (lastSignalTimeoutRef.current) clearTimeout(lastSignalTimeoutRef.current);
+    lastSignalTimeoutRef.current = setTimeout(() => {
+      setIsPartnerOnline(false);
+      setLastSeenTime(Date.now());
+    }, 14000);
+  }, []);
+
+  const markPartnerOffline = useCallback(() => {
+    setIsPartnerOnline(false);
+    setLastSeenTime(Date.now());
+    if (lastSignalTimeoutRef.current) clearTimeout(lastSignalTimeoutRef.current);
+  }, []);
+
   // Emit Read Receipt Broadcast
   const sendReadReceipt = useCallback(() => {
     if (!currentUser) return;
@@ -73,6 +95,44 @@ export const KeptConnectionsPage: React.FC = () => {
           type: 'broadcast',
           event: 'dm_read_receipt',
           payload: { readerId: currentUser.id, readAt: Date.now() },
+        });
+      } catch {}
+    }
+  }, [currentUser]);
+
+  // Emit presence ping heartbeat
+  const sendPresencePing = useCallback(() => {
+    if (!currentUser) return;
+    const payload = { senderId: currentUser.id, username: currentUser.username, timestamp: Date.now() };
+    broadcastChannelRef.current?.postMessage({
+      type: 'dm_presence_ping',
+      payload,
+    });
+    if (supabaseChannelRef.current) {
+      try {
+        supabaseChannelRef.current.send({
+          type: 'broadcast',
+          event: 'dm_presence_ping',
+          payload,
+        });
+      } catch {}
+    }
+  }, [currentUser]);
+
+  // Emit presence pong response
+  const sendPresencePong = useCallback(() => {
+    if (!currentUser) return;
+    const payload = { senderId: currentUser.id, username: currentUser.username, timestamp: Date.now() };
+    broadcastChannelRef.current?.postMessage({
+      type: 'dm_presence_pong',
+      payload,
+    });
+    if (supabaseChannelRef.current) {
+      try {
+        supabaseChannelRef.current.send({
+          type: 'broadcast',
+          event: 'dm_presence_pong',
+          payload,
         });
       } catch {}
     }
@@ -103,8 +163,14 @@ export const KeptConnectionsPage: React.FC = () => {
   useEffect(() => {
     if (!keptConnection || !currentUser) return;
 
-    // Send read receipt on mount so partner knows we opened/are viewing the chat
+    // Send read receipt and presence ping on mount
     sendReadReceipt();
+    sendPresencePing();
+
+    // Regular heartbeat ping every 5 seconds
+    presenceHeartbeatTimerRef.current = setInterval(() => {
+      sendPresencePing();
+    }, 5000);
 
     // 1. BroadcastChannel for instant local cross-tab / multi-window sync
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -115,6 +181,7 @@ export const KeptConnectionsPage: React.FC = () => {
         bc.onmessage = (e) => {
           const data = e.data;
           if (data?.type === 'dm_message' && data.payload?.senderId !== currentUser.id) {
+            markPartnerOnline();
             setMessages((prev) => {
               if (prev.some((m) => m.id === data.payload.id)) return prev;
               // Mark all my sent messages as read since partner responded
@@ -123,17 +190,24 @@ export const KeptConnectionsPage: React.FC = () => {
               persistMessages(updated);
               return updated;
             });
-            // Automatically send read receipt back
             sendReadReceipt();
           } else if (data?.type === 'dm_read_receipt' && data.payload?.readerId !== currentUser.id) {
-            // Partner read our messages -> 2 checks!
+            markPartnerOnline();
             setMessages((prev) => {
               const updated = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
               persistMessages(updated);
               return updated;
             });
           } else if (data?.type === 'dm_typing' && data.payload?.senderId !== currentUser.id) {
+            markPartnerOnline();
             setPartnerTyping(Boolean(data.payload.isTyping));
+          } else if (data?.type === 'dm_presence_ping' && data.payload?.senderId !== currentUser.id) {
+            markPartnerOnline();
+            sendPresencePong();
+          } else if (data?.type === 'dm_presence_pong' && data.payload?.senderId !== currentUser.id) {
+            markPartnerOnline();
+          } else if (data?.type === 'dm_presence_leave' && data.payload?.senderId !== currentUser.id) {
+            markPartnerOffline();
           }
         };
       } catch {}
@@ -155,18 +229,20 @@ export const KeptConnectionsPage: React.FC = () => {
     };
     window.addEventListener('storage', handleStorage);
 
-    // 3. Supabase Realtime Channel for global real-time cross-device messaging
+    // 3. Supabase Realtime Channel for global real-time cross-device messaging & presence
     if (isSupabaseConfigured && supabase) {
       try {
-        const channel = supabase.channel(`capitalk:dm:${pairKey}`);
+        const channel = supabase.channel(`capitalk:dm:${pairKey}`, {
+          config: { presence: { key: currentUser.id } },
+        });
         supabaseChannelRef.current = channel;
 
         channel
           .on('broadcast', { event: 'dm_message' }, ({ payload }: { payload: DirectMessage }) => {
             if (payload && payload.senderId !== currentUser.id) {
+              markPartnerOnline();
               setMessages((prev) => {
                 if (prev.some((m) => m.id === payload.id)) return prev;
-                // Mark all my sent messages as read since partner is active
                 const marked = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
                 const updated = [...marked, { ...payload, isMe: false, read: true }];
                 persistMessages(updated);
@@ -177,6 +253,7 @@ export const KeptConnectionsPage: React.FC = () => {
           })
           .on('broadcast', { event: 'dm_read_receipt' }, ({ payload }: { payload: { readerId: string } }) => {
             if (payload && payload.readerId !== currentUser.id) {
+              markPartnerOnline();
               setMessages((prev) => {
                 const updated = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
                 persistMessages(updated);
@@ -186,15 +263,81 @@ export const KeptConnectionsPage: React.FC = () => {
           })
           .on('broadcast', { event: 'dm_typing' }, ({ payload }: { payload: { senderId: string; isTyping: boolean } }) => {
             if (payload && payload.senderId !== currentUser.id) {
+              markPartnerOnline();
               setPartnerTyping(Boolean(payload.isTyping));
             }
           })
-          .subscribe();
+          .on('broadcast', { event: 'dm_presence_ping' }, ({ payload }: { payload: { senderId: string } }) => {
+            if (payload && payload.senderId !== currentUser.id) {
+              markPartnerOnline();
+              sendPresencePong();
+            }
+          })
+          .on('broadcast', { event: 'dm_presence_pong' }, ({ payload }: { payload: { senderId: string } }) => {
+            if (payload && payload.senderId !== currentUser.id) {
+              markPartnerOnline();
+            }
+          })
+          .on('broadcast', { event: 'dm_presence_leave' }, ({ payload }: { payload: { senderId: string } }) => {
+            if (payload && payload.senderId !== currentUser.id) {
+              markPartnerOffline();
+            }
+          })
+          .on('presence', { event: 'sync' }, () => {
+            const state = channel.presenceState();
+            const partnerPresent = Object.values(state).some((presences: any) =>
+              presences.some((p: any) => p.userId === keptConnection.user_id || p.username === keptConnection.username)
+            );
+            if (partnerPresent) {
+              markPartnerOnline();
+            }
+          })
+          .on('presence', { event: 'join' }, ({ newPresences }: any) => {
+            const joined = newPresences.some((p: any) => p.userId === keptConnection.user_id || p.username === keptConnection.username);
+            if (joined) markPartnerOnline();
+          })
+          .on('presence', { event: 'leave' }, ({ leftPresences }: any) => {
+            const left = leftPresences.some((p: any) => p.userId === keptConnection.user_id || p.username === keptConnection.username);
+            if (left) markPartnerOffline();
+          })
+          .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              await channel.track({
+                userId: currentUser.id,
+                username: currentUser.username,
+                onlineAt: Date.now(),
+              });
+              sendPresencePing();
+            }
+          });
       } catch {}
     }
 
+    const handleBeforeUnload = () => {
+      broadcastChannelRef.current?.postMessage({
+        type: 'dm_presence_leave',
+        payload: { senderId: currentUser.id },
+      });
+      if (supabaseChannelRef.current) {
+        try {
+          supabaseChannelRef.current.send({
+            type: 'broadcast',
+            event: 'dm_presence_leave',
+            payload: { senderId: currentUser.id },
+          });
+        } catch {}
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+
+      if (presenceHeartbeatTimerRef.current) clearInterval(presenceHeartbeatTimerRef.current);
+      if (lastSignalTimeoutRef.current) clearTimeout(lastSignalTimeoutRef.current);
+
       if (broadcastChannelRef.current) {
         broadcastChannelRef.current.close();
         broadcastChannelRef.current = null;
@@ -206,7 +349,7 @@ export const KeptConnectionsPage: React.FC = () => {
         supabaseChannelRef.current = null;
       }
     };
-  }, [keptConnection, currentUser, pairKey, storageKey, persistMessages, sendReadReceipt]);
+  }, [keptConnection, currentUser, pairKey, storageKey, persistMessages, sendReadReceipt, sendPresencePing, sendPresencePong, markPartnerOnline, markPartnerOffline]);
 
   // Scroll to bottom on new message or typing state change
   useEffect(() => {
@@ -325,7 +468,13 @@ export const KeptConnectionsPage: React.FC = () => {
                   alt={keptConnection.username}
                   className="w-10 h-10 rounded-full border border-zinc-700 object-cover bg-zinc-900"
                 />
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#18181b]" />
+                <span
+                  className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-[#18181b] transition-all ${
+                    isPartnerOnline
+                      ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
+                      : 'bg-zinc-500'
+                  }`}
+                />
               </div>
 
               <div className="min-w-0">
@@ -337,10 +486,25 @@ export const KeptConnectionsPage: React.FC = () => {
                     {keptConnection.department.replace('College of ', '')}
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-400 font-medium truncate flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                  <span>Real-time mutual connection</span>
-                </p>
+                {isPartnerOnline ? (
+                  <p className="text-[11px] font-bold text-emerald-400 truncate leading-tight mt-0.5">
+                    Online
+                  </p>
+                ) : (
+                  <p className="text-[11px] font-medium text-zinc-400 truncate leading-tight mt-0.5">
+                    {lastSeenTime
+                      ? (() => {
+                          const diffSec = Math.max(0, Math.floor((Date.now() - lastSeenTime) / 1000));
+                          if (diffSec < 60) return 'Offline · Active just now';
+                          const diffMin = Math.floor(diffSec / 60);
+                          if (diffMin < 60) return `Offline · Active ${diffMin}m ago`;
+                          const diffHr = Math.floor(diffMin / 60);
+                          if (diffHr < 24) return `Offline · Active ${diffHr}h ago`;
+                          return 'Offline';
+                        })()
+                      : 'Offline'}
+                  </p>
+                )}
               </div>
             </div>
 

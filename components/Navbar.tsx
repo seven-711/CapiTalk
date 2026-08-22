@@ -149,9 +149,6 @@ export const Navbar: React.FC = () => {
                 title="Your Kept Connection"
               >
                 <span>Kept Contact</span>
-                {keptConnection && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00e599] inline-block" />
-                )}
               </button>
 
               <button
@@ -212,7 +209,7 @@ export const Navbar: React.FC = () => {
         </div>
       </header>
 
-      {/* ── Mobile Bottom Navigation Bar (Conforming to DESIGN.md Gumroad Style) ── */}
+      {/* ── Mobile Bottom Navigation Bar (Icon Only) ───────────────────────── */}
       <nav
         aria-label="Mobile Navigation Bar"
         className="fixed bottom-0 left-0 right-0 z-40 bg-[#f4f4f0]/95 backdrop-blur-md border-t border-[#d1d5dc] px-3 py-2 flex items-center justify-around md:hidden pb-[max(0.65rem,env(safe-area-inset-bottom))]"
@@ -221,55 +218,53 @@ export const Navbar: React.FC = () => {
         <button
           type="button"
           onClick={() => setViewState('landing')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer active:scale-95 ${
+          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'landing'
               ? 'bg-[#000000] text-[#ffffff]'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
           aria-label="Home"
         >
-          <Home className="w-4.5 h-4.5" fill={viewState === 'landing' ? 'currentColor' : 'none'} strokeWidth={2} />
-          {viewState === 'landing' && <span className="text-xs font-bold tracking-tight">Home</span>}
+          <Home className="w-5 h-5" fill={viewState === 'landing' ? 'currentColor' : 'none'} strokeWidth={2} />
         </button>
 
         {/* 2. Search / Matchmaking Button */}
         <button
           type="button"
           onClick={() => setViewState('queue')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer active:scale-95 ${
+          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'queue'
               ? 'bg-[#000000] text-[#ffffff]'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
           aria-label="Search and Matchmaking"
         >
-          <Search className="w-4.5 h-4.5 stroke-[2.5]" />
-          {viewState === 'queue' && <span className="text-xs font-bold tracking-tight">Search</span>}
+          <Search className="w-5 h-5 stroke-[2.5]" />
         </button>
 
         {/* 3. Add Note / Post Button (Gumroad Center Action) */}
         <button
           type="button"
           onClick={() => setViewState('add_note')}
-          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
+          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'add_note'
               ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
               : 'bg-[#ffffff] text-[#000000] border border-[#d1d5dc] hover:border-[#000000]'
           }`}
           aria-label="Add Note"
         >
-          <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+          <Plus className="w-5 h-5 stroke-[2.5]" />
         </button>
 
         {/* 4. Messages / Kept Connections Button */}
         <button
           type="button"
           onClick={() => setViewState('kept_connections')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer active:scale-95 text-[#242423] hover:text-[#000000] hover:bg-[#ffffff] relative"
+          className="p-2.5 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]"
           aria-label="Kept Connections"
         >
           <div className="relative flex items-center justify-center">
-            <Mail className="w-4.5 h-4.5 stroke-[2]" fill="none" />
+            <Mail className="w-5 h-5 stroke-[2]" fill="none" />
             {keptConnection && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ff90e8] ring-1 ring-[#000000]" />
             )}
@@ -280,7 +275,7 @@ export const Navbar: React.FC = () => {
         <button
           type="button"
           onClick={() => setViewState('register')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer active:scale-95 ${
+          className={`p-2.5 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'register'
               ? 'bg-[#000000] text-[#ffffff]'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
@@ -291,14 +286,13 @@ export const Navbar: React.FC = () => {
             <img
               src={currentUser.avatar_url}
               alt={currentUser.username}
-              className={`w-4.5 h-4.5 rounded-full object-cover border ${
+              className={`w-5 h-5 rounded-full object-cover border ${
                 viewState === 'register' ? 'border-[#ffffff]' : 'border-[#d1d5dc]'
               }`}
             />
           ) : (
-            <User className="w-4.5 h-4.5 stroke-[2]" fill={viewState === 'register' ? 'currentColor' : 'none'} />
+            <User className="w-5 h-5 stroke-[2]" fill={viewState === 'register' ? 'currentColor' : 'none'} />
           )}
-          {viewState === 'register' && <span className="text-xs font-bold tracking-tight">Profile</span>}
         </button>
       </nav>
 
@@ -434,9 +428,8 @@ export const Navbar: React.FC = () => {
                   }`}
                 >
                   <span className="flex items-center gap-2">
-                    📜 Terms of Conduct (TOC)
+                    Terms and Conditions
                   </span>
-                  <span className="text-[10px] text-gray-500 font-semibold">Rules</span>
                 </button>
 
                 <button

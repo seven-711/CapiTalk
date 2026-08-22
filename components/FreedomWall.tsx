@@ -32,6 +32,8 @@ import {
   Sparkles,
   Reply,
   Shuffle,
+  SlidersHorizontal,
+  Check,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -257,6 +259,7 @@ export const FreedomWall: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'trending' | 'latest' | 'my_notes'>('latest');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+  const [showDeptModal, setShowDeptModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -925,18 +928,18 @@ export const FreedomWall: React.FC = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto py-2 sm:py-8 px-2 sm:px-6 animate-in fade-in duration-200">
-      {/* Top Banner Navigation & Header — Compact single-row on mobile */}
-      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-6 bg-white border-2 border-black p-2 sm:p-4 rounded-xl sm:rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+      {/* Top Banner Navigation & Header */}
+      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-4 bg-white border border-[#d1d5dc] p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl shadow-2xs">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => goBack()}
-            className="p-1.5 sm:p-2 bg-[#f4f4f0] hover:bg-black hover:text-white border border-black rounded-full transition-all shrink-0 cursor-pointer"
+            className="p-1.5 sm:p-2 bg-gray-50 hover:bg-black hover:text-white border border-[#d1d5dc] rounded-full transition-all shrink-0 cursor-pointer"
             title="Back"
           >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
-          <span className="px-2.5 py-1 sm:px-3.5 sm:py-1.5 bg-[#701a31] border-2 border-black text-white text-[11px] sm:text-xs font-extrabold rounded-full uppercase tracking-wider shadow-xs">
+          <span className="px-3 py-1 bg-[#701a31] text-white text-xs font-extrabold rounded-full uppercase tracking-wider">
             Campus Wall
           </span>
         </div>
@@ -945,14 +948,14 @@ export const FreedomWall: React.FC = () => {
           <button
             type="button"
             onClick={() => setViewState('add_note')}
-            className="btn-gumroad-primary text-[11px] sm:text-xs px-3 py-1.5 sm:px-4 sm:py-2 flex items-center justify-center gap-1 shadow-xs bg-[#ffc900] hover:bg-[#ffc900]/80 cursor-pointer font-black"
+            className="px-3.5 py-1.5 bg-black hover:bg-zinc-800 text-white text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 flex items-center justify-center gap-1"
           >
             <span>Share</span>
           </button>
           <button
             type="button"
             onClick={startSearch}
-            className="btn-gumroad-ghost text-[11px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-center gap-1 font-bold border border-black/20"
+            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-black text-xs font-bold rounded-full border border-[#d1d5dc] transition-colors cursor-pointer"
           >
             <span>Chat</span>
           </button>
@@ -960,26 +963,26 @@ export const FreedomWall: React.FC = () => {
       </div>
 
       {/* Filter & Search Bar — Collapsible search on mobile */}
-      <div className="mb-2.5 sm:mb-6 bg-[#f4f4f0] p-1.5 sm:p-2.5 border-2 border-black rounded-xl sm:rounded-2xl transition-all">
+      <div className="mb-3 sm:mb-6 bg-white p-2 sm:p-2.5 border border-[#d1d5dc] rounded-xl sm:rounded-2xl shadow-2xs transition-all">
         {isSearchExpanded || searchQuery ? (
           /* Expanded Search Input Mode */
-          <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
             <div className="relative flex-1 min-w-0">
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search campus notes..."
-                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-black rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-[#fbfbfa] border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black focus:bg-white transition-colors"
                 autoFocus
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-black cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-black cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -991,7 +994,7 @@ export const FreedomWall: React.FC = () => {
                 setSearchQuery('');
                 setIsSearchExpanded(false);
               }}
-              className="px-2.5 py-1.5 bg-white hover:bg-gray-100 text-black text-xs font-bold rounded-lg border border-black shrink-0 cursor-pointer"
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-black text-xs font-bold rounded-lg border border-[#d1d5dc] shrink-0 cursor-pointer transition-colors"
             >
               Cancel
             </button>
@@ -1004,41 +1007,41 @@ export const FreedomWall: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('latest')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                   activeTab === 'latest'
-                    ? 'bg-black text-white border-black shadow-xs'
-                    : 'bg-white text-black border-[#d1d5dc] hover:border-black'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'text-gray-600 hover:text-black hover:bg-gray-100'
                 }`}
               >
-                <Clock className="w-3 h-3 text-white" />
+                <Clock className="w-3.5 h-3.5" />
                 <span>Latest</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('trending')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                   activeTab === 'trending'
-                    ? 'bg-black text-white border-black shadow-xs'
-                    : 'bg-white text-black border-[#d1d5dc] hover:border-black'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'text-gray-600 hover:text-black hover:bg-gray-100'
                 }`}
               >
-                <Flame className="w-3 h-3 text-amber-400" />
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
                 <span>Trending</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('my_notes')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all whitespace-nowrap border cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                   activeTab === 'my_notes'
-                    ? 'bg-black text-white border-black shadow-xs'
-                    : 'bg-white text-black border-[#d1d5dc] hover:border-black'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'text-gray-600 hover:text-black hover:bg-gray-100'
                 }`}
               >
                 <span>Your notes</span>
               </button>
             </div>
 
-            {/* Right Actions: Search Icon Trigger + Department Dropdown */}
+            {/* Right Actions: Search Icon Trigger + Department Filter Icon Button */}
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               <button
                 type="button"
@@ -1046,29 +1049,101 @@ export const FreedomWall: React.FC = () => {
                   setIsSearchExpanded(true);
                   setTimeout(() => searchInputRef.current?.focus(), 50);
                 }}
-                className="p-1.5 sm:px-2.5 sm:py-1 bg-white hover:bg-black hover:text-white text-black border border-black rounded-lg text-xs font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                className="px-2.5 py-1.5 bg-[#fbfbfa] hover:bg-gray-100 text-gray-700 hover:text-black border border-[#d1d5dc] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Search campus notes"
               >
                 <Search className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Search</span>
               </button>
 
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="text-[11px] sm:text-xs bg-white border border-black rounded-lg px-2 py-1 font-bold focus:outline-none focus:ring-2 focus:ring-black cursor-pointer max-w-[110px] sm:max-w-none truncate"
+              <button
+                type="button"
+                onClick={() => setShowDeptModal(true)}
+                className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer border relative ${
+                  departmentFilter !== 'all'
+                    ? 'bg-black text-white border-black'
+                    : 'bg-[#fbfbfa] hover:bg-gray-100 text-gray-700 hover:text-black border-[#d1d5dc]'
+                }`}
+                title={departmentFilter === 'all' ? 'Filter by department' : `Filtering by ${departmentFilter.replace('College of ', '')}`}
+                aria-label="Filter by department"
               >
-                <option value="all">All Depts</option>
-                {CU_DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept.replace('College of ', '')}
-                  </option>
-                ))}
-              </select>
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                {departmentFilter !== 'all' && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ff90e8] ring-1 ring-black" />
+                )}
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Minimalist Department Filter Modal (No Emojis) */}
+      {showDeptModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setShowDeptModal(false)}
+        >
+          <div
+            className="bg-white border border-[#d1d5dc] rounded-2xl max-w-sm w-full p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col font-sans text-black max-h-[85vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-black">
+                Filter by Department
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowDeptModal(false)}
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto py-2 space-y-1 custom-scrollbar pr-1 flex-1">
+              {/* All Departments Option */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDepartmentFilter('all');
+                  setShowDeptModal(false);
+                }}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
+                  departmentFilter === 'all'
+                    ? 'bg-black text-white'
+                    : 'bg-white hover:bg-gray-100 text-black'
+                }`}
+              >
+                <span>All Departments</span>
+                {departmentFilter === 'all' && <Check className="w-4 h-4 text-white" />}
+              </button>
+
+              {/* Individual Departments (No Emojis) */}
+              {CU_DEPARTMENTS.map((dept) => {
+                const isSelected = departmentFilter === dept;
+                return (
+                  <button
+                    key={dept}
+                    type="button"
+                    onClick={() => {
+                      setDepartmentFilter(dept);
+                      setShowDeptModal(false);
+                    }}
+                    className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
+                      isSelected
+                        ? 'bg-black text-white'
+                        : 'bg-white hover:bg-gray-100 text-black'
+                    }`}
+                  >
+                    <span>{dept.replace('College of ', '')}</span>
+                    {isSelected && <Check className="w-4 h-4 text-white" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Freedom Wall Content */}
       {filteredPosts.length === 0 ? (
@@ -1154,16 +1229,6 @@ export const FreedomWall: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Floating Mobile Action Button */}
-      <button
-        type="button"
-        onClick={() => setViewState('add_note')}
-        className="fixed bottom-6 right-6 z-40 sm:hidden w-14 h-14 bg-[#ff90e8] border-2 border-black rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none text-black cursor-pointer"
-        title="Share"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
 
       {/* Comments — Ultra-Premium Full-Screen Panel (Gumroad DESIGN.md - Borderless Edition) */}
       {selectedPostForComments && (

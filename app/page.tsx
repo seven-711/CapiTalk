@@ -329,7 +329,7 @@ export default function Home() {
                 {/* School Tagline Pill */}
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border-2 border-black rounded-full text-xs font-extrabold text-black mb-4 sm:mb-6 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#c41e3a] animate-pulse" />
-                  <span>Capitol University Student Hub</span>
+                  <span>CU Student Hub</span>
                 </div>
 
                 {/* Oversized Display Headline */}
@@ -773,7 +773,7 @@ export default function Home() {
                 Freedom Wall
               </button>
               <button onClick={() => setViewState('terms')} className="hover:text-[#701a31] font-extrabold transition-colors">
-                Terms of Conduct (TOC)
+                Terms and Conditions
               </button>
               <button onClick={() => setViewState('privacy')} className="text-[#701a31] hover:underline font-extrabold transition-colors">
                 Privacy Policy

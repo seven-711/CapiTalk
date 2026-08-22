@@ -19,7 +19,6 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
-  BarChart2,
 } from 'lucide-react';
 
 interface CampusGifItem {
@@ -105,15 +104,6 @@ export const PostNotePage: React.FC = () => {
   const [gifCategory, setGifCategory] = useState('all');
   const [gifSearchTerm, setGifSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Poll state
-  const [showPollForm, setShowPollForm] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOption1, setPollOption1] = useState('');
-  const [pollOption2, setPollOption2] = useState('');
-  const [pollOption3, setPollOption3] = useState('');
-  const [pollOption4, setPollOption4] = useState('');
-  const [pollOptionsCount, setPollOptionsCount] = useState(2);
 
   // Rate limit / cooldown
   const COOLDOWN_SECONDS = 60;
@@ -263,37 +253,6 @@ export const PostNotePage: React.FC = () => {
       return;
     }
 
-    let pollOptionsList: FreedomPollOption[] | undefined = undefined;
-    let finalPollQuestion: string | undefined = undefined;
-
-    if (showPollForm) {
-      const rawOptions = [pollOption1, pollOption2, pollOption3, pollOption4]
-        .slice(0, pollOptionsCount)
-        .map((opt) => opt.trim())
-        .filter(Boolean);
-
-      if (rawOptions.length < 2) {
-        setModerationError('Please provide at least 2 options for the poll.');
-        return;
-      }
-
-      for (const opt of rawOptions) {
-        const check = analyzeContentModeration(opt);
-        if (check.contains_profanity) {
-          setModerationError(`Poll option contains inappropriate term ("${check.matched_terms.join(', ')}").`);
-          return;
-        }
-      }
-
-      finalPollQuestion = pollQuestion.trim() || message.trim();
-      pollOptionsList = rawOptions.map((optText, idx) => ({
-        id: `opt_${Date.now()}_${idx}`,
-        text: optText,
-        votes_count: 0,
-        voted_users: [],
-      }));
-    }
-
     setIsSubmitting(true);
     try {
       const authorAlias = postAsAdmin
@@ -320,8 +279,6 @@ export const PostNotePage: React.FC = () => {
         is_admin: postAsAdmin,
         image_url: attachedMedia?.url,
         image_type: attachedMedia?.type,
-        poll_question: finalPollQuestion,
-        poll_options: pollOptionsList,
       }, honeypot, deviceId);
 
       if (success) {
@@ -450,112 +407,6 @@ export const PostNotePage: React.FC = () => {
             </div>
           )}
 
-          {/* Poll Form */}
-          {showPollForm && (
-            <div className="p-3.5 bg-[#fbfbfa] border border-[#d1d5dc] rounded-xl space-y-2.5 text-black">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-black flex items-center gap-1.5">
-                  <BarChart2 className="w-3.5 h-3.5" />
-                  <span>Campus Poll</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowPollForm(false)}
-                  className="text-[11px] font-bold text-gray-400 hover:text-red-600"
-                >
-                  Remove
-                </button>
-              </div>
-
-              <input
-                type="text"
-                maxLength={100}
-                value={pollQuestion}
-                onChange={(e) => setPollQuestion(e.target.value)}
-                placeholder="Ask a question (optional)..."
-                className="w-full px-3 py-2 text-xs bg-white border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black"
-              />
-
-              <div className="space-y-1.5">
-                <input
-                  type="text"
-                  maxLength={60}
-                  value={pollOption1}
-                  onChange={(e) => setPollOption1(e.target.value)}
-                  placeholder="Option 1"
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
-                />
-                <input
-                  type="text"
-                  maxLength={60}
-                  value={pollOption2}
-                  onChange={(e) => setPollOption2(e.target.value)}
-                  placeholder="Option 2"
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
-                />
-
-                {pollOptionsCount >= 3 && (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      maxLength={60}
-                      value={pollOption3}
-                      onChange={(e) => setPollOption3(e.target.value)}
-                      placeholder="Option 3"
-                      className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
-                    />
-                    {pollOptionsCount === 3 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPollOption3('');
-                          setPollOptionsCount(2);
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-red-500"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {pollOptionsCount >= 4 && (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      maxLength={60}
-                      value={pollOption4}
-                      onChange={(e) => setPollOption4(e.target.value)}
-                      placeholder="Option 4"
-                      className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPollOption4('');
-                        setPollOptionsCount(3);
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-red-500"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                {pollOptionsCount < 4 && (
-                  <button
-                    type="button"
-                    onClick={() => setPollOptionsCount(Math.min(4, pollOptionsCount + 1))}
-                    className="text-xs font-bold text-black hover:underline flex items-center gap-1 pt-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add option</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Color & Toolbar Actions + Bottom Buttons */}
           <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
             {/* Color Palette & Media Actions */}
@@ -616,17 +467,6 @@ export const PostNotePage: React.FC = () => {
                 >
                   <Film className="w-4 h-4" />
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowPollForm(!showPollForm)}
-                  className={`p-2 rounded-full transition-colors cursor-pointer ${
-                    showPollForm ? 'bg-[#ffc900] text-black' : 'hover:bg-gray-100 text-gray-600 hover:text-black'
-                  }`}
-                  title="Create Poll"
-                >
-                  <BarChart2 className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
@@ -644,7 +484,7 @@ export const PostNotePage: React.FC = () => {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)) || !message.trim()}
-                className="px-5 py-2 bg-[#dc341e] hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-black text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+                className="px-5 py-2 bg-black hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-black text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
               >
                 {isSubmitting ? (
                   <>
@@ -654,7 +494,7 @@ export const PostNotePage: React.FC = () => {
                 ) : cooldownRemaining > 0 && !postAsAdmin ? (
                   <span>Wait {cooldownRemaining}s</span>
                 ) : (
-                  <span>Share Note</span>
+                  <span>Share</span>
                 )}
               </button>
             </div>
