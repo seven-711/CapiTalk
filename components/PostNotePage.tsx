@@ -7,7 +7,6 @@ import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomPollOption } from '../lib/types';
 import { processUploadedImage } from '../lib/utils/imagePipeline';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
-import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   ArrowLeft,
@@ -16,19 +15,12 @@ import {
   Trash2,
   Image as ImageIcon,
   Film,
-  Link as LinkIcon,
   Search,
   Check,
   RefreshCw,
   AlertCircle,
-  Lock,
+  BarChart2,
 } from 'lucide-react';
-
-const PSEUDONYMS = [
-  'BraveTiger', 'SilentOwl', 'HappyPanda', 'CyberEagle', 'NightFalcon',
-  'GoldenLion', 'CrimsonFox', 'SwiftOtter', 'WiseDolphin', 'CalmKoala',
-  'ZenWolf', 'ChillCapy', 'StarlightBear', 'UrbanHawk', 'MidnightCat'
-];
 
 interface CampusGifItem {
   title: string;
@@ -112,8 +104,6 @@ export const PostNotePage: React.FC = () => {
   const [showGifModal, setShowGifModal] = useState(false);
   const [gifCategory, setGifCategory] = useState('all');
   const [gifSearchTerm, setGifSearchTerm] = useState('');
-  const [customMediaUrl, setCustomMediaUrl] = useState('');
-  const [showCustomUrlInput, setShowCustomUrlInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Poll state
@@ -173,13 +163,6 @@ export const PostNotePage: React.FC = () => {
     const interval = setInterval(checkLimits, 1000);
     return () => clearInterval(interval);
   }, [isAdminUser]);
-
-  const handleRandomizeAlias = () => {
-    const randomIdx = Math.floor(Math.random() * PSEUDONYMS.length);
-    const chosen = PSEUDONYMS[randomIdx];
-    const randNum = Math.floor(100 + Math.random() * 900);
-    setAlias(`${chosen}#${randNum}`);
-  };
 
   const handleMediaFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,16 +227,6 @@ export const PostNotePage: React.FC = () => {
   const handleSelectPresetGif = (gifUrl: string) => {
     setAttachedMedia({ url: gifUrl, type: 'gif' });
     setShowGifModal(false);
-    setMediaError(null);
-  };
-
-  const handleApplyCustomUrl = () => {
-    if (!customMediaUrl.trim()) return;
-    const cleanUrl = customMediaUrl.trim();
-    const isGif = cleanUrl.toLowerCase().includes('.gif');
-    setAttachedMedia({ url: cleanUrl, type: isGif ? 'gif' : 'image' });
-    setCustomMediaUrl('');
-    setShowCustomUrlInput(false);
     setMediaError(null);
   };
 
@@ -388,129 +361,231 @@ export const PostNotePage: React.FC = () => {
     : (currentUser?.avatar_url || getAvatarForPseudonym(currentAuthorAlias));
 
   return (
-    <div className="min-h-screen bg-[#f4f4f0] text-black pb-12">
-      <div className="max-w-4xl mx-auto px-4 pt-6">
+    <div className="min-h-screen bg-[#f4f4f0] text-black font-sans pb-16">
+      {/* ── Main Composer Container ──────────────────────────────────────── */}
+      <main className="max-w-2xl mx-auto px-0 sm:px-4 py-0 sm:py-6">
         {/* Error Alert */}
         {moderationError && (
-          <div className="mb-4 p-3 bg-rose-100 border-2 border-black rounded-xl text-black font-bold text-xs flex items-center gap-2 shadow-xs">
+          <div className="mx-3 sm:mx-0 my-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs flex items-center gap-2 animate-in fade-in duration-150">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span className="flex-1">{moderationError}</span>
-            <button type="button" onClick={() => setModerationError(null)} className="p-0.5 hover:bg-black/10 rounded">
+            <button type="button" onClick={() => setModerationError(null)} className="p-0.5 hover:bg-rose-100 rounded">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Form (7 cols on desktop) */}
-          <div className="lg:col-span-7 bg-white border-2 border-black rounded-2xl p-5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Admin Mode Switcher */}
-              {isAdminUser && (
-                <div className="p-3 bg-[#701a31] border-2 border-black rounded-xl text-white flex items-center justify-between gap-2 shadow-xs">
-                  <div>
-                    <span className="text-xs font-black text-[#ffc900] block">Admin Mode</span>
-                    <span className="text-[10px] text-white/80 font-medium">Post official university note</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={postAsAdmin}
-                      onChange={(e) => {
-                        setPostAsAdmin(e.target.checked);
-                        if (e.target.checked) setSelectedColor('#701a31');
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-6 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ffc900]"></div>
-                  </label>
-                </div>
-              )}
-
-              {/* Alias & Department Stack (Locked to registered user profile) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="flex flex-col">
-                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5 flex items-center justify-between">
-                    <span>Author</span>
-               
-                  </label>
-                  <div className="flex items-center gap-2 h-10 px-3 border-2 border-black rounded-xl bg-[#f4f4f0] text-black shadow-xs select-none">
-                    <img
-                      src={previewAvatar}
-                      alt={currentAuthorAlias}
-                      className="w-5 h-5 rounded-full border border-black object-cover bg-amber-100 shrink-0"
-                    />
-                    <span className="flex-1 text-xs font-bold truncate">
-                      {currentAuthorAlias}
-                    </span>
-                    <Lock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                  </div>
-                </div>
-
-                <div className="flex flex-col">
-                  <label className="text-xs font-bold text-gray-800 uppercase mb-1.5 flex items-center justify-between">
-                    <span>Department</span>
-                  </label>
-                  <div className="flex items-center justify-between h-10 px-3 border-2 border-black rounded-xl bg-[#f4f4f0] text-black shadow-xs select-none">
-                    <span className="text-xs font-bold truncate">
-                      {currentAuthorDept}
-                    </span>
-                    <Lock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Note Colors */}
-              {!postAsAdmin && (
-                <div className="pt-1">
-                  <label className="block text-xs font-bold text-gray-800 uppercase mb-1.5">
-                    Note Color
-                  </label>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    {POST_COLORS.map((c) => (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => setSelectedColor(c.hex)}
-                        style={{ backgroundColor: c.hex }}
-                        className={`w-8 h-8 rounded-full border-2 border-black transition-all flex items-center justify-center cursor-pointer ${
-                          selectedColor === c.hex
-                            ? 'scale-110 shadow-xs ring-2 ring-black'
-                            : 'opacity-70 hover:opacity-100'
-                        }`}
-                        title={c.name}
-                      >
-                        {selectedColor === c.hex && (
-                          <Check className={`w-4 h-4 ${c.hex === '#701a31' || c.hex === '#c41e3a' ? 'text-white' : 'text-black'}`} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Message Textarea */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-gray-800 uppercase">
-                    Message
-                  </label>
-                  <span className="text-xs font-bold text-gray-500">
-                    {message.length}/300
+        {/* Composer Card with Modern Hairline Styling */}
+        <div className="bg-white border-y sm:border border-[#d1d5dc] sm:rounded-2xl p-4 sm:p-6 space-y-4">
+          {/* Author Badge Info */}
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src={previewAvatar}
+                alt={currentAuthorAlias}
+                className="w-9 h-9 rounded-full border border-[#d1d5dc] object-cover bg-amber-50 shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-xs sm:text-sm text-black truncate">
+                    {currentAuthorAlias}
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#fff1f3] text-[#701a31] rounded-md border border-[#701a31]/20 shrink-0">
+                    {currentAuthorDept.replace('College of ', '')}
                   </span>
                 </div>
-                <textarea
-                  rows={4}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  maxLength={300}
-                  placeholder="Type your message here..."
-                  className="w-full p-3 text-xs sm:text-sm border-2 border-black rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-black bg-[#f4f4f0] text-black leading-relaxed"
+                <p className="text-[11px] text-gray-400 font-medium">Posting to Campus Wall</p>
+              </div>
+            </div>
+
+            {/* Admin Switcher */}
+            {isAdminUser && (
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-[#701a31]">
+                <input
+                  type="checkbox"
+                  checked={postAsAdmin}
+                  onChange={(e) => {
+                    setPostAsAdmin(e.target.checked);
+                    if (e.target.checked) setSelectedColor('#701a31');
+                  }}
+                  className="rounded text-[#701a31] focus:ring-[#701a31]"
                 />
+                <span>Admin Post</span>
+              </label>
+            )}
+          </div>
+
+          {/* Text Area */}
+          <div className="space-y-1">
+            <textarea
+              rows={4}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={300}
+              placeholder="What's on your mind? Share confession, midterm notes, or campus vibe..."
+              className="w-full p-1 text-sm sm:text-base text-black placeholder-gray-400 bg-transparent border-0 focus:ring-0 focus:outline-none resize-none leading-relaxed"
+              autoFocus
+            />
+            <div className="flex justify-end text-[11px] font-medium text-gray-400">
+              <span>{message.length}/300</span>
+            </div>
+          </div>
+
+          {/* Attached Media Preview */}
+          {attachedMedia && (
+            <div className="relative rounded-xl overflow-hidden border border-[#d1d5dc] bg-gray-50 max-w-md">
+              <img
+                src={attachedMedia.url}
+                alt="Media Preview"
+                className="w-full max-h-60 object-contain bg-black/5"
+              />
+              <button
+                type="button"
+                onClick={() => setAttachedMedia(null)}
+                className="absolute top-2 right-2 p-1.5 bg-black/70 hover:bg-black text-white rounded-full transition-colors cursor-pointer shadow-md"
+                title="Remove media"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Poll Form */}
+          {showPollForm && (
+            <div className="p-3.5 bg-[#fbfbfa] border border-[#d1d5dc] rounded-xl space-y-2.5 text-black">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-black flex items-center gap-1.5">
+                  <BarChart2 className="w-3.5 h-3.5" />
+                  <span>Campus Poll</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPollForm(false)}
+                  className="text-[11px] font-bold text-gray-400 hover:text-red-600"
+                >
+                  Remove
+                </button>
               </div>
 
-              {/* Media Attachment */}
-              <div className="p-3.5 bg-[#f4f4f0] border-2 border-black rounded-xl space-y-2.5">
+              <input
+                type="text"
+                maxLength={100}
+                value={pollQuestion}
+                onChange={(e) => setPollQuestion(e.target.value)}
+                placeholder="Ask a question (optional)..."
+                className="w-full px-3 py-2 text-xs bg-white border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black"
+              />
+
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={pollOption1}
+                  onChange={(e) => setPollOption1(e.target.value)}
+                  placeholder="Option 1"
+                  className="w-full px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
+                />
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={pollOption2}
+                  onChange={(e) => setPollOption2(e.target.value)}
+                  placeholder="Option 2"
+                  className="w-full px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
+                />
+
+                {pollOptionsCount >= 3 && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      maxLength={60}
+                      value={pollOption3}
+                      onChange={(e) => setPollOption3(e.target.value)}
+                      placeholder="Option 3"
+                      className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
+                    />
+                    {pollOptionsCount === 3 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPollOption3('');
+                          setPollOptionsCount(2);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {pollOptionsCount >= 4 && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      maxLength={60}
+                      value={pollOption4}
+                      onChange={(e) => setPollOption4(e.target.value)}
+                      placeholder="Option 4"
+                      className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#d1d5dc] rounded-lg focus:outline-none focus:border-black"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPollOption4('');
+                        setPollOptionsCount(3);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-500"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {pollOptionsCount < 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setPollOptionsCount(Math.min(4, pollOptionsCount + 1))}
+                    className="text-xs font-bold text-black hover:underline flex items-center gap-1 pt-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add option</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Color & Toolbar Actions + Bottom Buttons */}
+          <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+            {/* Color Palette & Media Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {!postAsAdmin && (
+                <div className="flex items-center gap-1.5 mr-1">
+                  <span className="text-[11px] font-bold text-gray-400">Color:</span>
+                  {POST_COLORS.map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setSelectedColor(c.hex)}
+                      style={{ backgroundColor: c.hex }}
+                      className={`w-6 h-6 rounded-full border border-black/10 transition-all flex items-center justify-center cursor-pointer ${
+                        selectedColor === c.hex
+                          ? 'ring-2 ring-black scale-110 shadow-xs'
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                      title={c.name}
+                    >
+                      {selectedColor === c.hex && (
+                        <Check className={`w-3 h-3 ${c.hex === '#701a31' || c.hex === '#c41e3a' ? 'text-white' : 'text-black'}`} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Media Action Buttons */}
+              <div className="flex items-center gap-1">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -519,340 +594,84 @@ export const PostNotePage: React.FC = () => {
                   onChange={handleMediaFileChange}
                 />
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-800 uppercase">
-                    Media Attachment
-                  </span>
-                  <span className="text-[10px] text-gray-500 font-medium">Image / GIF</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessingMedia}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-black transition-colors cursor-pointer"
+                  title="Attach Image"
+                >
+                  {isProcessingMedia ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                  ) : (
+                    <ImageIcon className="w-4 h-4" />
+                  )}
+                </button>
 
-                {mediaError && (
-                  <div className="p-2 bg-rose-100 border border-black rounded-lg text-black text-xs font-bold flex items-center gap-2">
-                    <span className="flex-1">{mediaError}</span>
-                    <button type="button" onClick={() => setMediaError(null)}>
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowGifModal(true)}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-black transition-colors cursor-pointer"
+                  title="Attach GIF"
+                >
+                  <Film className="w-4 h-4" />
+                </button>
 
-                {attachedMedia ? (
-                  <div className="p-2 bg-white border-2 border-black rounded-xl flex items-center gap-3">
-                    <img
-                      src={attachedMedia.url}
-                      alt="Preview"
-                      className="w-14 h-14 rounded-lg object-cover border border-black shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold text-black truncate block">
-                        {attachedMedia.name || (attachedMedia.type === 'gif' ? 'Reaction GIF' : 'Image Attachment')}
-                      </span>
-                      <span className="text-[10px] text-gray-500 uppercase font-bold">
-                        {attachedMedia.type === 'gif' ? 'GIF Format' : 'WebP Format'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setAttachedMedia(null)}
-                      className="p-2 hover:bg-rose-100 text-rose-700 rounded-lg cursor-pointer shrink-0 transition-colors"
-                      title="Remove media"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isProcessingMedia}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 h-9 px-3 rounded-xl border-2 border-black bg-white hover:bg-gray-100 text-black text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
-                      >
-                        {isProcessingMedia ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <ImageIcon className="w-3.5 h-3.5" />
-                            <span>Upload Image</span>
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowGifModal(true)}
-                        className="h-9 px-3 rounded-xl border-2 border-black bg-[#ff90e8] hover:bg-[#ff7be3] text-black text-xs font-bold flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95 shrink-0"
-                      >
-                        <Film className="w-3.5 h-3.5" />
-                        <span>GIFs</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomUrlInput(!showCustomUrlInput)}
-                        className={`h-9 px-3 rounded-xl border-2 border-black cursor-pointer shadow-xs active:scale-95 shrink-0 flex items-center justify-center ${
-                          showCustomUrlInput ? 'bg-black text-white' : 'bg-white hover:bg-gray-100 text-black'
-                        }`}
-                        title="Direct URL"
-                      >
-                        <LinkIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {showCustomUrlInput && (
-                      <div className="p-2 bg-white border border-black rounded-lg flex items-center gap-1.5">
-                        <input
-                          type="url"
-                          value={customMediaUrl}
-                          onChange={(e) => setCustomMediaUrl(e.target.value)}
-                          placeholder="Paste image or GIF URL..."
-                          className="flex-1 p-1.5 text-xs border border-black rounded bg-[#f4f4f0] text-black font-medium focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyCustomUrl}
-                          disabled={!customMediaUrl.trim()}
-                          className="px-3 py-1.5 bg-[#00e599] text-black text-xs font-bold rounded border border-black disabled:opacity-50 cursor-pointer"
-                        >
-                          Attach
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Poll Feature */}
-              <div>
                 <button
                   type="button"
                   onClick={() => setShowPollForm(!showPollForm)}
-                  className={`w-full py-2 px-3 rounded-xl border-2 border-black flex items-center justify-between text-xs font-bold cursor-pointer transition-all shadow-xs ${
-                    showPollForm ? 'bg-[#ffc900] text-black' : 'bg-[#f4f4f0] hover:bg-gray-200 text-black'
+                  className={`p-2 rounded-full transition-colors cursor-pointer ${
+                    showPollForm ? 'bg-[#ffc900] text-black' : 'hover:bg-gray-100 text-gray-600 hover:text-black'
                   }`}
+                  title="Create Poll"
                 >
-                  <span>{showPollForm ? 'Poll Added' : 'Add Poll'}</span>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-black text-white rounded-md">
-                    {showPollForm ? 'Remove' : '+ Poll'}
-                  </span>
+                  <BarChart2 className="w-4 h-4" />
                 </button>
+              </div>
+            </div>
 
-                {showPollForm && (
-                  <div className="mt-2.5 p-3.5 bg-amber-50/80 border-2 border-black rounded-xl space-y-2 text-black shadow-xs">
-                    <input
-                      type="text"
-                      maxLength={100}
-                      value={pollQuestion}
-                      onChange={(e) => setPollQuestion(e.target.value)}
-                      placeholder="Poll question (optional)..."
-                      className="w-full p-2 text-xs border-2 border-black rounded-lg font-medium bg-white text-black focus:outline-none"
-                    />
+            {/* Relocated Bottom Action Controls (Cancel & Share Note) */}
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={() => goBack()}
+                className="px-3.5 py-1.5 text-xs font-bold text-gray-500 hover:text-black transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
 
-                    <div className="space-y-1.5 pt-1">
-                      <input
-                        type="text"
-                        maxLength={60}
-                        value={pollOption1}
-                        onChange={(e) => setPollOption1(e.target.value)}
-                        placeholder="Option 1"
-                        className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
-                      />
-
-                      <input
-                        type="text"
-                        maxLength={60}
-                        value={pollOption2}
-                        onChange={(e) => setPollOption2(e.target.value)}
-                        placeholder="Option 2"
-                        className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
-                      />
-
-                      {pollOptionsCount >= 3 && (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            maxLength={60}
-                            value={pollOption3}
-                            onChange={(e) => setPollOption3(e.target.value)}
-                            placeholder="Option 3"
-                            className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
-                          />
-                          {pollOptionsCount === 3 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPollOption3('');
-                                setPollOptionsCount(2);
-                              }}
-                              className="p-2 border border-black rounded-lg bg-rose-200 text-black text-xs font-bold shrink-0"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {pollOptionsCount >= 4 && (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            maxLength={60}
-                            value={pollOption4}
-                            onChange={(e) => setPollOption4(e.target.value)}
-                            placeholder="Option 4"
-                            className="w-full p-2 text-xs border border-black rounded-lg bg-white text-black focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPollOption4('');
-                              setPollOptionsCount(3);
-                            }}
-                            className="p-2 border border-black rounded-lg bg-rose-200 text-black text-xs font-bold shrink-0"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-
-                      {pollOptionsCount < 4 && (
-                        <button
-                          type="button"
-                          onClick={() => setPollOptionsCount(Math.min(4, pollOptionsCount + 1))}
-                          className="w-full py-1.5 px-2 border border-dashed border-black rounded-lg bg-white hover:bg-amber-100 text-black text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add Option</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)) || !message.trim()}
+                className="px-5 py-2 bg-[#dc341e] hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-black text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Posting...</span>
+                  </>
+                ) : cooldownRemaining > 0 && !postAsAdmin ? (
+                  <span>Wait {cooldownRemaining}s</span>
+                ) : (
+                  <span>Share Note</span>
                 )}
-              </div>
-
-              {/* Submit / Cancel Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-black/10">
-                <button
-                  type="button"
-                  onClick={() => goBack()}
-                  className="px-4 py-2.5 rounded-xl border-2 border-black bg-white hover:bg-gray-100 text-black text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))}
-                  className={`px-6 py-2.5 rounded-xl border-2 border-black text-black font-bold text-xs transition-all cursor-pointer ${
-                    isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))
-                      ? 'bg-gray-300 opacity-60 cursor-not-allowed'
-                      : 'bg-[#ffc900] hover:bg-[#ffb700] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none'
-                  }`}
-                >
-                  {isSubmitting
-                    ? 'Sharing...'
-                    : cooldownRemaining > 0 && !postAsAdmin
-                    ? `Wait ${cooldownRemaining}s`
-                    : 'Share'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Right Column: Live Preview (5 cols on desktop) */}
-          <div className="lg:col-span-5 space-y-2 lg:sticky lg:top-16">
-            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
-              Preview
-            </span>
-
-            {/* Note Card Simulation */}
-            <div
-              style={{ backgroundColor: postAsAdmin ? '#701a31' : selectedColor }}
-              className={`p-5 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${
-                postAsAdmin ? 'text-white' : 'text-black'
-              }`}
-            >
-              {/* Header Badges */}
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="px-2.5 py-0.5 bg-black text-white text-[10px] font-bold rounded-full uppercase">
-                  {currentAuthorDept.replace('College of ', '')}
-                </span>
-                <span className={`text-[10px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
-                  Just now
-                </span>
-              </div>
-
-              {/* Message text */}
-              <p className={`text-xs sm:text-sm font-bold leading-relaxed whitespace-pre-wrap break-words mb-3.5 ${postAsAdmin ? 'text-white' : 'text-black'}`}>
-                {message.trim() || 'Your note message preview will appear here as you type...'}
-              </p>
-
-              {/* Attached Media Preview */}
-              {attachedMedia && (
-                <div className="mb-3.5 rounded-xl border border-black overflow-hidden bg-black/5">
-                  <img
-                    src={attachedMedia.url}
-                    alt="Attachment Preview"
-                    className="w-full max-h-52 object-cover"
-                  />
-                </div>
-              )}
-
-              {/* Poll Preview */}
-              {showPollForm && (
-                <div className="mb-3.5 p-3 rounded-xl border border-black bg-white/95 text-black space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold">
-                    <span>{pollQuestion.trim() || 'Poll'}</span>
-                    <span className="text-gray-500">0 votes</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {[pollOption1 || 'Option 1', pollOption2 || 'Option 2', pollOption3, pollOption4]
-                      .filter(Boolean)
-                      .map((opt, i) => (
-                        <div
-                          key={i}
-                          className="p-2 rounded-lg border border-black/30 bg-[#f4f4f0] text-xs font-medium flex items-center justify-between"
-                        >
-                          <span className="truncate">{opt}</span>
-                          <span className="text-[10px] text-gray-500 uppercase font-bold">Vote</span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Footer Author */}
-              <div className={`pt-3 border-t flex items-center justify-between gap-2 ${postAsAdmin ? 'border-white/20' : 'border-black/20'}`}>
-                <div className="flex items-center gap-2">
-                  <img
-                    src={previewAvatar}
-                    alt={currentAuthorAlias}
-                    className="w-6 h-6 rounded-full border border-black object-cover bg-amber-100"
-                  />
-                  <span className={`text-xs font-bold truncate max-w-[140px] ${postAsAdmin ? 'text-[#ffc900]' : 'text-black'}`}>
-                    ~ {currentAuthorAlias}
-                  </span>
-                </div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* GIFs Modal */}
       {showGifModal && (
-        <div className="fixed inset-0 z-[110] bg-black/70 flex items-center justify-center p-3">
-          <div className="bg-white border-2 border-black p-4 rounded-2xl max-w-md w-full text-left shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] relative max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between pb-2 border-b border-black shrink-0">
+        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-3 animate-in fade-in duration-150">
+          <div className="bg-white border border-[#d1d5dc] p-4 rounded-2xl max-w-md w-full text-left shadow-2xl relative max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 shrink-0">
               <span className="text-sm font-bold text-black">Select a GIF</span>
               <button
                 type="button"
                 onClick={() => setShowGifModal(false)}
-                className="p-1 hover:bg-black/10 rounded-full text-black cursor-pointer"
+                className="p-1 hover:bg-gray-100 rounded-full text-gray-600 hover:text-black cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -860,13 +679,13 @@ export const PostNotePage: React.FC = () => {
 
             <div className="pt-2 pb-2 shrink-0">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-black/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={gifSearchTerm}
                   onChange={(e) => setGifSearchTerm(e.target.value)}
                   placeholder="Search GIFs..."
-                  className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-black rounded-lg bg-[#f4f4f0] text-black font-medium focus:outline-none"
+                  className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-[#d1d5dc] rounded-lg bg-[#f4f4f0] text-black font-medium focus:outline-none focus:border-black"
                 />
               </div>
             </div>
@@ -877,10 +696,10 @@ export const PostNotePage: React.FC = () => {
                   key={cat.id}
                   type="button"
                   onClick={() => setGifCategory(cat.id)}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-lg border border-black whitespace-nowrap cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg border whitespace-nowrap cursor-pointer transition-colors ${
                     gifCategory === cat.id
-                      ? 'bg-[#ffc900] text-black'
-                      : 'bg-white hover:bg-gray-100 text-black'
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white hover:bg-gray-100 text-black border-[#d1d5dc]'
                   }`}
                 >
                   {cat.name}
@@ -914,7 +733,7 @@ export const PostNotePage: React.FC = () => {
                         key={`${gif.url}-${idx}`}
                         type="button"
                         onClick={() => handleSelectPresetGif(gif.url)}
-                        className="relative rounded-xl border border-black overflow-hidden bg-black/5 hover:border-black transition-all text-left cursor-pointer"
+                        className="relative rounded-xl border border-[#d1d5dc] overflow-hidden bg-black/5 hover:border-black transition-all text-left cursor-pointer"
                       >
                         <img
                           src={gif.url}
@@ -922,7 +741,7 @@ export const PostNotePage: React.FC = () => {
                           className="w-full h-28 object-cover"
                           loading="lazy"
                         />
-                        <div className="p-1 bg-white border-t border-black text-[10px] font-bold text-black truncate">
+                        <div className="p-1 bg-white border-t border-[#d1d5dc] text-[10px] font-bold text-black truncate">
                           {gif.title}
                         </div>
                       </button>
@@ -935,7 +754,7 @@ export const PostNotePage: React.FC = () => {
         </div>
       )}
 
-      {/* Sent Celebration Overlay (Plain Minimalist Animation) */}
+      {/* Sent Celebration Overlay */}
       {isNoteSentSuccess && (
         <div className="fixed inset-0 z-[120] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
           <div className="max-w-xs w-full flex flex-col items-center text-center">

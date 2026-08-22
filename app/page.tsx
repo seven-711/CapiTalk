@@ -15,6 +15,9 @@ import { BannedScreen } from '../components/BannedScreen';
 import { PrivacyPolicy } from '../components/PrivacyPolicy';
 import { TermsOfConduct } from '../components/TermsOfConduct';
 import { BlockedUsersPage } from '../components/BlockedUsersPage';
+import { MidtermSzn } from '../components/MidtermSzn';
+import { KeptConnectionsPage } from '../components/KeptConnectionsPage';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   Sparkles,
   ShieldCheck,
@@ -59,10 +62,14 @@ export default function Home() {
     systemAnnouncement,
     dismissAnnouncement,
     freedomPosts,
+    cancelSearch,
   } = useChatStore();
 
+  const [transitionPhase, setTransitionPhase] = React.useState<'idle' | 'in' | 'out'>('idle');
+  const dotLottieRef = React.useRef<any>(null);
+
   const isMatchmakingTimedOut = showQueueTimeoutModal || (viewState === 'queue' && !isSearching && searchingTimeSeconds >= 35);
-  const shouldHideNavAndFooter = viewState === 'chat' || isSearching || isMatchmakingTimedOut;
+  const shouldHideNavAndFooter = viewState === 'chat' || viewState === 'kept_connections' || (viewState === 'queue' && isSearching) || isMatchmakingTimedOut || viewState === 'midterm_szn' || transitionPhase !== 'idle';
 
   const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(null);
 
@@ -81,6 +88,31 @@ export default function Home() {
     if (viewState === 'terms') {
       setViewState('landing');
     }
+  };
+
+  const handleMidtermBannerClick = () => {
+    if (dotLottieRef.current) {
+      try {
+        dotLottieRef.current.stop();
+        dotLottieRef.current.play();
+      } catch (e) {}
+    }
+    setTransitionPhase('in');
+
+    // Mount destination page in background while splash is 100% covering screen
+    setTimeout(() => {
+      setViewState('midterm_szn');
+    }, 450);
+
+    // Smooth fade-out
+    setTimeout(() => {
+      setTransitionPhase('out');
+    }, 950);
+
+    // Clean up
+    setTimeout(() => {
+      setTransitionPhase('idle');
+    }, 1300);
   };
 
   React.useEffect(() => {
@@ -169,8 +201,32 @@ export default function Home() {
 
   return (
     <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
-      viewState === 'chat' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
+      viewState === 'chat' || viewState === 'kept_connections' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
     }`}>
+
+      {/* ── Preloaded Fullscreen Green Splash Transition Overlay (0ms Delay) ── */}
+      <div
+        className={`fixed inset-0 z-[9999] bg-white flex items-center justify-center overflow-hidden transition-opacity duration-300 ease-out select-none pointer-events-none ${
+          transitionPhase === 'in'
+            ? 'opacity-100'
+            : transitionPhase === 'out'
+            ? 'opacity-0'
+            : 'opacity-0'
+        }`}
+        style={{
+          visibility: transitionPhase === 'idle' ? 'hidden' : 'visible',
+        }}
+      >
+        <DotLottieReact
+          src="/animated-assets/green_splash_transition.lottie"
+          autoplay={false}
+          loop={false}
+          dotLottieRefCallback={(ref) => {
+            dotLottieRef.current = ref;
+          }}
+          className="w-full h-full object-cover"
+        />
+      </div>
 
       {/* Floating Action Toast Notification */}
       {actionToast && (
@@ -192,7 +248,46 @@ export default function Home() {
         </div>
       )}
 
-      {/* Top Navbar (Hidden in chatroom view, during active search, and on search timeout) */}
+      {/* ── Active Background Matchmaking Search Floating Bar ──────────────── */}
+      {isSearching && viewState !== 'queue' && viewState !== 'chat' && (
+        <aside
+          aria-label="Active Matchmaking Status"
+          onClick={() => setViewState('queue')}
+          className="fixed bottom-16 sm:bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[calc(100%-2rem)] bg-[#1c1e21] hover:bg-[#282b30] text-white px-3.5 py-2.5 rounded-2xl shadow-[0_8px_28px_rgba(0,0,0,0.35)] border-2 border-black flex items-center justify-between gap-2.5 animate-in slide-in-from-bottom-4 duration-200 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-ping shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-bold truncate flex items-center gap-1.5">
+                <span>Looking for match...</span>
+                <span className="text-[#ffc900] font-mono text-[11px]">
+                  {Math.floor(searchingTimeSeconds / 60).toString().padStart(2, '0')}:{(searchingTimeSeconds % 60).toString().padStart(2, '0')}
+                </span>
+              </p>
+              <p className="text-[10px] text-gray-400 truncate">
+                Tap anywhere to return to searching screen
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="px-2.5 py-1 bg-[#ffc900] text-black text-[11px] font-extrabold rounded-lg">
+              Back
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                cancelSearch();
+              }}
+              className="px-2.5 py-1 bg-white/10 hover:bg-red-600 hover:text-white text-gray-300 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* Top Navbar (Hidden in chatroom view, during active queue searching, and on search timeout) */}
       {!shouldHideNavAndFooter && <Navbar />}
 
       {/* Main Content View Switcher */}
@@ -212,6 +307,8 @@ export default function Home() {
         {viewState === 'privacy' && <PrivacyPolicy />}
         {viewState === 'terms' && <TermsOfConduct onAccept={handleAcceptToc} isStandaloneView={true} />}
         {viewState === 'blocked_users' && <BlockedUsersPage />}
+        {viewState === 'midterm_szn' && <MidtermSzn />}
+        {viewState === 'kept_connections' && <KeptConnectionsPage />}
 
         {viewState === 'landing' && (
           <div className="w-full">
@@ -332,6 +429,39 @@ export default function Home() {
               </div>
             </section>
 
+            {/* ── MIDTERM SEASON BANNER ──────────────────────────────────────── */}
+            <section className="px-3 sm:px-6 pb-4 max-w-[1200px] mx-auto">
+              <button
+                id="midterm-banner-btn"
+                type="button"
+                onClick={handleMidtermBannerClick}
+                className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 cursor-pointer text-left block"
+              >
+                {/* Banner image */}
+                <div className="relative w-full aspect-[16/5] sm:aspect-[16/4] overflow-hidden bg-[#0d2a0d]">
+                  <img
+                    src="/images/banner.webp"
+                    alt="Midterm Season — Ready naka?"
+                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                    draggable={false}
+                  />
+                  {/* Dark overlay gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+                  {/* Call to action overlay */}
+                  <div className="absolute inset-0 flex flex-col justify-center pl-5 sm:pl-8">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#ffc900] text-black text-[10px] sm:text-xs font-extrabold rounded-full border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] w-fit mb-2 uppercase tracking-wider">
+                      📢 Midterm Season
+                    </span>
+                    <h2 className="text-white font-extrabold text-lg sm:text-2xl md:text-3xl leading-tight tracking-tight drop-shadow-md">
+                      Midterm na! Ready naka?
+                    </h2>
+                    <p className="text-white/80 text-xs sm:text-sm font-semibold mt-1 drop-shadow">
+                      React and let the campus know how you feel! 📚
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </section>
 
             {/* FEATURE CARDS GRID (Gumroad Hairline Aesthetic) */}
             <section id="features" className="py-8 sm:py-16 px-3 sm:px-8 max-w-[1200px] mx-auto">
@@ -623,16 +753,13 @@ export default function Home() {
 
       {/* FOOTER — hidden during active chat, active search, and search timeout */}
       {!shouldHideNavAndFooter && (
-        <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] py-8 px-4 sm:px-8 mt-auto">
+        <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] pt-8 pb-24 sm:py-8 px-4 sm:px-8 mt-auto">
           <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">
               <div className="flex items-center gap-2">
                 <CoinMascot size={28} tiltAngle={-6} />
                 <span className="font-extrabold text-sm text-black">CapiTalk</span>
               </div>
-              <span className="text-xs text-[#242423] font-medium">
-                Independent student community platform • Not affiliated with Capitol University
-              </span>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-[#242423]">

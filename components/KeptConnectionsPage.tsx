@@ -1,0 +1,544 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useChatStore } from '../lib/store/useChatStore';
+import { getAvatarForPseudonym } from '../lib/constants';
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import {
+  ArrowLeft,
+  Send,
+  Trash2,
+  MoreVertical,
+  Check,
+  CheckCheck,
+} from 'lucide-react';
+
+interface DirectMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: number;
+  isMe?: boolean;
+  read?: boolean;
+}
+
+export const KeptConnectionsPage: React.FC = () => {
+  const {
+    keptConnection,
+    removeKeptConnection,
+    setViewState,
+    goBack,
+    currentUser,
+  } = useChatStore();
+
+  const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [partnerTyping, setPartnerTyping] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const supabaseChannelRef = useRef<any>(null);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
+  // Deterministic pairwise key between the two users
+  const pairKey = currentUser && keptConnection
+    ? [currentUser.id, keptConnection.user_id].sort().join('__')
+    : keptConnection ? `pair__${keptConnection.user_id}` : 'default_pair';
+
+  const storageKey = `capitalk_dm_${pairKey}`;
+
+  // Helper to persist message list
+  const persistMessages = useCallback((newMsgs: DirectMessage[]) => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newMsgs));
+    } catch {}
+  }, [storageKey]);
+
+  // Emit Read Receipt Broadcast
+  const sendReadReceipt = useCallback(() => {
+    if (!currentUser) return;
+    broadcastChannelRef.current?.postMessage({
+      type: 'dm_read_receipt',
+      payload: { readerId: currentUser.id, readAt: Date.now() },
+    });
+
+    if (supabaseChannelRef.current) {
+      try {
+        supabaseChannelRef.current.send({
+          type: 'broadcast',
+          event: 'dm_read_receipt',
+          payload: { readerId: currentUser.id, readAt: Date.now() },
+        });
+      } catch {}
+    }
+  }, [currentUser]);
+
+  // Load existing message history
+  useEffect(() => {
+    if (!keptConnection) return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed: DirectMessage[] = JSON.parse(saved);
+        setMessages(
+          parsed.map((m) => ({
+            ...m,
+            isMe: m.senderId === (currentUser?.id || 'me'),
+          }))
+        );
+      } else {
+        setMessages([]);
+      }
+    } catch {
+      setMessages([]);
+    }
+  }, [keptConnection, storageKey, currentUser?.id]);
+
+  // Connect Real-Time Subscriptions (Supabase Realtime + Local BroadcastChannel + Storage Event)
+  useEffect(() => {
+    if (!keptConnection || !currentUser) return;
+
+    // Send read receipt on mount so partner knows we opened/are viewing the chat
+    sendReadReceipt();
+
+    // 1. BroadcastChannel for instant local cross-tab / multi-window sync
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel(`capitalk_dm_bc_${pairKey}`);
+        broadcastChannelRef.current = bc;
+
+        bc.onmessage = (e) => {
+          const data = e.data;
+          if (data?.type === 'dm_message' && data.payload?.senderId !== currentUser.id) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === data.payload.id)) return prev;
+              // Mark all my sent messages as read since partner responded
+              const marked = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
+              const updated = [...marked, { ...data.payload, isMe: false, read: true }];
+              persistMessages(updated);
+              return updated;
+            });
+            // Automatically send read receipt back
+            sendReadReceipt();
+          } else if (data?.type === 'dm_read_receipt' && data.payload?.readerId !== currentUser.id) {
+            // Partner read our messages -> 2 checks!
+            setMessages((prev) => {
+              const updated = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
+              persistMessages(updated);
+              return updated;
+            });
+          } else if (data?.type === 'dm_typing' && data.payload?.senderId !== currentUser.id) {
+            setPartnerTyping(Boolean(data.payload.isTyping));
+          }
+        };
+      } catch {}
+    }
+
+    // 2. Storage event listener for cross-tab fallback
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === storageKey && e.newValue) {
+        try {
+          const parsed: DirectMessage[] = JSON.parse(e.newValue);
+          setMessages(
+            parsed.map((m) => ({
+              ...m,
+              isMe: m.senderId === currentUser.id,
+            }))
+          );
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Supabase Realtime Channel for global real-time cross-device messaging
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const channel = supabase.channel(`capitalk:dm:${pairKey}`);
+        supabaseChannelRef.current = channel;
+
+        channel
+          .on('broadcast', { event: 'dm_message' }, ({ payload }: { payload: DirectMessage }) => {
+            if (payload && payload.senderId !== currentUser.id) {
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === payload.id)) return prev;
+                // Mark all my sent messages as read since partner is active
+                const marked = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
+                const updated = [...marked, { ...payload, isMe: false, read: true }];
+                persistMessages(updated);
+                return updated;
+              });
+              sendReadReceipt();
+            }
+          })
+          .on('broadcast', { event: 'dm_read_receipt' }, ({ payload }: { payload: { readerId: string } }) => {
+            if (payload && payload.readerId !== currentUser.id) {
+              setMessages((prev) => {
+                const updated = prev.map((m) => (m.isMe ? { ...m, read: true } : m));
+                persistMessages(updated);
+                return updated;
+              });
+            }
+          })
+          .on('broadcast', { event: 'dm_typing' }, ({ payload }: { payload: { senderId: string; isTyping: boolean } }) => {
+            if (payload && payload.senderId !== currentUser.id) {
+              setPartnerTyping(Boolean(payload.isTyping));
+            }
+          })
+          .subscribe();
+      } catch {}
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.close();
+        broadcastChannelRef.current = null;
+      }
+      if (supabaseChannelRef.current && supabase) {
+        try {
+          supabase.removeChannel(supabaseChannelRef.current);
+        } catch {}
+        supabaseChannelRef.current = null;
+      }
+    };
+  }, [keptConnection, currentUser, pairKey, storageKey, persistMessages, sendReadReceipt]);
+
+  // Scroll to bottom on new message or typing state change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, partnerTyping]);
+
+  // Handle typing signal broadcast
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputText(e.target.value);
+
+    // Broadcast typing indicator
+    if (currentUser) {
+      broadcastChannelRef.current?.postMessage({
+        type: 'dm_typing',
+        payload: { senderId: currentUser.id, isTyping: true },
+      });
+
+      if (supabaseChannelRef.current) {
+        try {
+          supabaseChannelRef.current.send({
+            type: 'broadcast',
+            event: 'dm_typing',
+            payload: { senderId: currentUser.id, isTyping: true },
+          });
+        } catch {}
+      }
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        broadcastChannelRef.current?.postMessage({
+          type: 'dm_typing',
+          payload: { senderId: currentUser.id, isTyping: false },
+        });
+        if (supabaseChannelRef.current) {
+          try {
+            supabaseChannelRef.current.send({
+              type: 'broadcast',
+              event: 'dm_typing',
+              payload: { senderId: currentUser.id, isTyping: false },
+            });
+          } catch {}
+        }
+      }, 1500);
+    }
+  };
+
+  // Send Direct Message in Real Time
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || !keptConnection || !currentUser) return;
+
+    const myMessage: DirectMessage = {
+      id: 'dm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      senderId: currentUser.id,
+      senderName: currentUser.username,
+      text: inputText.trim(),
+      timestamp: Date.now(),
+      isMe: true,
+      read: false, // 1 check initially
+    };
+
+    const updated = [...messages, myMessage];
+    setMessages(updated);
+    persistMessages(updated);
+    setInputText('');
+
+    // 1. Broadcast over local BroadcastChannel
+    broadcastChannelRef.current?.postMessage({
+      type: 'dm_message',
+      payload: myMessage,
+    });
+
+    // 2. Broadcast over Supabase Realtime Channel
+    if (supabaseChannelRef.current) {
+      try {
+        supabaseChannelRef.current.send({
+          type: 'broadcast',
+          event: 'dm_message',
+          payload: myMessage,
+        });
+      } catch {}
+    }
+
+    // Clear typing indicator
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    broadcastChannelRef.current?.postMessage({
+      type: 'dm_typing',
+      payload: { senderId: currentUser.id, isTyping: false },
+    });
+  };
+
+  const formatTime = (timestamp: number) => {
+    const d = new Date(timestamp);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className="h-[100dvh] max-h-[100dvh] bg-[#121214] text-white font-sans flex flex-col max-w-2xl mx-auto w-full border-x border-zinc-800/80 overflow-hidden select-none">
+      {keptConnection ? (
+        <>
+          {/* ── Messenger Top Header (Dark Mode) ─────────────────────────────── */}
+          <header className="bg-[#18181b] border-b border-zinc-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-10">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => (goBack ? goBack() : setViewState('landing'))}
+                className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                title="Back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+
+              <div className="relative shrink-0">
+                <img
+                  src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
+                  alt={keptConnection.username}
+                  className="w-10 h-10 rounded-full border border-zinc-700 object-cover bg-zinc-900"
+                />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#18181b]" />
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="font-extrabold text-sm sm:text-base text-white truncate leading-tight">
+                    {keptConnection.username}
+                  </h2>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#701a31]/60 text-[#ff90e8] rounded-md border border-[#701a31] shrink-0">
+                    {keptConnection.department.replace('College of ', '')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 font-medium truncate flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                  <span>Real-time mutual connection</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Top Right Options */}
+            <div className="relative flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                title="Options"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+
+              {showMenu && (
+                <div className="absolute right-0 top-11 bg-[#1e1e24] border border-zinc-700 rounded-2xl shadow-2xl p-1.5 min-w-[170px] z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      setShowRemoveConfirm(true);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-bold text-rose-400 hover:bg-rose-950/40 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Unfriend</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* ── Messenger Messages Scroll Canvas (Dark Mode) ────────────────── */}
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#121214]">
+            {/* Header intro info inside chat */}
+            <div className="text-center py-4 space-y-1">
+              <img
+                src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
+                alt={keptConnection.username}
+                className="w-16 h-16 rounded-full border-2 border-zinc-700 object-cover bg-zinc-900 mx-auto shadow-md"
+              />
+              <h3 className="font-extrabold text-base text-white">
+                {keptConnection.username}
+              </h3>
+              <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                Messages sent here are delivered directly in real time.
+              </p>
+            </div>
+
+            {/* Empty Chat State Notice */}
+            {messages.length === 0 && (
+              <div className="text-center py-6 text-xs text-zinc-400 space-y-1">
+                <p className="font-bold text-zinc-200">No messages yet 👋</p>
+                <p>Say hi to @{keptConnection.username} to start the conversation!</p>
+              </div>
+            )}
+
+            {/* Real-time Message Bubbles */}
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+              >
+                <div
+                  className={`max-w-[78%] sm:max-w-[70%] px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm ${
+                    msg.isMe
+                      ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
+                      : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
+                  }`}
+                >
+                  {msg.text}
+                </div>
+                <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium">
+                  <span>{formatTime(msg.timestamp)}</span>
+                  {/* Read Receipt Icon Indicator: 2 checks for read, 1 check for unread */}
+                  {msg.isMe && (
+                    <span className="flex items-center ml-0.5" title={msg.read ? 'Read by partner' : 'Sent (Unread)'}>
+                      {msg.read ? (
+                        <CheckCheck className="w-3.5 h-3.5 text-[#38bdf8]" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 text-zinc-400" />
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Partner Live Typing indicator */}
+            {partnerTyping && (
+              <div className="flex items-center gap-1.5 py-1 px-3 bg-[#27272a] border border-zinc-700/60 text-xs font-semibold rounded-2xl rounded-bl-xs w-fit text-zinc-400 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" />
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]" />
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* ── Messenger Bottom Input Bar (Dark Mode) ──────────────────────── */}
+          <form
+            onSubmit={handleSendMessage}
+            className="bg-[#18181b] border-t border-zinc-800 p-2.5 sm:p-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={handleInputChange}
+              placeholder={`Message @${keptConnection.username}...`}
+              className="flex-1 bg-[#27272a] hover:bg-[#2f2f35] focus:bg-[#27272a] text-[13.5px] text-white placeholder-zinc-500 px-4 py-2 rounded-full border border-zinc-700 focus:border-zinc-500 focus:outline-none transition-all"
+            />
+
+            <button
+              type="submit"
+              disabled={!inputText.trim()}
+              className="w-9 h-9 rounded-full bg-[#ffc900] hover:bg-[#ffd633] disabled:opacity-20 disabled:hover:bg-[#ffc900] text-black flex items-center justify-center transition-all shrink-0 cursor-pointer active:scale-95 shadow-sm font-bold"
+              title="Send Message"
+            >
+              <Send className="w-4 h-4 ml-0.5" />
+            </button>
+          </form>
+
+          {/* Remove Confirmation Modal (Dark Mode) */}
+          {showRemoveConfirm && (
+            <div
+              className="fixed inset-0 z-50 bg-black/80 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+              onClick={() => setShowRemoveConfirm(false)}
+            >
+              <div
+                className="bg-[#18181b] border-2 border-zinc-700 rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl animate-in zoom-in-95 duration-150 text-white"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-10 h-10 rounded-2xl bg-rose-950/60 border border-rose-800 text-rose-400 flex items-center justify-center mx-auto">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-base font-black text-white">Unfriend?</h3>
+                  <p className="text-xs text-zinc-400">
+                    Are you sure you want to remove <span className="font-bold text-white">@{keptConnection.username}</span>? This will clear your direct message history.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRemoveConfirm(false)}
+                    className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs rounded-xl border border-zinc-600 cursor-pointer transition-colors"
+                  >
+                    Keep
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeKeptConnection();
+                      setShowRemoveConfirm(false);
+                    }}
+                    className="flex-1 py-2 bg-[#dc341e] hover:bg-red-700 text-white font-black text-xs rounded-xl border border-black shadow-xs cursor-pointer transition-colors"
+                  >
+                    Yes, Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* ── Empty State (Dark Mode) ───────────────────────────────────────── */
+        <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 text-center space-y-4 bg-[#121214]">
+          <div className="w-20 h-20 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center mx-auto shadow-md overflow-hidden p-2">
+            <DotLottieReact
+              src="/animated-assets/cool.lottie"
+              loop
+              autoplay
+              className="w-full h-full object-contain"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+              No mutuals yet
+            </h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              Found someone in chat worth keeping even after they skip? Tap <span className="font-bold text-[#ff90e8]">&ldquo;Worth keeping? Add friend&rdquo;</span> at the end of a chat session to continue chatting with them here!
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setViewState('queue')}
+              className="w-full sm:w-auto px-6 py-3 bg-[#ffc900] hover:bg-[#ffd633] text-black font-black text-xs sm:text-sm rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(255,255,255,0.15)] hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.25)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
+            >
+              <span>Look for someone</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

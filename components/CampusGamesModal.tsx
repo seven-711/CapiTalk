@@ -1312,7 +1312,7 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       {/* Bottom Sheet Modal Container */}
       <div
-        className={`w-full max-w-2xl mx-auto rounded-t-3xl border-t-3 border-x-3 border-black shadow-[0px_-8px_24px_rgba(0,0,0,0.3)] flex flex-col max-h-[88vh] overflow-hidden relative animate-in slide-in-from-bottom duration-300 bg-[#f4f4f0] text-black`}
+        className="w-full max-w-2xl mx-auto rounded-t-3xl border-t-3 border-x-3 border-black shadow-[0px_-8px_24px_rgba(0,0,0,0.3)] flex flex-col max-h-[92dvh] sm:max-h-[88vh] h-[92dvh] sm:h-auto overflow-hidden relative animate-in slide-in-from-bottom duration-300 bg-[#f4f4f0] text-black"
       >
         {/* Modal Top Header Bar */}
         <div className="px-4 sm:px-6 py-3.5 border-b-2 border-black flex items-center justify-between bg-[#ffc900] text-black shrink-0">
@@ -1353,14 +1353,14 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
         </div>
 
         {/* Scrollable Game Canvas Area */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center justify-center">
+        <div className="p-3 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center justify-start w-full min-h-0">
 
           {/* ═══════════════════════════════════════════════════════════════════
               VIEW: GAME SELECTION MENU
              ═══════════════════════════════════════════════════════════════════ */}
           {activeGame === 'menu' && (
-            <div className="w-full space-y-4 max-w-lg mx-auto py-2">
-              <div className="text-center space-y-1 bg-white p-3.5 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <div className="w-full space-y-3 sm:space-y-4 max-w-lg mx-auto py-1 sm:py-2 pb-6">
+              <div className="text-center space-y-1 bg-white p-3 sm:p-3.5 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
                 <h4 className="text-lg sm:text-xl font-black text-black tracking-tight">Choose a Game to Invite</h4>
                 <p className="text-xs font-bold text-black leading-relaxed">
                   Select a mini-game below to send an interactive invitation to <span className="underline decoration-2 decoration-[#ffc900]">{partner.username}</span> in chat!
@@ -1372,11 +1372,11 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSendGameInvite('redgreenflag')}
-                  className="p-4 bg-white hover:bg-[#fff0f3] border-2 border-black rounded-2xl flex flex-col items-start justify-between gap-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
+                  className="p-3 sm:p-4 bg-white hover:bg-[#fff0f3] border-2 border-black rounded-2xl flex flex-col items-start justify-between gap-2.5 sm:gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-left group cursor-pointer"
                 >
                   <div className="flex items-center justify-between w-full">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#dc341e] to-[#00e599] text-white flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform">
-                      <Flag className="w-5 h-5 stroke-[2.5]" />
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-[#dc341e] to-[#00e599] text-white flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform">
+                      <Flag className="w-4.5 h-4.5 sm:w-5 sm:h-5 stroke-[2.5]" />
                     </div>
                     <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#ff90e8] text-black border border-black rounded-full shadow-2xs">
                       10s Vibe Check
@@ -1878,9 +1878,9 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
             const synergyPct = flagStats.totalAnswered > 0 ? Math.round((flagStats.matches / flagStats.totalAnswered) * 100) : 0;
 
             return (
-              <div className="w-full max-w-md mx-auto space-y-4">
+              <div className="w-full max-w-md mx-auto space-y-3 sm:space-y-4 py-1 pb-6">
                 {/* Question Tracker & Stats Accumulator */}
-                <div className="flex items-center justify-between gap-2 p-2.5 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black">
+                <div className="flex items-center justify-between gap-2 p-2 sm:p-2.5 bg-white border-2 border-black rounded-2xl shadow-xs text-xs font-black">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="px-2 py-0.5 bg-[#701a31] text-white rounded-md">
                       Q{flagIndex + 1}/{flagQuestions.length}
@@ -1940,15 +1940,15 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                 )}
 
                 {/* Scenario Presentation Card */}
-                <div className="p-5 sm:p-6 bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
-                  <div className="absolute top-2 left-3 text-4xl text-black/10 select-none font-serif leading-none">“</div>
-                  <div className="absolute bottom-1 right-3 text-4xl text-black/10 select-none font-serif leading-none">”</div>
+                <div className="p-4 sm:p-6 bg-white border-2 sm:border-3 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center relative overflow-hidden">
+                  <div className="absolute top-2 left-3 text-3xl sm:text-4xl text-black/10 select-none font-serif leading-none">“</div>
+                  <div className="absolute bottom-1 right-3 text-3xl sm:text-4xl text-black/10 select-none font-serif leading-none">”</div>
                   
-                  <div className="relative z-10 space-y-2">
-                    <p className="text-xs font-black uppercase tracking-wider text-[#701a31]">
+                  <div className="relative z-10 space-y-1.5 sm:space-y-2">
+                    <p className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-[#701a31]">
                       Is this a Red Flag or a Green Flag?
                     </p>
-                    <p className="text-base sm:text-lg font-black text-black leading-snug px-2">
+                    <p className="text-sm sm:text-lg font-black text-black leading-snug px-1 sm:px-2">
                       {currentQ.scenario}
                     </p>
                   </div>
@@ -1987,25 +1987,25 @@ export const CampusGamesModal: React.FC<CampusGamesModalProps> = ({
                 )}
 
                 {/* Red Flag & Green Flag Choice Buttons */}
-                <div className="grid grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
                   {/* RED FLAG BUTTON */}
                   <button
                     type="button"
                     disabled={Boolean(flagMyChoice) || flagTimerSeconds === 0}
                     onClick={() => handleFlagPick('RED')}
-                    className={`p-4 rounded-2xl border-3 border-black flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden group cursor-pointer ${
+                    className={`p-3 sm:p-4 rounded-2xl border-2 sm:border-3 border-black flex flex-col items-center justify-center gap-1.5 sm:gap-2 transition-all relative overflow-hidden group cursor-pointer ${
                       flagMyChoice === 'RED'
-                        ? 'bg-[#dc341e] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.03] ring-4 ring-rose-300'
-                        : 'bg-white text-black hover:bg-[#ffe3e8] hover:border-[#dc341e] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px]'
+                        ? 'bg-[#dc341e] text-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02] ring-3 sm:ring-4 ring-rose-300'
+                        : 'bg-white text-black hover:bg-[#ffe3e8] hover:border-[#dc341e] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px]'
                     }`}
                   >
-                    <div className={`w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center text-2xl shadow-xs transition-transform group-hover:scale-110 ${
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl border-2 border-black flex items-center justify-center text-xl sm:text-2xl shadow-xs transition-transform group-hover:scale-110 ${
                       flagMyChoice === 'RED' ? 'bg-white text-[#dc341e]' : 'bg-[#dc341e]/15 text-[#dc341e]'
                     }`}>
                       🚩
                     </div>
                     <div className="text-center">
-                      <span className="text-sm sm:text-base font-black tracking-tight block text-black">
+                      <span className="text-xs sm:text-base font-black tracking-tight block text-black">
                         RED FLAG
                       </span>
                     </div>

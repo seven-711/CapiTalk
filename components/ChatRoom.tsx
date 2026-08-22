@@ -205,6 +205,9 @@ export const ChatRoom: React.FC = () => {
     systemAnnouncement,
     dismissAnnouncement,
     setShowFeedbackModal,
+    keptConnection,
+    keepPartner,
+    setViewState,
   } = useChatStore();
 
   const partner = activeRoom && currentUser
@@ -1599,26 +1602,16 @@ export const ChatRoom: React.FC = () => {
                 <WifiOff className="w-5 h-5" />
               )}
             </div>
-            <div className="text-center max-w-sm space-y-2">
-              <p className={`text-sm font-extrabold ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                {partnerLeftReason === 'inactivity'
-                  ? 'User Disconnected (Inactivity)'
-                  : partnerLeftReason === 'exited'
-                  ? 'Partner Exited Chat'
-                  : partnerLeftReason === 'skipped'
-                  ? 'Partner Skipped Chat'
-                  : 'Connection Ended'}
-              </p>
-              
+            <div className="text-center max-w-sm space-y-2 w-full flex flex-col items-center">
               {/* Ended Chat Indicator with Report / Block & Feedback Prompt */}
-              <div className={`text-xs space-y-1.5 pt-1 ${isDarkMode ? 'text-zinc-400' : 'text-[#242423]'}`}>
+              <div className={`text-xs space-y-1.5 pt-1 ${isDarkMode ? 'text-white-400' : 'text-[#242423]'}`}>
                 <p className="font-medium">
                   {partnerLeftReason === 'left' || partnerLeftReason === 'exited' ? (
                     <>You ended the chat.</>
                   ) : partnerLeftReason === 'skipped' ? (
-                    <>{partner.username} skipped the chat.</>
+                    <>{partner?.username || 'Partner'} skipped the chat.</>
                   ) : partnerLeftReason === 'inactivity' ? (
-                    <>{partner.username} was disconnected due to inactivity.</>
+                    <>{partner?.username || 'Partner'} was disconnected due to inactivity.</>
                   ) : (
                     <>Chat ended.</>
                   )}{' '}
@@ -1639,7 +1632,7 @@ export const ChatRoom: React.FC = () => {
                   </button>
                 </p>
 
-                <p className={`text-[11px] font-bold tracking-wider uppercase pt-1 ${isDarkMode ? 'text-zinc-500' : 'text-gray-500'}`}>
+                <p className={`text-[11px] font-bold tracking-wider uppercase pt-1 ${isDarkMode ? 'text-white' : 'text-gray-500'}`}>
                   FOUND A BUG OR HAVE SUGGESTIONS?{' '}
                   <button
                     type="button"
@@ -1676,45 +1669,107 @@ export const ChatRoom: React.FC = () => {
             borderColor: isAdminRoom ? undefined : activeThemeConfig.headerBorder,
             color: isAdminRoom ? undefined : activeThemeConfig.headerText,
           }}
-          className={`p-3 sm:px-4 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
+          className={`p-3 sm:px-4 sm:py-3.5 flex flex-col gap-2.5 shrink-0 z-20 animate-in slide-in-from-bottom-1 duration-200 transition-all border-t pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
             isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white' : ''
           } ${activePickerMsgId ? 'pointer-events-none' : ''}`}
         >
-          <div className="flex items-center gap-2 text-sm">
-            {partnerLeftReason === 'inactivity' ? (
-              <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
-            ) : partnerLeftReason === 'exited' || partnerLeftReason === 'left' ? (
-              <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
-            ) : partnerLeftReason === 'skipped' ? (
-              <FastForward className="w-4 h-4 text-purple-500 shrink-0" />
-            ) : (
-              <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
-            )}
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              type="button"
-              onClick={leaveRoom}
-              style={{
-                backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
-                color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
-              }}
-              className="btn-gumroad-ghost text-xs px-4 py-2 border border-black/20 flex-1 sm:flex-initial text-center justify-center"
-            >
-              <span>Stay Here</span>
-            </button>
-            <button
-              type="button"
-              onClick={nextMatch}
-              style={{
-                color: activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff',
-                backgroundColor: activeThemeConfig.btnBg || '#701a31',
-              }}
-              className="btn-gumroad-primary text-xs px-4 py-2 flex-1 sm:flex-initial justify-center"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Find Next Chat</span>
-            </button>
+          {/* "Worth Keeping? Add them" Full-Width Bottom Banner */}
+          {partner && (
+            <div className={`w-full p-3 sm:p-3.5 rounded-2xl border-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-left flex items-center justify-between gap-3 animate-in zoom-in-95 duration-200 ${
+              isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-gradient-to-r from-[#fff1f3] via-white to-[#fff8e6] border-black text-black'
+            }`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src={partner.avatar_url || getAvatarForPseudonym(partner.username)}
+                  alt={partner.username}
+                  className="w-9 h-9 rounded-full border-2 border-black object-cover shrink-0 bg-amber-50"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-black truncate">
+                    <span className="text-[#701a31] dark:text-[#ff90e8]">@{partner.username}</span> worth keeping?
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold truncate">
+                    Save to your 1 connection slot
+                  </p>
+                </div>
+              </div>
+
+              {keptConnection?.user_id === partner.id ? (
+                <button
+                  type="button"
+                  onClick={() => setViewState('kept_connections')}
+                  className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border-2 border-black shadow-xs transition-all cursor-pointer shrink-0"
+                >
+                  ✓ Kept (View)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = keepPartner(partner);
+                    if (!res.success) {
+                      setViewState('kept_connections');
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-[#ffc900] hover:bg-[#ffb700] text-black text-xs font-black rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
+                >
+                  <span>Add friend</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Bottom Action Controls: Status, Stay Here, Find Next Chat */}
+          <div className="flex items-center justify-between gap-2.5 w-full">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-400">
+              {partnerLeftReason === 'inactivity' ? (
+                <>
+                  <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="hidden xs:inline">Disconnected</span>
+                </>
+              ) : partnerLeftReason === 'exited' || partnerLeftReason === 'left' ? (
+                <>
+                  <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span className="hidden xs:inline">Ended</span>
+                </>
+              ) : partnerLeftReason === 'skipped' ? (
+                <>
+                  <FastForward className="w-4 h-4 text-purple-500 shrink-0" />
+                  <span className="hidden xs:inline">Skipped</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
+                  <span className="hidden xs:inline">Disconnected</span>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={leaveRoom}
+                style={{
+                  backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+                  color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+                }}
+                className="btn-gumroad-ghost text-xs px-4 py-2 border border-black/20 flex-1 sm:flex-initial text-center justify-center font-bold"
+              >
+                <span>Stay Here</span>
+              </button>
+              <button
+                type="button"
+                onClick={nextMatch}
+                style={{
+                  color: activeThemeConfig.id === 'yellow' ? '#000000' : '#ffffff',
+                  backgroundColor: activeThemeConfig.btnBg || '#701a31',
+                }}
+                className="btn-gumroad-primary text-xs px-4 py-2 flex-1 sm:flex-initial justify-center font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Find Next Chat</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : (

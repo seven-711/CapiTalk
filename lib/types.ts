@@ -2,7 +2,18 @@ import { DepartmentType } from "./constants";
 
 export type UserStatus = "online" | "searching" | "in_chat" | "offline";
 
-export type ViewState = 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note' | 'blocked_users';
+export type ViewState = 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note' | 'blocked_users' | 'midterm_szn' | 'kept_connections';
+
+export interface KeptConnection {
+  id: string;
+  user_id: string;
+  username: string;
+  department: string;
+  avatar_url?: string;
+  bio?: string;
+  added_at: string;
+  last_chat_date?: string;
+}
 
 export interface UserProfile {
   id: string;

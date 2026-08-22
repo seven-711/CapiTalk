@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo, KeptConnection } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType, getAvatarForPseudonym } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -97,6 +97,9 @@ interface ChatStoreState {
   addWallNotification: (notif: Omit<WallNotification, 'id' | 'created_at' | 'read'>) => void;
   markWallNotificationsAsRead: () => void;
   clearWallNotifications: () => void;
+  keptConnection: KeptConnection | null;
+  keepPartner: (partnerProfile: UserProfile) => { success: boolean; message: string };
+  removeKeptConnection: () => void;
 
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
@@ -137,6 +140,47 @@ export const useChatStore = create<ChatStoreState>()(
 
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
+
+      keptConnection: null,
+      keepPartner: (partnerProfile: UserProfile) => {
+        const current = get().keptConnection;
+        if (current && current.user_id !== partnerProfile.id) {
+          return {
+            success: false,
+            message: `You already have @${current.username} saved. You can only keep 1 person at a time!`,
+          };
+        }
+        const newConn: KeptConnection = {
+          id: 'kc_' + Date.now(),
+          user_id: partnerProfile.id,
+          username: partnerProfile.username,
+          department: partnerProfile.department,
+          avatar_url: partnerProfile.avatar_url,
+          bio: partnerProfile.bio,
+          added_at: new Date().toISOString(),
+          last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        };
+        set({
+          keptConnection: newConn,
+          actionToast: {
+            type: 'info',
+            message: `✨ @${partnerProfile.username} has been added to your Kept Connections!`,
+          },
+        });
+        return {
+          success: true,
+          message: `Added @${partnerProfile.username} to your Kept Connections.`,
+        };
+      },
+      removeKeptConnection: () => {
+        set({
+          keptConnection: null,
+          actionToast: {
+            type: 'info',
+            message: '🗑️ Connection removed from your list.',
+          },
+        });
+      },
 
       viewState: 'landing',
       viewHistory: [],
@@ -2544,6 +2588,7 @@ export const useChatStore = create<ChatStoreState>()(
         bannedUserIds: state.bannedUserIds,
         wallNotifications: state.wallNotifications,
         myPostIds: state.myPostIds,
+        keptConnection: state.keptConnection,
       }),
     }
   )

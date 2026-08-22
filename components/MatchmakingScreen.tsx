@@ -186,14 +186,23 @@ export const MatchmakingScreen: React.FC = () => {
           {formatSeconds(searchingTimeSeconds)}
         </span>
 
-        {/* Minimalist Cancel Button */}
-        <button
-          type="button"
-          onClick={cancelSearch}
-          className="mt-4 px-4 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer font-medium"
-        >
-          Cancel
-        </button>
+        {/* Action Buttons While Searching */}
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-xs">
+          <button
+            type="button"
+            onClick={() => setViewState('freedom_wall')}
+            className="w-full py-2 px-3.5 bg-[#701a31] hover:bg-[#4d0d1f] text-white text-xs font-bold rounded-xl border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>Campus Notes</span>
+          </button>
+          <button
+            type="button"
+            onClick={cancelSearch}
+            className="w-full py-1.5 px-3 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer font-medium"
+          >
+            Cancel Search
+          </button>
+        </div>
       </div>
     );
   }
