@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { getAvatarForPseudonym } from '../lib/constants';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   ArrowLeft,
@@ -16,6 +17,11 @@ import {
   ChevronRight,
   Sparkles,
   Shield,
+  Smile,
+  CornerUpLeft,
+  CornerUpRight,
+  Copy,
+  X,
 } from 'lucide-react';
 
 interface DirectMessage {
@@ -26,7 +32,150 @@ interface DirectMessage {
   timestamp: number;
   isMe?: boolean;
   read?: boolean;
+  reply_to?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
+  reactions?: Record<string, string[]>;
 }
+
+interface SwipeableDmRowProps {
+  msg: DirectMessage;
+  isMe: boolean;
+  onReply: (msg: DirectMessage) => void;
+  children: React.ReactNode;
+}
+
+const SwipeableDmRow: React.FC<SwipeableDmRowProps> = ({
+  msg,
+  isMe,
+  onReply,
+  children,
+}) => {
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isHorizontalSwipeRef = useRef<boolean | null>(null);
+  const hasVibratedRef = useRef(false);
+
+  const SWIPE_THRESHOLD = 35;
+
+  const handleStart = (clientX: number, clientY: number) => {
+    touchStartRef.current = { x: clientX, y: clientY };
+    isHorizontalSwipeRef.current = null;
+    hasVibratedRef.current = false;
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (!touchStartRef.current) return;
+
+    const deltaX = clientX - touchStartRef.current.x;
+    const deltaY = clientY - touchStartRef.current.y;
+
+    if (isHorizontalSwipeRef.current === null) {
+      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+        isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.3;
+      }
+    }
+
+    if (isHorizontalSwipeRef.current) {
+      // Partner text (isMe=false): Swipe Left to Right (deltaX > 0)
+      // Own text (isMe=true): Swipe Right to Left (deltaX < 0)
+      const directionalDelta = isMe ? -deltaX : deltaX;
+
+      if (directionalDelta > 0) {
+        const clampedOffset = Math.min(directionalDelta, 75);
+        const elasticOffset =
+          clampedOffset > SWIPE_THRESHOLD
+            ? SWIPE_THRESHOLD + (clampedOffset - SWIPE_THRESHOLD) * 0.35
+            : clampedOffset;
+
+        setDragOffset(elasticOffset);
+        setIsSwiping(true);
+
+        if (elasticOffset >= SWIPE_THRESHOLD && !hasVibratedRef.current) {
+          hasVibratedRef.current = true;
+          if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+            window.navigator.vibrate(25);
+          }
+        }
+      } else {
+        setDragOffset(0);
+      }
+    }
+  };
+
+  const handleEnd = () => {
+    if (dragOffset >= SWIPE_THRESHOLD) {
+      onReply(msg);
+    }
+
+    setDragOffset(0);
+    setIsSwiping(false);
+    touchStartRef.current = null;
+    isHorizontalSwipeRef.current = null;
+    hasVibratedRef.current = false;
+  };
+
+  const progress = Math.min(1, dragOffset / SWIPE_THRESHOLD);
+  const isTriggered = dragOffset >= SWIPE_THRESHOLD;
+  const translateXVal = isMe ? -dragOffset : dragOffset;
+
+  return (
+    <div className="relative w-full overflow-visible touch-pan-y select-none">
+      {/* Swipe Reply Icon Indicator */}
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-0 ${
+          isMe ? 'right-2' : 'left-2'
+        }`}
+        style={{
+          opacity: progress,
+          transform: `translateY(-50%) scale(${0.4 + progress * 0.6}) rotate(${
+            isMe ? (1 - progress) * -20 : (1 - progress) * 20
+          }deg)`,
+        }}
+      >
+        <div
+          className={`p-2 rounded-full border border-zinc-700 transition-all ${
+            isTriggered
+              ? 'bg-[#ffc900] text-black shadow-md scale-110'
+              : 'bg-[#27272a] text-white shadow-2xs'
+          }`}
+        >
+          {isMe ? (
+            <CornerUpLeft className="w-4 h-4 stroke-[2.5]" />
+          ) : (
+            <CornerUpRight className="w-4 h-4 stroke-[2.5]" />
+          )}
+        </div>
+      </div>
+
+      {/* Sliding Message Bubble Container */}
+      <div
+        onTouchStart={(e) => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchEnd={handleEnd}
+        onTouchCancel={handleEnd}
+        onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+        onMouseMove={(e) => {
+          if (touchStartRef.current) {
+            handleMove(e.clientX, e.clientY);
+          }
+        }}
+        onMouseUp={handleEnd}
+        onMouseLeave={handleEnd}
+        className="relative z-10 select-none touch-pan-y"
+        style={{
+          transform: `translateX(${translateXVal}px)`,
+          transition: isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
 
 export const KeptConnectionsPage: React.FC = () => {
   const {
@@ -46,6 +195,11 @@ export const KeptConnectionsPage: React.FC = () => {
   const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  // Message Reply & Reaction States
+  const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [activePickerMsgId, setActivePickerMsgId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +223,73 @@ export const KeptConnectionsPage: React.FC = () => {
       localStorage.setItem(storageKey, JSON.stringify(newMsgs));
     } catch {}
   }, [storageKey]);
+
+  // Copy message text helper
+  const copyMessageText = useCallback((msgId: string, text: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedId(msgId);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {}
+  }, []);
+
+  // Toggle emoji reaction on direct message
+  const toggleReaction = useCallback((messageId: string, reactionKey: string) => {
+    if (!currentUser) return;
+    const myUserId = currentUser.id;
+
+    setMessages((prev) => {
+      const updated = prev.map((m) => {
+        if (m.id !== messageId) return m;
+
+        const currentReactions: Record<string, string[]> = { ...(m.reactions || {}) };
+        const currentUsersForThisKey = currentReactions[reactionKey] || [];
+        const hasReacted = currentUsersForThisKey.includes(myUserId);
+
+        // Remove user from all keys first
+        Object.keys(currentReactions).forEach((k) => {
+          currentReactions[k] = (currentReactions[k] || []).filter((id) => id !== myUserId);
+          if (currentReactions[k].length === 0) {
+            delete currentReactions[k];
+          }
+        });
+
+        // Toggle on if wasn't already reacted with this key
+        if (!hasReacted) {
+          currentReactions[reactionKey] = [...(currentReactions[reactionKey] || []), myUserId];
+        }
+
+        return {
+          ...m,
+          reactions: currentReactions,
+        };
+      });
+
+      persistMessages(updated);
+      return updated;
+    });
+
+    const payload = {
+      messageId,
+      reactionKey,
+      userId: myUserId,
+    };
+
+    broadcastChannelRef.current?.postMessage({
+      type: 'dm_reaction',
+      payload,
+    });
+
+    if (supabaseChannelRef.current) {
+      try {
+        supabaseChannelRef.current.send({
+          type: 'broadcast',
+          event: 'dm_reaction',
+          payload,
+        });
+      } catch {}
+    }
+  }, [currentUser, persistMessages]);
 
   // Partner typing watchdog with 3.5s automatic fallback reset
   const handlePartnerTyping = useCallback((isTyping: boolean) => {
@@ -228,6 +449,32 @@ export const KeptConnectionsPage: React.FC = () => {
           } else if (data?.type === 'dm_typing' && data.payload?.senderId !== currentUser.id) {
             markPartnerOnline();
             handlePartnerTyping(Boolean(data.payload.isTyping));
+          } else if (data?.type === 'dm_reaction' && data.payload?.userId !== currentUser.id) {
+            const { messageId, reactionKey, userId } = data.payload;
+            markPartnerOnline();
+            setMessages((prev) => {
+              const updated = prev.map((m) => {
+                if (m.id !== messageId) return m;
+                const currentReactions: Record<string, string[]> = { ...(m.reactions || {}) };
+                const currentUsersForThisKey = currentReactions[reactionKey] || [];
+                const hasReacted = currentUsersForThisKey.includes(userId);
+
+                Object.keys(currentReactions).forEach((k) => {
+                  currentReactions[k] = (currentReactions[k] || []).filter((id) => id !== userId);
+                  if (currentReactions[k].length === 0) {
+                    delete currentReactions[k];
+                  }
+                });
+
+                if (!hasReacted) {
+                  currentReactions[reactionKey] = [...(currentReactions[reactionKey] || []), userId];
+                }
+
+                return { ...m, reactions: currentReactions };
+              });
+              persistMessages(updated);
+              return updated;
+            });
           } else if (data?.type === 'dm_presence_ping' && data.payload?.senderId !== currentUser.id) {
             markPartnerOnline();
             sendPresencePong();
@@ -293,6 +540,35 @@ export const KeptConnectionsPage: React.FC = () => {
             if (payload && payload.senderId !== currentUser.id) {
               markPartnerOnline();
               handlePartnerTyping(Boolean(payload.isTyping));
+            }
+          })
+          .on('broadcast', { event: 'dm_reaction' }, ({ payload }: any) => {
+            if (payload && payload.userId !== currentUser.id) {
+              const { messageId, reactionKey, userId } = payload;
+              markPartnerOnline();
+              setMessages((prev) => {
+                const updated = prev.map((m) => {
+                  if (m.id !== messageId) return m;
+                  const currentReactions: Record<string, string[]> = { ...(m.reactions || {}) };
+                  const currentUsersForThisKey = currentReactions[reactionKey] || [];
+                  const hasReacted = currentUsersForThisKey.includes(userId);
+
+                  Object.keys(currentReactions).forEach((k) => {
+                    currentReactions[k] = (currentReactions[k] || []).filter((id) => id !== userId);
+                    if (currentReactions[k].length === 0) {
+                      delete currentReactions[k];
+                    }
+                  });
+
+                  if (!hasReacted) {
+                    currentReactions[reactionKey] = [...(currentReactions[reactionKey] || []), userId];
+                  }
+
+                  return { ...m, reactions: currentReactions };
+                });
+                persistMessages(updated);
+                return updated;
+              });
             }
           })
           .on('broadcast', { event: 'dm_presence_ping' }, ({ payload }: { payload: { senderId: string } }) => {
@@ -439,12 +715,29 @@ export const KeptConnectionsPage: React.FC = () => {
       timestamp: Date.now(),
       isMe: true,
       read: false, // 1 check initially
+      reply_to: replyTo
+        ? {
+            id: replyTo.id,
+            senderName: replyTo.senderName,
+            text: replyTo.text,
+          }
+        : undefined,
     };
 
     const updated = [...messages, myMessage];
     setMessages(updated);
     persistMessages(updated);
     setInputText('');
+    setReplyTo(null);
+
+    // Play sent message SFX
+    if (typeof window !== 'undefined') {
+      try {
+        const audio = new Audio('/audio/sent_msg.webm');
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+      } catch (e) {}
+    }
 
     // 1. Broadcast over local BroadcastChannel
     broadcastChannelRef.current?.postMessage({
@@ -631,34 +924,158 @@ export const KeptConnectionsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Real-time Message Bubbles */}
+              {/* Real-time Message Bubbles with Swipe-to-Reply & Reactions */}
               {messages.map((msg) => (
-                <div
+                <SwipeableDmRow
                   key={msg.id}
-                  className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+                  msg={msg}
+                  isMe={!!msg.isMe}
+                  onReply={(m) => {
+                    setReplyTo(m);
+                    inputRef.current?.focus();
+                  }}
                 >
                   <div
-                    className={`max-w-[78%] sm:max-w-[70%] px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm ${
-                      msg.isMe
-                        ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
-                        : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
-                    }`}
+                    id={`msg-${msg.id}`}
+                    className={`flex flex-col group relative ${msg.isMe ? 'items-end' : 'items-start'}`}
                   >
-                    {msg.text}
-                  </div>
-                  <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium">
-                    <span>{formatTime(msg.timestamp)}</span>
-                    {msg.isMe && (
-                      <span className="flex items-center ml-0.5" title={msg.read ? 'Read by partner' : 'Sent (Unread)'}>
-                        {msg.read ? (
-                          <CheckCheck className="w-3.5 h-3.5 text-[#38bdf8]" />
-                        ) : (
-                          <Check className="w-3.5 h-3.5 text-zinc-400" />
-                        )}
-                      </span>
+                    {/* Floating Reaction Picker Popover */}
+                    {activePickerMsgId === msg.id && (
+                      <div className={`absolute z-50 animate-in zoom-in-95 duration-150 ${
+                        msg.isMe ? 'right-0 -top-11' : 'left-0 -top-11'
+                      }`}>
+                        <AnimatedReactionPicker
+                          onSelectReaction={(key) => {
+                            toggleReaction(msg.id, key);
+                            setActivePickerMsgId(null);
+                          }}
+                          onClose={() => setActivePickerMsgId(null)}
+                        />
+                      </div>
                     )}
+
+                    <div className="flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%]">
+                      <div
+                        className={`relative px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm transition-all ${
+                          msg.isMe
+                            ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
+                            : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
+                        }`}
+                      >
+                        {/* Reply Quote Banner inside bubble */}
+                        {msg.reply_to && (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const el = document.getElementById(`msg-${msg.reply_to?.id}`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                el.classList.add('ring-2', 'ring-[#ffc900]');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-[#ffc900]'), 1500);
+                              }
+                            }}
+                            className={`mb-1.5 p-2 rounded-xl text-xs cursor-pointer border-l-3 transition-opacity hover:opacity-90 ${
+                              msg.isMe
+                                ? 'bg-black/25 border-[#ffc900] text-zinc-200'
+                                : 'bg-black/40 border-[#ff90e8] text-zinc-300'
+                            }`}
+                          >
+                            <p className={`font-bold text-[10.5px] truncate ${msg.isMe ? 'text-[#ffc900]' : 'text-[#ff90e8]'}`}>
+                              {msg.reply_to.senderName === currentUser?.username ? 'You' : `@${msg.reply_to.senderName}`}
+                            </p>
+                            <p className="text-[11px] text-zinc-300 line-clamp-1 truncate">{msg.reply_to.text}</p>
+                          </div>
+                        )}
+
+                        <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.text}</p>
+
+                        {/* Quick Action Toolbar on Hover */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3.5 right-2 border rounded-full px-2 py-0.5 flex items-center gap-1 shadow-lg z-20 bg-[#1e1e24] border-zinc-700 text-white">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActivePickerMsgId(activePickerMsgId === msg.id ? null : msg.id);
+                            }}
+                            className="p-1 hover:text-amber-400 text-zinc-400 transition-colors cursor-pointer"
+                            title="React"
+                          >
+                            <Smile className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplyTo(msg);
+                              inputRef.current?.focus();
+                            }}
+                            className="p-1 hover:text-[#ff90e8] text-zinc-400 transition-colors cursor-pointer"
+                            title="Reply"
+                          >
+                            <CornerUpLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyMessageText(msg.id, msg.text);
+                            }}
+                            className="p-1 hover:text-emerald-400 text-zinc-400 transition-colors cursor-pointer"
+                            title="Copy"
+                          >
+                            {copiedId === msg.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inline Quick Reply Button next to message */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyTo(msg);
+                          inputRef.current?.focus();
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 active:scale-95 rounded-full transition-all text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shrink-0 cursor-pointer hidden sm:flex items-center justify-center"
+                        title="Reply to message"
+                      >
+                        <CornerUpLeft className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Animated Reaction Badges Row */}
+                    {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {Object.entries(msg.reactions).map(([key, users]) => (
+                          <AnimatedReactionBadge
+                            key={key}
+                            reactionKey={key}
+                            count={users.length}
+                            isMe={currentUser ? users.includes(currentUser.id) : false}
+                            onClick={() => toggleReaction(msg.id, key)}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Message Timestamp & Read Status */}
+                    <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium">
+                      <span>{formatTime(msg.timestamp)}</span>
+                      {msg.isMe && (
+                        <span className="flex items-center ml-0.5" title={msg.read ? 'Read by partner' : 'Sent (Unread)'}>
+                          {msg.read ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-[#38bdf8]" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5 text-zinc-400" />
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </SwipeableDmRow>
               ))}
 
               {/* Partner Live Typing indicator */}
@@ -673,6 +1090,29 @@ export const KeptConnectionsPage: React.FC = () => {
 
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Reply Preview Bar above input */}
+            {replyTo && (
+              <div className="bg-[#1e1e24] border-t border-x border-zinc-700/80 px-3.5 py-2 flex items-center justify-between gap-2 text-xs rounded-t-2xl animate-in slide-in-from-bottom-2 duration-150">
+                <div className="flex items-center gap-2 min-w-0 border-l-3 border-[#ffc900] pl-2.5">
+                  <CornerUpLeft className="w-3.5 h-3.5 text-[#ffc900] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-extrabold text-[#ffc900] text-[11px] truncate leading-tight">
+                      Replying to {replyTo.senderName === currentUser?.username ? 'yourself' : `@${replyTo.senderName}`}
+                    </p>
+                    <p className="text-zinc-300 text-[11.5px] truncate leading-tight mt-0.5">{replyTo.text}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(null)}
+                  className="p-1 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                  title="Cancel Reply"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Message Input Bar */}
             <form

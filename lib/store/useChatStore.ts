@@ -1953,6 +1953,13 @@ export const useChatStore = create<ChatStoreState>()(
               set({ partnerTyping: isTyping });
             },
             (reason?: string) => {
+              if (typeof window !== 'undefined') {
+                try {
+                  const audio = new Audio('/audio/skip_sfx.mp3');
+                  audio.volume = 0.6;
+                  audio.play().catch(() => {});
+                } catch (e) {}
+              }
               set((state) => {
                 if (state.partnerLeft) return state;
                 const isInactive = reason === 'inactivity';
@@ -2203,6 +2210,13 @@ export const useChatStore = create<ChatStoreState>()(
 
       nextMatch: () => {
         const { activeRoom } = get();
+        if (typeof window !== 'undefined') {
+          try {
+            const audio = new Audio('/audio/skip_sfx.mp3');
+            audio.volume = 0.6;
+            audio.play().catch(() => {});
+          } catch (e) {}
+        }
         if (activeRoom) {
           roomManager.sendSkipSignal('skipped');
           roomManager.leaveRoom();
@@ -2213,6 +2227,13 @@ export const useChatStore = create<ChatStoreState>()(
 
       leaveRoom: () => {
         const { currentUser, activeRoom } = get();
+        if (typeof window !== 'undefined') {
+          try {
+            const audio = new Audio('/audio/skip_sfx.mp3');
+            audio.volume = 0.6;
+            audio.play().catch(() => {});
+          } catch (e) {}
+        }
         if (activeRoom) {
           roomManager.sendSkipSignal('exited');
           roomManager.leaveRoom();

@@ -9,12 +9,13 @@ export interface ReactionDefinition {
 }
 
 export const REACTION_KEYS: ReactionDefinition[] = [
-  { key: 'like',  label: 'Like',  emoji: '👍' },
-  { key: 'love',  label: 'Love',  emoji: '❤️' },
-  { key: 'laugh', label: 'Haha',  emoji: '😆' },
-  { key: 'wow',   label: 'Wow',   emoji: '😮' },
-  { key: 'sad',   label: 'Sad',   emoji: '😢' },
-  { key: 'angry', label: 'Angry', emoji: '😡' },
+  { key: 'like',   label: 'Like',   emoji: '👍' },
+  { key: 'love',   label: 'Love',   emoji: '❤️' },
+  { key: 'laugh',  label: 'Haha',   emoji: '😆' },
+  { key: 'wow',    label: 'Wow',    emoji: '😮' },
+  { key: 'sad',    label: 'Sad',    emoji: '😢' },
+  { key: 'crying', label: 'Crying', emoji: '😭' },
+  { key: 'angry',  label: 'Angry',  emoji: '😡' },
 ];
 
 interface ReactionPickerProps {

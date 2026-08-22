@@ -12,6 +12,7 @@ import { FeedbackModal } from './FeedbackModal';
 import { BlockUserModal } from './BlockUserModal';
 import { AnimatedReactionPicker, AnimatedReactionBadge } from './AnimatedReactionPicker';
 import { CampusGamesModal, GameType } from './CampusGamesModal';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   Send,
   Image as ImageIcon,
@@ -184,7 +185,7 @@ const SwipeableMessageRow: React.FC<SwipeableMessageRowProps> = ({
   );
 };
 
-const EMOJI_PRESETS = ['😊', '😂', '👍', '🔥', '❤️', '😮', '☕', '📚', '🎉', '👋'];
+const EMOJI_PRESETS = ['😊', '😂', '😭', '👍', '🔥', '❤️', '😮', '☕', '📚', '🎉', '👋'];
 
 export const ChatRoom: React.FC = () => {
   const {
@@ -431,7 +432,20 @@ export const ChatRoom: React.FC = () => {
     }
   }, [messages, partnerLeft, currentUser]);
 
-
+  // Play skip sound effect when partner leaves/skips
+  const prevPartnerLeftRef = useRef(false);
+  useEffect(() => {
+    if (partnerLeft && !prevPartnerLeftRef.current) {
+      if (typeof window !== 'undefined') {
+        try {
+          const audio = new Audio('/audio/skip_sfx.mp3');
+          audio.volume = 0.6;
+          audio.play().catch(() => {});
+        } catch (e) {}
+      }
+    }
+    prevPartnerLeftRef.current = partnerLeft;
+  }, [partnerLeft]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -681,7 +695,7 @@ export const ChatRoom: React.FC = () => {
       <div className="text-center py-16">
         <p className="text-[#242423]">No active chat room found.</p>
         <button onClick={leaveRoom} className="mt-4 btn-gumroad-primary">
-          Back to Queue
+          Back
         </button>
       </div>
     );
@@ -931,7 +945,6 @@ export const ChatRoom: React.FC = () => {
             }`}
             title={confirmNext ? 'Click again to skip to next chat' : 'Skip to next chat'}
           >
-            <FastForward className={`w-3.5 h-3.5 ${confirmNext ? 'text-white' : 'text-amber-300'}`} />
             <span className={confirmNext ? 'inline' : 'hidden sm:inline'}>
               {confirmNext ? 'Sure?' : 'Next Chat'}
             </span>
@@ -1554,31 +1567,43 @@ export const ChatRoom: React.FC = () => {
           )}
         </div>
 
-        {/* Partner Disconnected / Exited / Skipped — in-chat system card */}
+        {/* Partner Disconnected / Exited / Skipped — in-chat system card with Lottie Animation */}
         {partnerLeft && (
-          <div className="flex flex-col items-center gap-3 py-4 my-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center ${
-              partnerLeftReason === 'inactivity'
-                ? 'bg-amber-100 border-amber-300 text-amber-600'
-                : partnerLeftReason === 'exited'
-                ? 'bg-rose-100 border-rose-300 text-rose-600'
-                : partnerLeftReason === 'skipped'
-                ? 'bg-purple-100 border-purple-300 text-purple-600'
-                : 'bg-red-100 border-red-300 text-red-500'
-            }`}>
-              {partnerLeftReason === 'inactivity' ? (
-                <Hourglass className="w-5 h-5 animate-pulse" />
-              ) : partnerLeftReason === 'exited' ? (
-                <LogOut className="w-5 h-5" />
-              ) : partnerLeftReason === 'skipped' ? (
-                <FastForward className="w-5 h-5" />
-              ) : (
-                <WifiOff className="w-5 h-5" />
-              )}
+          <div className="flex flex-col items-center gap-2 py-4 my-2 animate-in fade-in slide-in-from-bottom-3 duration-300">
+            {/* Wonder Why Skipped Lottie Animation */}
+            <div className="w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center -mb-2">
+              <DotLottieReact
+                src="/animated-assets/wonder_why_skipped.lottie"
+                loop={true}
+                autoplay={true}
+                className="w-full h-full object-contain"
+              />
             </div>
+
             <div className="text-center max-w-sm space-y-2 w-full flex flex-col items-center">
+              {/* Status Pill Badge */}
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${
+                partnerLeftReason === 'inactivity'
+                  ? 'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-300'
+                  : partnerLeftReason === 'exited'
+                  ? 'bg-rose-100 border-rose-300 text-rose-800 dark:bg-rose-950/60 dark:border-rose-700 dark:text-rose-300'
+                  : partnerLeftReason === 'skipped'
+                  ? 'bg-purple-100 border-purple-300 text-purple-800 dark:bg-purple-950/60 dark:border-purple-700 dark:text-purple-300'
+                  : 'bg-red-100 border-red-300 text-red-800 dark:bg-red-950/60 dark:border-red-700 dark:text-red-300'
+              }`}>
+                <span>
+                  {partnerLeftReason === 'left' || partnerLeftReason === 'exited'
+                    ? 'You left the chat'
+                    : partnerLeftReason === 'skipped'
+                    ? `@${partner?.username || 'Partner'} skipped the chat`
+                    : partnerLeftReason === 'inactivity'
+                    ? `@${partner?.username || 'Partner'} disconnected (inactivity)`
+                    : 'Chat ended'}
+                </span>
+              </div>
+
               {/* Ended Chat Indicator with Report / Block & Feedback Prompt */}
-              <div className={`text-xs space-y-1.5 pt-1 ${isDarkMode ? 'text-white-400' : 'text-[#242423]'}`}>
+              <div className={`text-xs space-y-1.5 pt-1 ${isDarkMode ? 'text-zinc-300' : 'text-[#242423]'}`}>
                 <p className="font-medium">
                   {partnerLeftReason === 'left' || partnerLeftReason === 'exited' ? (
                     <>You ended the chat.</>
@@ -1592,7 +1617,7 @@ export const ChatRoom: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowReportModal(true)}
-                    className="font-extrabold text-[#701a31] hover:underline"
+                    className="font-extrabold text-[#701a31] dark:text-[#ff90e8] hover:underline cursor-pointer"
                   >
                     Report?
                   </button>{' '}
@@ -1600,18 +1625,18 @@ export const ChatRoom: React.FC = () => {
                   <button
                     type="button"
                     onClick={blockPartner}
-                    className="font-extrabold text-[#c41e3a] hover:underline"
+                    className="font-extrabold text-[#c41e3a] dark:text-[#f87171] hover:underline cursor-pointer"
                   >
                     Block
                   </button>
                 </p>
 
-                <p className={`text-[11px] font-bold tracking-wider uppercase pt-1 ${isDarkMode ? 'text-white' : 'text-gray-500'}`}>
+                <p className={`text-[11px] font-bold tracking-wider uppercase pt-1 ${isDarkMode ? 'text-zinc-400' : 'text-gray-500'}`}>
                   FOUND A BUG OR HAVE SUGGESTIONS?{' '}
                   <button
                     type="button"
                     onClick={() => setShowFeedbackModal(true)}
-                    className="text-[#701a31] hover:underline font-extrabold normal-case text-xs"
+                    className="text-[#701a31] dark:text-[#ff90e8] hover:underline font-extrabold normal-case text-xs cursor-pointer"
                   >
                     Send it here!
                   </button>
@@ -1674,7 +1699,7 @@ export const ChatRoom: React.FC = () => {
                   onClick={() => setViewState('kept_connections')}
                   className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border-2 border-black shadow-xs transition-all cursor-pointer shrink-0"
                 >
-                  ✓ Kept (View)
+                  Message
                 </button>
               ) : keptConnection && keptConnection.user_id !== partner.id ? (
                 <button
@@ -1682,7 +1707,7 @@ export const ChatRoom: React.FC = () => {
                   onClick={() => setShowSlotFullModal(true)}
                   className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-amber-800 text-xs font-black rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1"
                 >
-                  <span>Slot Full (1/1)</span>
+                  <span>Friend (1/1)</span>
                 </button>
               ) : (
                 <button

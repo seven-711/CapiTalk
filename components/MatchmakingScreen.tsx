@@ -128,7 +128,7 @@ export const MatchmakingScreen: React.FC = () => {
             }}
             className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-black text-xs font-bold rounded-xl transition-colors cursor-pointer"
           >
-            Freedom Wall
+           Campus Wall
           </button>
         </div>
 
@@ -191,7 +191,7 @@ export const MatchmakingScreen: React.FC = () => {
             onClick={() => setViewState('freedom_wall')}
             className="w-full py-2 text-xs text-gray-600 hover:text-black font-bold transition-colors cursor-pointer"
           >
-            Browse Freedom Wall while waiting
+            Campus Wall
           </button>
         </div>
       </div>
@@ -297,7 +297,7 @@ export const MatchmakingScreen: React.FC = () => {
               onClick={() => setViewState('freedom_wall')}
               className="w-full sm:w-auto px-4 py-3 bg-gray-100 hover:bg-gray-200 text-black font-bold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer"
             >
-              Freedom Wall
+             Campus Wall
             </button>
           </div>
         </div>
