@@ -50,6 +50,8 @@ interface ChatStoreState {
   feedbackList: UserFeedback[];
   wallNotifications: WallNotification[];
   myPostIds: string[];
+  myPseudonyms: string[];
+  addPseudonym: (pseudonym: string) => void;
   targetPostId: string | null;
   setTargetPostId: (id: string | null) => void;
 
@@ -96,6 +98,7 @@ interface ChatStoreState {
 
   addWallNotification: (notif: Omit<WallNotification, 'id' | 'created_at' | 'read'>) => void;
   markWallNotificationsAsRead: () => void;
+  markSingleNotificationAsRead: (id: string) => void;
   clearWallNotifications: () => void;
   keptConnection: KeptConnection | null;
   hasNewConnectionNotif: boolean;
@@ -111,6 +114,61 @@ interface ChatStoreState {
 const DEMO_FREEDOM_POSTS: FreedomPost[] = [];
 
 const DEMO_WALL_NOTIFICATIONS: WallNotification[] = [];
+
+const recentNotifTimestamps = new Map<string, number>();
+
+export function getCanonicalNotificationSignature(notif: {
+  type: string;
+  post_id?: string;
+  actor_alias?: string;
+  actor_username?: string;
+  comment_text?: string;
+  message_snippet?: string;
+  admin_remark?: string;
+}): string {
+  const actor = (notif.actor_username || notif.actor_alias || '').replace(/^@/, '').trim().toLowerCase();
+  const postId = (notif.post_id || '').trim();
+  const type = notif.type;
+
+  if (type === 'like') {
+    return `like:${postId}:${actor}`;
+  }
+  if (type === 'comment') {
+    const textSnippet = (notif.comment_text || notif.message_snippet || '').trim().slice(0, 40).toLowerCase();
+    return `comment:${postId}:${actor}:${textSnippet}`;
+  }
+  if (type === 'friend_add') {
+    return `friend_add:${actor}`;
+  }
+  if (type === 'friend_remove') {
+    return `friend_remove:${actor}`;
+  }
+  if (type === 'dm') {
+    const snippet = (notif.message_snippet || '').trim().slice(0, 40).toLowerCase();
+    return `dm:${actor}:${snippet}`;
+  }
+  if (type === 'admin_remark') {
+    return `admin_remark:${postId}:${(notif.admin_remark || '').trim().slice(0, 40).toLowerCase()}`;
+  }
+  return `${type}:${postId}:${actor}`;
+}
+
+export function deduplicateNotificationsList(notifications: WallNotification[]): WallNotification[] {
+  if (!Array.isArray(notifications)) return [];
+  const seenSignatures = new Set<string>();
+  const deduped: WallNotification[] = [];
+
+  for (const notif of notifications) {
+    const sig = getCanonicalNotificationSignature(notif);
+    const dedupeKey = `${sig}_${notif.read ? 'read' : 'unread'}`;
+    if (!seenSignatures.has(dedupeKey)) {
+      seenSignatures.add(dedupeKey);
+      deduped.push(notif);
+    }
+  }
+
+  return deduped;
+}
 
 let searchTimer: NodeJS.Timeout | null = null;
 let unsubscribeMatch: (() => void) | null = null;
@@ -262,6 +320,9 @@ export const useChatStore = create<ChatStoreState>()(
               broadcastChannel.postMessage({
                 type: 'CONNECTION_REMOVED_TWO_WAY',
                 senderId: currentUser.id,
+                senderUsername: currentUser.username,
+                senderAvatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
+                senderDept: currentUser.department,
                 targetUserId: current.user_id,
               });
             } catch (e) {}
@@ -275,6 +336,9 @@ export const useChatStore = create<ChatStoreState>()(
                 event: 'connection_removed_two_way',
                 payload: {
                   senderId: currentUser.id,
+                  senderUsername: currentUser.username,
+                  senderAvatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
+                  senderDept: currentUser.department,
                   targetUserId: current.user_id,
                 },
               });
@@ -331,7 +395,15 @@ export const useChatStore = create<ChatStoreState>()(
         ? (() => {
             try {
               const stored = localStorage.getItem('capitalk_wall_notifications_v2');
-              return stored ? JSON.parse(stored) : DEMO_WALL_NOTIFICATIONS;
+              if (stored) {
+                const parsed = JSON.parse(stored);
+                const deduped = deduplicateNotificationsList(parsed);
+                try {
+                  localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(deduped));
+                } catch (e) {}
+                return deduped;
+              }
+              return DEMO_WALL_NOTIFICATIONS;
             } catch (e) {
               return DEMO_WALL_NOTIFICATIONS;
             }
@@ -352,20 +424,85 @@ export const useChatStore = create<ChatStoreState>()(
           })()
         : ['post_1'],
 
+      myPseudonyms: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const stored = localStorage.getItem('capitalk_my_pseudonyms_v1');
+              const list: string[] = stored ? JSON.parse(stored) : [];
+              const current = localStorage.getItem('capitalk_user_pseudonym');
+              if (current && !list.some((p) => p.toLowerCase() === current.toLowerCase())) {
+                list.push(current);
+              }
+              return list;
+            } catch (e) {
+              return [];
+            }
+          })()
+        : [],
+
+      addPseudonym: (pseudonym: string) => {
+        const clean = pseudonym.replace(/^@/, '').trim();
+        if (!clean || clean.toLowerCase() === 'anon' || clean.toLowerCase() === 'anon student') return;
+        const current = get().myPseudonyms || [];
+        if (!current.some((p) => p.toLowerCase() === clean.toLowerCase())) {
+          const updated = [...current, clean];
+          set({ myPseudonyms: updated });
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('capitalk_my_pseudonyms_v1', JSON.stringify(updated));
+            } catch (e) {}
+          }
+          if (broadcastChannel) {
+            try {
+              broadcastChannel.postMessage({ type: 'MY_PSEUDONYMS_UPDATE', pseudonyms: updated });
+            } catch (e) {}
+          }
+        }
+      },
+
       addWallNotification: (notifData) => {
+        const sig = getCanonicalNotificationSignature(notifData);
+        const now = Date.now();
+
+        // 1. In-memory debounce window check (10 seconds debounce for identical action)
+        const lastTime = recentNotifTimestamps.get(sig);
+        if (lastTime && (now - lastTime < 10000)) {
+          return;
+        }
+        recentNotifTimestamps.set(sig, now);
+
+        // 2. Check if identical notification already exists in recent state
+        const existing = get().wallNotifications || [];
+        const isDuplicateInState = existing.some((n) => {
+          if (n.type !== notifData.type) return false;
+          const existingSig = getCanonicalNotificationSignature(n);
+          if (existingSig === sig) {
+            const age = now - new Date(n.created_at).getTime();
+            return age < 30000 || !n.read;
+          }
+          return false;
+        });
+
+        if (isDuplicateInState) {
+          return;
+        }
+
         const newNotif: WallNotification = {
-          id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          id: 'notif_' + now + '_' + Math.random().toString(36).substring(2, 6),
           post_id: notifData.post_id,
           type: notifData.type,
           actor_alias: notifData.actor_alias,
+          actor_username: notifData.actor_username,
           actor_department: notifData.actor_department,
+          actor_avatar: notifData.actor_avatar,
           message_snippet: notifData.message_snippet,
           comment_text: notifData.comment_text,
           admin_remark: notifData.admin_remark,
           created_at: new Date().toISOString(),
           read: false,
         };
-        const updated = [newNotif, ...get().wallNotifications];
+
+        const updated = deduplicateNotificationsList([newNotif, ...existing]);
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
@@ -404,6 +541,21 @@ export const useChatStore = create<ChatStoreState>()(
 
       markWallNotificationsAsRead: () => {
         const updated = get().wallNotifications.map((n) => ({ ...n, read: true }));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
+          } catch (e) {}
+        }
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({ type: 'WALL_NOTIFICATIONS_UPDATE', notifications: updated });
+          } catch (e) {}
+        }
+        set({ wallNotifications: updated });
+      },
+
+      markSingleNotificationAsRead: (id: string) => {
+        const updated = get().wallNotifications.map((n) => (n.id === id ? { ...n, read: true } : n));
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
@@ -778,10 +930,37 @@ export const useChatStore = create<ChatStoreState>()(
                     }
                   }
                 } else if (event.data?.type === 'FREEDOM_WALL_LIKE') {
-                  const { postId, actorAlias, actorDept, messageSnippet, likerId, actorUsername, actorAvatar } = event.data;
-                  const { myPostIds, currentUser } = get();
-                  const currentUserId = currentUser ? currentUser.id : '';
-                  if (myPostIds.includes(postId) && likerId !== currentUserId) {
+                  const { postId, actorAlias, actorDept, messageSnippet, likerId, actorUsername, actorAvatar, targetAuthorId, targetAuthorAlias } = event.data;
+                  const store = get();
+                  const { myPostIds, myPseudonyms, currentUser, freedomPosts } = store;
+                  const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : '');
+                  const currentUsername = currentUser ? currentUser.username : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') || '' : '');
+                  const targetPost = freedomPosts.find((p) => p.id === postId);
+
+                  const allMyAliases = Array.from(new Set([
+                    ...(myPseudonyms || []),
+                    ...(currentUsername ? [currentUsername] : []),
+                  ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+
+                  const matchesPseudonym = (alias?: string) => {
+                    if (!alias) return false;
+                    const clean = alias.replace(/^@/, '').trim().toLowerCase();
+                    return allMyAliases.includes(clean);
+                  };
+
+                  const isMyNote =
+                    (myPostIds || []).includes(postId) ||
+                    (currentUserId && targetAuthorId && targetAuthorId === currentUserId) ||
+                    (currentUserId && targetPost?.author_id && targetPost.author_id === currentUserId) ||
+                    matchesPseudonym(targetAuthorAlias) ||
+                    matchesPseudonym(targetPost?.author_alias);
+
+                  if (isMyNote && likerId !== currentUserId) {
+                    if (!myPostIds.includes(postId)) {
+                      const updatedIds = [postId, ...myPostIds];
+                      set({ myPostIds: updatedIds });
+                      try { localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedIds)); } catch (e) {}
+                    }
                     const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
                     const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                     get().addWallNotification({
@@ -791,14 +970,41 @@ export const useChatStore = create<ChatStoreState>()(
                       actor_username: resolvedUsername,
                       actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                       actor_department: actorDept,
-                      message_snippet: messageSnippet,
+                      message_snippet: messageSnippet || targetPost?.message?.slice(0, 60) || 'Someone reacted to your note',
                     });
                   }
                 } else if (event.data?.type === 'FREEDOM_WALL_COMMENT') {
-                  const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId, actorUsername, actorAvatar } = event.data;
-                  const { myPostIds, currentUser } = get();
-                  const currentUserId = currentUser ? currentUser.id : '';
-                  if (myPostIds.includes(postId) && commenterId !== currentUserId) {
+                  const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId, actorUsername, actorAvatar, targetAuthorId, targetAuthorAlias } = event.data;
+                  const store = get();
+                  const { myPostIds, myPseudonyms, currentUser, freedomPosts } = store;
+                  const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : '');
+                  const currentUsername = currentUser ? currentUser.username : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') || '' : '');
+                  const targetPost = freedomPosts.find((p) => p.id === postId);
+
+                  const allMyAliases = Array.from(new Set([
+                    ...(myPseudonyms || []),
+                    ...(currentUsername ? [currentUsername] : []),
+                  ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+
+                  const matchesPseudonym = (alias?: string) => {
+                    if (!alias) return false;
+                    const clean = alias.replace(/^@/, '').trim().toLowerCase();
+                    return allMyAliases.includes(clean);
+                  };
+
+                  const isMyNote =
+                    (myPostIds || []).includes(postId) ||
+                    (currentUserId && targetAuthorId && targetAuthorId === currentUserId) ||
+                    (currentUserId && targetPost?.author_id && targetPost.author_id === currentUserId) ||
+                    matchesPseudonym(targetAuthorAlias) ||
+                    matchesPseudonym(targetPost?.author_alias);
+
+                  if (isMyNote && commenterId !== currentUserId) {
+                    if (!myPostIds.includes(postId)) {
+                      const updatedIds = [postId, ...myPostIds];
+                      set({ myPostIds: updatedIds });
+                      try { localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedIds)); } catch (e) {}
+                    }
                     const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
                     const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                     get().addWallNotification({
@@ -808,9 +1014,16 @@ export const useChatStore = create<ChatStoreState>()(
                       actor_username: resolvedUsername,
                       actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                       actor_department: actorDept,
-                      message_snippet: messageSnippet,
+                      message_snippet: messageSnippet || targetPost?.message?.slice(0, 60) || 'Someone commented on your note',
                       comment_text: commentText,
                     });
+                  }
+                } else if (event.data?.type === 'MY_PSEUDONYMS_UPDATE') {
+                  const { pseudonyms } = event.data;
+                  if (Array.isArray(pseudonyms)) {
+                    const merged = Array.from(new Set([...(get().myPseudonyms || []), ...pseudonyms]));
+                    set({ myPseudonyms: merged });
+                    try { localStorage.setItem('capitalk_my_pseudonyms_v1', JSON.stringify(merged)); } catch (e) {}
                   }
                 } else if (event.data?.type === 'FREEDOM_WALL_ADMIN_REMARK') {
                   const { postId, messageSnippet, adminRemark, reportedUsername, reporterUsername } = event.data;
@@ -856,15 +1069,32 @@ export const useChatStore = create<ChatStoreState>()(
                     }
                   }
                 } else if (event.data?.type === 'CONNECTION_REMOVED_TWO_WAY') {
-                  const { senderId, targetUserId } = event.data;
+                  const { senderId, senderUsername, senderAvatar, senderDept, targetUserId } = event.data;
                   const store = get();
                   const myUserId = store.currentUser?.id;
-                  if (myUserId && targetUserId === myUserId && store.keptConnection?.user_id === senderId) {
-                    set({ keptConnection: null, hasNewConnectionNotif: false });
-                    try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+                  if (myUserId && targetUserId === myUserId) {
+                    const currentKept = store.keptConnection;
+                    const partnerName = senderUsername || (currentKept?.user_id === senderId ? currentKept?.username : '') || 'Your friend';
+                    const partnerPic = senderAvatar || (currentKept?.user_id === senderId ? currentKept?.avatar_url : '') || getAvatarForPseudonym(partnerName);
+
+                    if (currentKept?.user_id === senderId) {
+                      set({ keptConnection: null, hasNewConnectionNotif: false });
+                      try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+                    }
+
+                    store.addWallNotification({
+                      post_id: 'unfriend_' + Date.now(),
+                      type: 'friend_remove',
+                      actor_alias: `@${partnerName}`,
+                      actor_username: partnerName,
+                      actor_avatar: partnerPic,
+                      actor_department: senderDept || currentKept?.department,
+                      message_snippet: `@${partnerName} removed you from their friends list.`,
+                    });
+
                     store.setActionToast({
                       type: 'info',
-                      message: '🗑️ Your connection was removed by your partner.',
+                      message: `💔 @${partnerName} unfriended you. Your 1 connection slot is now free.`,
                     });
                   }
                 } else if (event.data?.type === 'GLOBAL_DM_MESSAGE') {
@@ -966,15 +1196,32 @@ export const useChatStore = create<ChatStoreState>()(
                   })
                   .on('broadcast', { event: 'connection_removed_two_way' }, ({ payload }: any) => {
                     if (payload) {
-                      const { senderId, targetUserId } = payload;
+                      const { senderId, senderUsername, senderAvatar, senderDept, targetUserId } = payload;
                       const store = get();
                       const myUserId = store.currentUser?.id;
-                      if (myUserId && targetUserId === myUserId && store.keptConnection?.user_id === senderId) {
-                        set({ keptConnection: null, hasNewConnectionNotif: false });
-                        try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+                      if (myUserId && targetUserId === myUserId) {
+                        const currentKept = store.keptConnection;
+                        const partnerName = senderUsername || (currentKept?.user_id === senderId ? currentKept?.username : '') || 'Your friend';
+                        const partnerPic = senderAvatar || (currentKept?.user_id === senderId ? currentKept?.avatar_url : '') || getAvatarForPseudonym(partnerName);
+
+                        if (currentKept?.user_id === senderId) {
+                          set({ keptConnection: null, hasNewConnectionNotif: false });
+                          try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+                        }
+
+                        store.addWallNotification({
+                          post_id: 'unfriend_' + Date.now(),
+                          type: 'friend_remove',
+                          actor_alias: `@${partnerName}`,
+                          actor_username: partnerName,
+                          actor_avatar: partnerPic,
+                          actor_department: senderDept || currentKept?.department,
+                          message_snippet: `@${partnerName} removed you from their friends list.`,
+                        });
+
                         store.setActionToast({
                           type: 'info',
-                          message: '🗑️ Your connection was removed by your partner.',
+                          message: `💔 @${partnerName} unfriended you. Your 1 connection slot is now free.`,
                         });
                       }
                     }
@@ -1009,10 +1256,37 @@ export const useChatStore = create<ChatStoreState>()(
                 const wallChannel = supabase.channel('capitalk_global_wall_events');
                 wallChannel
                   .on('broadcast', { event: 'FREEDOM_WALL_LIKE' }, (payload: any) => {
-                    const { postId, actorAlias, actorDept, messageSnippet, likerId, actorUsername, actorAvatar } = payload?.payload || {};
-                    const { myPostIds, currentUser } = get();
-                    const currentUserId = currentUser ? currentUser.id : '';
-                    if (myPostIds.includes(postId) && likerId !== currentUserId) {
+                    const { postId, actorAlias, actorDept, messageSnippet, likerId, actorUsername, actorAvatar, targetAuthorId, targetAuthorAlias } = payload?.payload || {};
+                    const store = get();
+                    const { myPostIds, myPseudonyms, currentUser, freedomPosts } = store;
+                    const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : '');
+                    const currentUsername = currentUser ? currentUser.username : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') || '' : '');
+                    const targetPost = freedomPosts.find((p) => p.id === postId);
+
+                    const allMyAliases = Array.from(new Set([
+                      ...(myPseudonyms || []),
+                      ...(currentUsername ? [currentUsername] : []),
+                    ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+
+                    const matchesPseudonym = (alias?: string) => {
+                      if (!alias) return false;
+                      const clean = alias.replace(/^@/, '').trim().toLowerCase();
+                      return allMyAliases.includes(clean);
+                    };
+
+                    const isMyNote =
+                      (myPostIds || []).includes(postId) ||
+                      (currentUserId && targetAuthorId && targetAuthorId === currentUserId) ||
+                      (currentUserId && targetPost?.author_id && targetPost.author_id === currentUserId) ||
+                      matchesPseudonym(targetAuthorAlias) ||
+                      matchesPseudonym(targetPost?.author_alias);
+
+                    if (isMyNote && likerId !== currentUserId) {
+                      if (!myPostIds.includes(postId)) {
+                        const updatedIds = [postId, ...myPostIds];
+                        set({ myPostIds: updatedIds });
+                        try { localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedIds)); } catch (e) {}
+                      }
                       const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
                       const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                       get().addWallNotification({
@@ -1022,15 +1296,42 @@ export const useChatStore = create<ChatStoreState>()(
                         actor_username: resolvedUsername,
                         actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                         actor_department: actorDept,
-                        message_snippet: messageSnippet,
+                        message_snippet: messageSnippet || targetPost?.message?.slice(0, 60) || 'Someone reacted to your note',
                       });
                     }
                   })
                   .on('broadcast', { event: 'FREEDOM_WALL_COMMENT' }, (payload: any) => {
-                    const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId, actorUsername, actorAvatar } = payload?.payload || {};
-                    const { myPostIds, currentUser } = get();
-                    const currentUserId = currentUser ? currentUser.id : '';
-                    if (myPostIds.includes(postId) && commenterId !== currentUserId) {
+                    const { postId, actorAlias, actorDept, messageSnippet, commentText, commenterId, actorUsername, actorAvatar, targetAuthorId, targetAuthorAlias } = payload?.payload || {};
+                    const store = get();
+                    const { myPostIds, myPseudonyms, currentUser, freedomPosts } = store;
+                    const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : '');
+                    const currentUsername = currentUser ? currentUser.username : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') || '' : '');
+                    const targetPost = freedomPosts.find((p) => p.id === postId);
+
+                    const allMyAliases = Array.from(new Set([
+                      ...(myPseudonyms || []),
+                      ...(currentUsername ? [currentUsername] : []),
+                    ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+
+                    const matchesPseudonym = (alias?: string) => {
+                      if (!alias) return false;
+                      const clean = alias.replace(/^@/, '').trim().toLowerCase();
+                      return allMyAliases.includes(clean);
+                    };
+
+                    const isMyNote =
+                      (myPostIds || []).includes(postId) ||
+                      (currentUserId && targetAuthorId && targetAuthorId === currentUserId) ||
+                      (currentUserId && targetPost?.author_id && targetPost.author_id === currentUserId) ||
+                      matchesPseudonym(targetAuthorAlias) ||
+                      matchesPseudonym(targetPost?.author_alias);
+
+                    if (isMyNote && commenterId !== currentUserId) {
+                      if (!myPostIds.includes(postId)) {
+                        const updatedIds = [postId, ...myPostIds];
+                        set({ myPostIds: updatedIds });
+                        try { localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(updatedIds)); } catch (e) {}
+                      }
                       const resolvedUsername = actorUsername || (actorAlias?.startsWith('@') ? actorAlias.slice(1) : actorAlias);
                       const resolvedAlias = resolvedUsername ? (resolvedUsername.startsWith('@') ? resolvedUsername : `@${resolvedUsername}`) : actorAlias;
                       get().addWallNotification({
@@ -1040,7 +1341,7 @@ export const useChatStore = create<ChatStoreState>()(
                         actor_username: resolvedUsername,
                         actor_avatar: actorAvatar || getAvatarForPseudonym(resolvedUsername),
                         actor_department: actorDept,
-                        message_snippet: messageSnippet,
+                        message_snippet: messageSnippet || targetPost?.message?.slice(0, 60) || 'Someone commented on your note',
                         comment_text: commentText,
                       });
                     }
@@ -1167,8 +1468,45 @@ export const useChatStore = create<ChatStoreState>()(
                       const localOnlyPosts = store.freedomPosts.filter((p) => !dbIds.has(p.id) && p.status === 'pending');
                       const loadedFromDb = data.map((row: any) => mapDbRowToPost(row, localMap.get(row.id)));
                       const finalPosts = [...localOnlyPosts, ...loadedFromDb].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                      set({ freedomPosts: finalPosts });
-                      try { localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(finalPosts)); } catch (e) {}
+                      
+                      const currentUserId = store.currentUser ? store.currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : '');
+                      const currentUsername = store.currentUser ? store.currentUser.username : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') || '' : '');
+                      const existingMyPostIds = store.myPostIds || [];
+                      const existingMyPseudonyms = store.myPseudonyms || [];
+
+                      // 1-to-Many Discovery: extract all pseudonyms authored by this persistent visitor UUID
+                      const discoveredPseudonyms: string[] = [];
+                      if (currentUsername) discoveredPseudonyms.push(currentUsername.replace(/^@/, '').trim());
+
+                      finalPosts.forEach((p) => {
+                        if (p.author_id && currentUserId && p.author_id === currentUserId) {
+                          const clean = p.author_alias?.replace(/^@/, '').trim();
+                          if (clean && clean.toLowerCase() !== 'anon' && clean.toLowerCase() !== 'anon student') {
+                            discoveredPseudonyms.push(clean);
+                          }
+                        }
+                      });
+
+                      const mergedPseudonyms = Array.from(new Set([...existingMyPseudonyms, ...discoveredPseudonyms])).filter(Boolean);
+                      const allCleanAliases = mergedPseudonyms.map((p) => p.toLowerCase());
+
+                      // Link all notes matching any pseudonym in this UUID's 1-to-many pool
+                      const myIdsFromAll = finalPosts.filter((p) => {
+                        if (existingMyPostIds.includes(p.id)) return true;
+                        if (p.author_id && currentUserId && p.author_id === currentUserId) return true;
+                        const cleanAlias = p.author_alias?.replace(/^@/, '').trim().toLowerCase();
+                        if (cleanAlias && allCleanAliases.includes(cleanAlias)) return true;
+                        return false;
+                      }).map((p) => p.id);
+
+                      const mergedMyPostIds = Array.from(new Set([...existingMyPostIds, ...myIdsFromAll]));
+
+                      set({ freedomPosts: finalPosts, myPostIds: mergedMyPostIds, myPseudonyms: mergedPseudonyms });
+                      try {
+                        localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(finalPosts));
+                        localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(mergedMyPostIds));
+                        localStorage.setItem('capitalk_my_pseudonyms_v1', JSON.stringify(mergedPseudonyms));
+                      } catch (e) {}
                     }
                   }, () => {});
 
@@ -1471,7 +1809,22 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
-        set({ currentUser: newUser, viewState: 'queue' });
+        const freedomPosts = get().freedomPosts || [];
+        const existingMyIds = get().myPostIds || [];
+        const myIdsFromAll = freedomPosts.filter((p) => {
+          if (existingMyIds.includes(p.id)) return true;
+          if (p.author_id && p.author_id === persistentId) return true;
+          const cleanAlias = p.author_alias?.replace(/^@/, '').trim().toLowerCase();
+          const cleanUser = trimmedUsername.toLowerCase();
+          return cleanAlias && cleanUser && cleanAlias === cleanUser;
+        }).map((p) => p.id);
+
+        const mergedIds = Array.from(new Set([...existingMyIds, ...myIdsFromAll]));
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('capitalk_my_post_ids_v1', JSON.stringify(mergedIds)); } catch (e) {}
+        }
+
+        set({ currentUser: newUser, myPostIds: mergedIds, viewState: 'queue' });
       },
 
       startSearch: () => {
@@ -2336,6 +2689,10 @@ export const useChatStore = create<ChatStoreState>()(
           const updated = [newPost, ...currentList];
           const updatedMyPostIds = [newPost.id, ...get().myPostIds];
 
+          if (newPost.author_alias) {
+            get().addPseudonym(newPost.author_alias);
+          }
+
           if (typeof window !== 'undefined') {
             try {
               localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(updated));
@@ -2550,6 +2907,8 @@ export const useChatStore = create<ChatStoreState>()(
                 actorDept: currentUser?.department || 'Engineering',
                 messageSnippet: targetPost.message.slice(0, 60),
                 likerId: userId,
+                targetAuthorId: targetPost.author_id,
+                targetAuthorAlias: targetPost.author_alias,
               });
             }
           } catch (e) {}
@@ -2585,6 +2944,7 @@ export const useChatStore = create<ChatStoreState>()(
                 const actorAvatar = currentUser?.avatar_url || getAvatarForPseudonym(actorUsername);
                 const targetUserId = targetPost.author_id || targetPost.id;
                 
+                // 1. Send to user-specific channel
                 const userChannel = supabase.channel(`user:${targetUserId}:notifications`);
                 userChannel.send({
                   type: 'broadcast',
@@ -2598,6 +2958,24 @@ export const useChatStore = create<ChatStoreState>()(
                     actor_avatar: actorAvatar,
                     actor_department: currentUser?.department || 'Engineering',
                     message_snippet: targetPost.message.slice(0, 60),
+                  },
+                }).then(() => {}, () => {});
+
+                // 2. Broadcast to global wall events channel (guarantees delivery across all pagination pages/devices)
+                const wallChan = supabase.channel('capitalk_global_wall_events');
+                wallChan.send({
+                  type: 'broadcast',
+                  event: 'FREEDOM_WALL_LIKE',
+                  payload: {
+                    postId,
+                    actorAlias,
+                    actorUsername,
+                    actorAvatar,
+                    actorDept: currentUser?.department || 'Engineering',
+                    messageSnippet: targetPost.message.slice(0, 60),
+                    likerId: userId,
+                    targetAuthorId: targetPost.author_id,
+                    targetAuthorAlias: targetPost.author_alias,
                   },
                 }).then(() => {}, () => {});
 

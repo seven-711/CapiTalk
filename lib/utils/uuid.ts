@@ -30,3 +30,41 @@ export function getOrCreatePersistentUUID(): string {
 
   return id;
 }
+
+/**
+ * Retrieves all registered and used pseudonyms for this visitor UUID (1-to-Many).
+ */
+export function getKnownPseudonymsForUUID(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('capitalk_my_pseudonyms_v1');
+    const list: string[] = raw ? JSON.parse(raw) : [];
+    const current = localStorage.getItem('capitalk_user_pseudonym');
+    if (current && !list.some((p) => p.toLowerCase() === current.toLowerCase())) {
+      list.push(current);
+    }
+    return list;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Links and records a new pseudonym to the persistent visitor UUID.
+ */
+export function recordPseudonymForUUID(pseudonym: string): string[] {
+  if (typeof window === 'undefined') return [pseudonym];
+  const clean = pseudonym.replace(/^@/, '').trim();
+  if (!clean || clean.toLowerCase() === 'anon' || clean.toLowerCase() === 'anon student') {
+    return getKnownPseudonymsForUUID();
+  }
+  const current = getKnownPseudonymsForUUID();
+  if (!current.some((p) => p.toLowerCase() === clean.toLowerCase())) {
+    const updated = [...current, clean];
+    try {
+      localStorage.setItem('capitalk_my_pseudonyms_v1', JSON.stringify(updated));
+    } catch (e) {}
+    return updated;
+  }
+  return current;
+}

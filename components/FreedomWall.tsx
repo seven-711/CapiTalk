@@ -126,6 +126,7 @@ export const FreedomWall: React.FC = () => {
     voteFreedomPoll,
     togglePinFreedomPost,
     myPostIds,
+    myPseudonyms,
     addWallNotification,
     setViewState,
     goBack,
@@ -133,27 +134,6 @@ export const FreedomWall: React.FC = () => {
     targetPostId,
     setTargetPostId,
   } = useChatStore();
-
-  // Scroll to targeted post card from notifications
-  React.useEffect(() => {
-    if (!targetPostId) return;
-
-    const timer = setTimeout(() => {
-      const el = document.getElementById(`post-${targetPostId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('ring-4', 'ring-[#701a31]', 'scale-105');
-        setTimeout(() => {
-          el.classList.remove('ring-4', 'ring-[#701a31]', 'scale-105');
-          setTargetPostId(null);
-        }, 3000);
-      } else {
-        setTargetPostId(null);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [targetPostId, setTargetPostId]);
 
   // Admin Privilege Detection
   const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
@@ -449,6 +429,9 @@ export const FreedomWall: React.FC = () => {
     setNewCommentText('');
     setReplyingTo(null);
 
+    const actorUsername = currentUser?.username || (newComment.author_alias?.startsWith('@') ? newComment.author_alias.slice(1) : newComment.author_alias);
+    const actorAvatar = currentUser?.avatar_url || newComment.author_avatar || getAvatarForPseudonym(actorUsername);
+
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         const bc = new BroadcastChannel('capitalk_global_realtime');
@@ -456,10 +439,14 @@ export const FreedomWall: React.FC = () => {
           type: 'FREEDOM_WALL_COMMENT',
           postId: selectedPostForComments.id,
           actorAlias: newComment.author_alias,
+          actorUsername,
+          actorAvatar,
           actorDept: newComment.department,
           messageSnippet: selectedPostForComments.message.slice(0, 60),
           commentText: newComment.message.slice(0, 60),
           commenterId: currentUser ? currentUser.id : 'guest',
+          targetAuthorId: selectedPostForComments.author_id,
+          targetAuthorAlias: selectedPostForComments.author_alias,
         });
       } catch (e) {}
     }
@@ -495,6 +482,8 @@ export const FreedomWall: React.FC = () => {
         }
 
         const targetUserId = selectedPostForComments.author_id || selectedPostForComments.id;
+        
+        // 1. Send to user-specific channel
         const userChannel = supabase.channel(`user:${targetUserId}:notifications`);
         userChannel.send({
           type: 'broadcast',
@@ -504,9 +493,30 @@ export const FreedomWall: React.FC = () => {
             post_id: selectedPostForComments.id,
             type: 'comment',
             actor_alias: newComment.author_alias,
+            actor_username: actorUsername,
+            actor_avatar: actorAvatar,
             actor_department: newComment.department,
             message_snippet: selectedPostForComments.message.slice(0, 60),
             comment_text: newComment.message.slice(0, 60),
+          },
+        }).then(() => {}, () => {});
+
+        // 2. Broadcast to global wall events channel (guarantees delivery regardless of pagination/device/channel key)
+        const wallChan = supabase.channel('capitalk_global_wall_events');
+        wallChan.send({
+          type: 'broadcast',
+          event: 'FREEDOM_WALL_COMMENT',
+          payload: {
+            postId: selectedPostForComments.id,
+            actorAlias: newComment.author_alias,
+            actorUsername,
+            actorAvatar,
+            actorDept: newComment.department,
+            messageSnippet: selectedPostForComments.message.slice(0, 60),
+            commentText: newComment.message.slice(0, 60),
+            commenterId: currentUser ? currentUser.id : 'guest',
+            targetAuthorId: selectedPostForComments.author_id,
+            targetAuthorAlias: selectedPostForComments.author_alias,
           },
         }).then(() => {}, () => {});
 
@@ -537,21 +547,36 @@ export const FreedomWall: React.FC = () => {
   }, []);
 
   // Filter & Sort Posts
-  const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+  const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
+
+  const allMyAliases = React.useMemo(() => {
+    return Array.from(new Set([
+      ...(myPseudonyms || []),
+      ...(currentUser?.username ? [currentUser.username] : []),
+    ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+  }, [myPseudonyms, currentUser?.username]);
+
+  const checkIsMyPost = React.useCallback((post: FreedomPost) => {
+    if ((myPostIds || []).includes(post.id)) return true;
+    if (post.author_id && currentUserId && post.author_id === currentUserId) return true;
+    const cleanAlias = post.author_alias?.replace(/^@/, '').trim().toLowerCase();
+    if (cleanAlias && allMyAliases.includes(cleanAlias)) return true;
+    return false;
+  }, [myPostIds, currentUserId, allMyAliases]);
 
   const myPostsCount = React.useMemo(() => {
     return (freedomPosts || []).filter((p) => {
       if (p.song_title) return false;
-      return (myPostIds || []).includes(p.id) || (p.author_id && p.author_id === currentUserId);
+      return checkIsMyPost(p);
     }).length;
-  }, [freedomPosts, myPostIds, currentUserId]);
+  }, [freedomPosts, checkIsMyPost]);
 
   const filteredPosts = (freedomPosts || [])
     .filter((post) => {
       // Filter out song dedications (they belong on the Music Wall)
       if (post.song_title) return false;
 
-      const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
+      const isMyPost = checkIsMyPost(post);
 
       // Pending approval filter: pending notes are only visible to the author or admins
       if (post.status === 'pending') {
@@ -610,6 +635,71 @@ export const FreedomWall: React.FC = () => {
     return filteredPosts.slice(start, start + NOTES_PER_PAGE);
   }, [filteredPosts, currentPage, totalPages]);
 
+  // Enhanced targetPostId Redirection: finds notes inside pagination, resets filters, navigates to page & scrolls into view with high-visibility highlight
+  React.useEffect(() => {
+    if (!targetPostId || !freedomPosts || freedomPosts.length === 0) return;
+
+    // 1. Find the target note in the overall freedomPosts pool
+    const targetPost = freedomPosts.find((p) => p.id === targetPostId);
+    if (!targetPost) return;
+
+    // 2. Clear any search query or active filter that would exclude the target note
+    if (departmentFilter !== 'all' && targetPost.department !== departmentFilter) {
+      setDepartmentFilter('all');
+    }
+    if (searchQuery.trim()) {
+      setSearchQuery('');
+    }
+    if (activeTab === 'my_notes') {
+      const isMine = (myPostIds || []).includes(targetPost.id) || targetPost.author_id === currentUserId;
+      if (!isMine) {
+        setActiveTab('latest');
+      }
+    }
+
+    // 3. Compute which pagination page contains this note
+    const allPostsMatchingOrder = (freedomPosts || [])
+      .filter((p) => !p.song_title)
+      .sort((a, b) => {
+        const aPinned = isPinnedActive(a);
+        const bPinned = isPinnedActive(b);
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+        if (activeTab === 'trending') return b.likes_count - a.likes_count;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+    const noteIndex = allPostsMatchingOrder.findIndex((p) => p.id === targetPostId);
+    if (noteIndex !== -1) {
+      const calculatedPage = Math.floor(noteIndex / NOTES_PER_PAGE) + 1;
+      if (currentPage !== calculatedPage) {
+        setCurrentPage(calculatedPage);
+      }
+    }
+
+    // 4. Scroll smoothly to the target card and display high-visibility glow
+    let pollCount = 0;
+    const maxPolls = 20;
+    const scrollInterval = setInterval(() => {
+      pollCount++;
+      const el = document.getElementById(`post-${targetPostId}`);
+      if (el) {
+        clearInterval(scrollInterval);
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-[#701a31]', 'shadow-[0_0_35px_rgba(112,26,49,0.8)]', 'scale-[1.03]', 'transition-all', 'duration-500');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-[#701a31]', 'shadow-[0_0_35px_rgba(112,26,49,0.8)]', 'scale-[1.03]');
+          setTargetPostId(null);
+        }, 4000);
+      } else if (pollCount >= maxPolls) {
+        clearInterval(scrollInterval);
+        setTargetPostId(null);
+      }
+    }, 120);
+
+    return () => clearInterval(scrollInterval);
+  }, [targetPostId, freedomPosts, NOTES_PER_PAGE, departmentFilter, searchQuery, activeTab, myPostIds, currentUserId, isPinnedActive, currentPage, setTargetPostId]);
+
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return;
     setCurrentPage(newPage);
@@ -623,7 +713,7 @@ export const FreedomWall: React.FC = () => {
     const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = isPinnedActive(post);
-    const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
+    const isMyPost = checkIsMyPost(post);
 
     return (
       <div

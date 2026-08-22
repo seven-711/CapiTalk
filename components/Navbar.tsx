@@ -21,6 +21,7 @@ import {
   Mail,
   User,
   Sparkles,
+  UserMinus,
 } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
@@ -44,20 +45,54 @@ export const Navbar: React.FC = () => {
     setViewState,
     wallNotifications,
     markWallNotificationsAsRead,
+    markSingleNotificationAsRead,
     clearWallNotifications,
     setTargetPostId,
     blockedUserIds,
     keptConnection,
     hasNewConnectionNotif,
     setHasNewConnectionNotif,
+    removeKeptConnection,
+    setActionToast,
   } = useChatStore();
 
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
   const onlineCount = useOnlineCount();
 
-  const unreadNotifs = wallNotifications.filter((n) => !n.read);
-  const unreadCount = unreadNotifs.length + (hasNewConnectionNotif ? 1 : 0);
+  const displayNotifications = React.useMemo(() => {
+    const seenSignatures = new Set<string>();
+    const deduped: typeof wallNotifications = [];
+
+    for (const notif of wallNotifications) {
+      const actor = (notif.actor_username || notif.actor_alias || '').replace(/^@/, '').trim().toLowerCase();
+      const postId = (notif.post_id || '').trim();
+      const type = notif.type;
+      let sigKey = `${type}_${postId}_${actor}`;
+
+      if (type === 'comment') {
+        const textSnippet = (notif.comment_text || notif.message_snippet || '').trim().slice(0, 30).toLowerCase();
+        sigKey = `comment_${postId}_${actor}_${textSnippet}`;
+      } else if (type === 'friend_add' || type === 'friend_remove') {
+        sigKey = `${type}_${actor}`;
+      } else if (type === 'dm') {
+        const snippet = (notif.message_snippet || '').trim().slice(0, 30).toLowerCase();
+        sigKey = `dm_${actor}_${snippet}`;
+      }
+
+      const dedupeKey = `${sigKey}_${notif.read ? 'read' : 'unread'}`;
+      if (!seenSignatures.has(dedupeKey)) {
+        seenSignatures.add(dedupeKey);
+        deduped.push(notif);
+      }
+    }
+
+    return deduped;
+  }, [wallNotifications]);
+
+  const unreadNotifs = displayNotifications.filter((n) => !n.read);
+  const hasDedicatedFriendCard = displayNotifications.some((n) => n.type === 'friend_add' && !n.read);
+  const unreadCount = unreadNotifs.length + (hasNewConnectionNotif && !hasDedicatedFriendCard ? 1 : 0);
 
   const formatRelativeTime = (isoString?: string) => {
     if (!isoString) return 'just now';
@@ -443,8 +478,8 @@ export const Navbar: React.FC = () => {
 
             {/* Notification List */}
             <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2.5 max-h-[60vh]">
-              {/* Active Friend Connection Card */}
-              {hasNewConnectionNotif && keptConnection && (
+              {/* Active Friend Connection Card (only shown if not already present in list) */}
+              {hasNewConnectionNotif && keptConnection && !displayNotifications.some((n) => n.type === 'friend_add' && n.actor_username?.toLowerCase() === keptConnection.username.toLowerCase() && !n.read) && (
                 <div
                   onClick={() => {
                     setHasNewConnectionNotif(false);
@@ -481,8 +516,8 @@ export const Navbar: React.FC = () => {
               )}
 
               {/* Wall Notifications */}
-              {wallNotifications.length > 0 ? (
-                wallNotifications.map((item) => {
+              {displayNotifications.length > 0 ? (
+                displayNotifications.map((item) => {
                   const rawUsername = item.actor_username || (item.actor_alias?.startsWith('@') ? item.actor_alias.slice(1) : (item.actor_alias?.startsWith('Someone from') ? '' : item.actor_alias)) || 'Student';
                   const displayName = item.actor_username
                     ? (item.actor_username.startsWith('@') ? item.actor_username : `@${item.actor_username}`)
@@ -495,19 +530,21 @@ export const Navbar: React.FC = () => {
                     <div
                       key={item.id}
                       onClick={() => {
-                        markWallNotificationsAsRead();
+                        markSingleNotificationAsRead(item.id);
                         setShowNotifPopover(false);
-                        if (item.type === 'friend_add' || item.type === 'dm') {
+                        if (item.type === 'friend_add' || item.type === 'dm' || item.type === 'friend_remove') {
                           setViewState('kept_connections');
+                        } else if (item.post_id?.includes('midterm')) {
+                          setViewState('midterm_szn');
                         } else {
                           setTargetPostId(item.post_id);
                           setViewState('freedom_wall');
                         }
                       }}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                      className={`p-3 rounded-2xl transition-all cursor-pointer relative ${
                         item.read
-                          ? 'bg-white hover:bg-gray-50 border-black/20'
-                          : 'bg-[#fffdf5] hover:bg-[#fff9e6] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                          ? 'bg-[#f4f4f6]/80 hover:bg-[#eaebee] border border-zinc-200/90 text-zinc-600 opacity-80 hover:opacity-100 shadow-none'
+                          : 'bg-[#fffdf5] hover:bg-[#fff9e6] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black'
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
@@ -515,7 +552,9 @@ export const Navbar: React.FC = () => {
                           <img
                             src={avatarUrl}
                             alt={displayName}
-                            className="w-9 h-9 rounded-full border-2 border-black object-cover bg-amber-50 shadow-xs"
+                            className={`w-9 h-9 rounded-full border-2 border-black object-cover bg-amber-50 shadow-xs transition-opacity ${
+                              item.read ? 'opacity-70 grayscale-[25%]' : 'opacity-100'
+                            }`}
                             onError={(e) => {
                               (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(rawUsername));
                             }}
@@ -524,26 +563,75 @@ export const Navbar: React.FC = () => {
                             {item.type === 'like' && '💖'}
                             {item.type === 'comment' && '💬'}
                             {item.type === 'friend_add' && '👥'}
+                            {item.type === 'friend_remove' && '💔'}
                             {item.type === 'dm' && '💌'}
                             {item.type === 'admin_remark' && '👑'}
                           </span>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <p className="text-xs font-black text-black truncate">
+                          <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                            <p className={`text-xs truncate ${item.read ? 'font-bold text-zinc-700' : 'font-black text-black'}`}>
                               {item.type === 'like' && `${displayName} reacted`}
                               {item.type === 'comment' && `${displayName} commented`}
                               {item.type === 'friend_add' && `${displayName} added you`}
+                              {item.type === 'friend_remove' && `${displayName} unfriended you`}
                               {item.type === 'dm' && `Message from ${displayName}`}
                               {item.type === 'admin_remark' && 'CapiTalk Admin'}
                             </p>
-                            <span className="text-[9px] text-gray-400 font-medium shrink-0">
-                              {formatRelativeTime(item.created_at)}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {item.read ? (
+                                <span className="inline-flex items-center gap-0.5 text-[8.5px] font-extrabold text-zinc-500 bg-zinc-200/90 px-1.5 py-0.2 rounded-md border border-zinc-300">
+                                  ✓ Read
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[8.5px] font-black text-[#701a31] bg-[#ffc900] px-1.5 py-0.2 rounded-full border border-black shadow-2xs">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#701a31] animate-ping" />
+                                  New
+                                </span>
+                              )}
+                              <span className="text-[9px] text-gray-400 font-medium">
+                                {formatRelativeTime(item.created_at)}
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-700 font-medium line-clamp-2 mt-0.5">
+                          <p className={`text-xs font-medium line-clamp-2 mt-0.5 ${item.read ? 'text-zinc-500' : 'text-zinc-800'}`}>
                             {item.comment_text || item.admin_remark || item.message_snippet}
                           </p>
+
+                          {/* Unfriend Back / Find Match Action for friend_remove Notifications */}
+                          {item.type === 'friend_remove' && (
+                            <div className="pt-2 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeKeptConnection();
+                                  markSingleNotificationAsRead(item.id);
+                                  setActionToast({
+                                    type: 'info',
+                                    message: `✓ Unfriended ${displayName}. Your 1 friend slot is now open!`,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-black rounded-xl border border-rose-300 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                title="Unfriend back and clear connection"
+                              >
+                                <UserMinus className="w-3.5 h-3.5" />
+                                <span>Unfriend back</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowNotifPopover(false);
+                                  setViewState('queue');
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#ffc900] hover:bg-[#ffd633] text-black text-[11px] font-black rounded-xl border border-black shadow-2xs transition-all active:scale-95 cursor-pointer"
+                              >
+                                <span>Find someone →</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -563,7 +651,7 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* Bottom Actions */}
-            {wallNotifications.length > 0 && (
+            {displayNotifications.length > 0 && (
               <div className="p-3 bg-white border-t border-black/10 flex items-center justify-between">
                 <button
                   type="button"

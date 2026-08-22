@@ -55,6 +55,7 @@ export const MusicWall: React.FC = () => {
     likeFreedomPost,
     togglePinFreedomPost,
     myPostIds,
+    myPseudonyms,
   } = useChatStore();
 
   const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
@@ -1124,7 +1125,12 @@ export const MusicWall: React.FC = () => {
         const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
         const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
         const isPinned = isPinnedActive(post);
-        const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId);
+        const allMyAliases = Array.from(new Set([
+          ...(myPseudonyms || []),
+          ...(currentUser?.username ? [currentUser.username] : []),
+        ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+        const cleanPostAlias = post.author_alias?.replace(/^@/, '').trim().toLowerCase();
+        const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId) || (cleanPostAlias && allMyAliases.includes(cleanPostAlias));
 
         return (
           <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
