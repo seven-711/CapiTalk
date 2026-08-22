@@ -640,10 +640,8 @@ export const PostNotePage: React.FC = () => {
         <div className="space-y-2 mt-5 px-3 sm:px-0">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#ffc900]" />
-              <span>Live Note Preview</span>
+              <span>Preview</span>
             </span>
-            <span className="text-[10px] text-gray-400 font-medium">How it appears on Campus Wall</span>
           </div>
 
           {/* Note Card Simulation */}
