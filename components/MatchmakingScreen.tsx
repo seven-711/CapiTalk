@@ -240,8 +240,7 @@ export const MatchmakingScreen: React.FC = () => {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1">
-              <SlidersHorizontal className="w-3 h-3 text-[#701a31]" />
-              <span>Matching Filter</span>
+              <span>Matching with</span>
             </label>
           </div>
 
