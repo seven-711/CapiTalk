@@ -835,40 +835,6 @@ export const ChatRoom: React.FC = () => {
                 }`} />
                 {(partnerLeft || partnerStatus === 'offline') ? 'OFFLINE' : partnerStatus === 'idle' ? 'IDLE' : 'ONLINE'}
               </span>
-
-              {partnerLeft && (
-                <span className={`inline-flex items-center gap-0.5 text-[8.5px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse border ${
-                  partnerLeftReason === 'inactivity'
-                    ? 'text-amber-600 bg-amber-50 border-amber-200'
-                    : partnerLeftReason === 'exited'
-                    ? 'text-rose-600 bg-rose-50 border-rose-200'
-                    : partnerLeftReason === 'skipped'
-                    ? 'text-purple-600 bg-purple-50 border-purple-200'
-                    : 'text-red-500 bg-red-50 border-red-200'
-                }`}>
-                  {partnerLeftReason === 'inactivity' ? (
-                    <>
-                      <Hourglass className="w-2 h-2" />
-                      Inactive
-                    </>
-                  ) : partnerLeftReason === 'exited' ? (
-                    <>
-                      <LogOut className="w-2 h-2" />
-                      Exited
-                    </>
-                  ) : partnerLeftReason === 'skipped' ? (
-                    <>
-                      <FastForward className="w-2 h-2" />
-                      Skipped
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-2 h-2" />
-                      Disconnected
-                    </>
-                  )}
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -1737,30 +1703,6 @@ export const ChatRoom: React.FC = () => {
 
           {/* Bottom Action Controls: Status, Stay Here, Find Next Chat */}
           <div className="flex items-center justify-between gap-2.5 w-full">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-400">
-              {partnerLeftReason === 'inactivity' ? (
-                <>
-                  <Hourglass className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="hidden xs:inline">Disconnected</span>
-                </>
-              ) : partnerLeftReason === 'exited' || partnerLeftReason === 'left' ? (
-                <>
-                  <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
-                  <span className="hidden xs:inline">Ended</span>
-                </>
-              ) : partnerLeftReason === 'skipped' ? (
-                <>
-                  <FastForward className="w-4 h-4 text-purple-500 shrink-0" />
-                  <span className="hidden xs:inline">Skipped</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
-                  <span className="hidden xs:inline">Disconnected</span>
-                </>
-              )}
-            </div>
-
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <button
                 type="button"

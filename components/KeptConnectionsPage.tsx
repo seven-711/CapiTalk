@@ -728,7 +728,7 @@ export const KeptConnectionsPage: React.FC = () => {
             {/* Messenger Conversation List Content */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-[#121214]">
               {/* 1:1 Rule Notice Banner */}
-              <div className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-2xl flex items-start gap-2.5 text-xs text-zinc-300">
+              <div className="p-3 bg-zinc-900/90 flex items-start gap-2.5 text-xs text-zinc-300">
                 <Shield className="w-4 h-4 text-[#ffc900] shrink-0 mt-0.5" />
                 <div className="leading-relaxed">
                   <p className="text-[11px] text-zinc-400">
@@ -747,7 +747,7 @@ export const KeptConnectionsPage: React.FC = () => {
               {/* Friend Conversation Card */}
               <div
                 onClick={() => setActiveChatOpen(true)}
-                className="group p-3.5 bg-[#18181b] hover:bg-[#202024] border-2 border-zinc-800 hover:border-zinc-700 rounded-2xl cursor-pointer transition-all shadow-sm active:scale-[0.99] flex items-center justify-between gap-3"
+                className="group p-3.5 hover:bg-[#202024] cursor-pointer transition-all shadow-sm active:scale-[0.99] flex items-center justify-between gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="relative shrink-0">
@@ -771,9 +771,6 @@ export const KeptConnectionsPage: React.FC = () => {
                         <p className="font-extrabold text-sm text-white truncate">
                           @{keptConnection.username}
                         </p>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 bg-[#701a31]/60 text-[#ff90e8] rounded-md border border-[#701a31] shrink-0">
-                          {keptConnection.department.replace('College of ', '')}
-                        </span>
                       </div>
                       <span className="text-[10px] text-zinc-400 font-medium shrink-0">
                         {lastMessage ? formatTime(lastMessage.timestamp) : (keptConnection.last_chat_date || 'Recent')}
