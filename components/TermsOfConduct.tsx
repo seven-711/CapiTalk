@@ -165,7 +165,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
               className="w-5 h-5 mt-0.5 rounded-md border-2 border-black text-[#701a31] focus:ring-[#701a31] cursor-pointer shrink-0 accent-[#701a31]"
             />
             <label htmlFor="agree-checkbox" className="text-xs sm:text-sm text-black font-extrabold cursor-pointer leading-snug select-none">
-              I confirm that I have read, understood, and agree to uphold the <span className="text-[#701a31] underline decoration-2">CapiTalk Terms and Conditions</span> and treat my peers with respect.
+              I confirm that I have read, understood, and agree to uphold the CapiTalk Terms and Conditions and treat my peers with respect.
             </label>
           </div>
 
@@ -173,7 +173,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
             <button
               type="button"
               onClick={() => setViewState('privacy')}
-              className="text-xs font-black text-gray-700 hover:text-black underline flex items-center gap-1 transition-colors order-2 sm:order-1"
+              className="text-xs font-black text-gray-700 hover:text-black flex items-center gap-1 transition-colors order-2 sm:order-1"
             >
               <span>Read Full Privacy &amp; Data Transparency Policy</span>
               <ExternalLink className="w-3 h-3" />
