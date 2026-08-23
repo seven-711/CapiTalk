@@ -827,6 +827,19 @@ export const KeptConnectionsPage: React.FC = () => {
       } catch {}
     }
 
+    // 4. WebSocket real-time broadcast
+    try {
+      const ws = (window as any).__capitalk_ws;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'GLOBAL_DM_MESSAGE',
+          message: myMessage,
+          recipientId: keptConnection.user_id,
+          senderName: currentUser.username,
+        }));
+      }
+    } catch {}
+
     // Clear typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     broadcastChannelRef.current?.postMessage({

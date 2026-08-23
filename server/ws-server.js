@@ -274,6 +274,14 @@ wss.on('connection', (ws) => {
       });
     }
 
+    else if (type === 'GLOBAL_DM_MESSAGE') {
+      allClients.forEach((client) => {
+        if (client.readyState === client.OPEN) {
+          send(client, msg);
+        }
+      });
+    }
+
     else if (type === 'ROOM_JOIN') {
       // Reconnect to existing room (page reload)
       const { roomId, userId, partnerId } = msg;

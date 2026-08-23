@@ -22,6 +22,7 @@ import {
   User,
   Sparkles,
   UserMinus,
+  MessageSquareText,
 } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
@@ -93,6 +94,8 @@ export const Navbar: React.FC = () => {
   const unreadNotifs = displayNotifications.filter((n) => !n.read);
   const hasDedicatedFriendCard = displayNotifications.some((n) => n.type === 'friend_add' && !n.read);
   const unreadCount = unreadNotifs.length + (hasNewConnectionNotif && !hasDedicatedFriendCard ? 1 : 0);
+  const unreadDmCount = displayNotifications.filter((n) => n.type === 'dm' && !n.read).length;
+  const hasUnreadFriendMessage = hasNewConnectionNotif || unreadDmCount > 0;
 
   const formatRelativeTime = (isoString?: string) => {
     if (!isoString) return 'just now';
@@ -202,14 +205,16 @@ export const Navbar: React.FC = () => {
                   setViewState('kept_connections');
                 }}
                 className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white text-black hover:bg-[#fff1f3] border border-gray-200 relative"
-                title="Your Kept Connection"
+                title="Your Kept Connection & Messages"
               >
                 <Heart className="w-3 h-3 text-[#ff90e8]" />
                 <span>Kept Contact</span>
-                {hasNewConnectionNotif && (
-                  <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ffc900]"></span>
+                {hasUnreadFriendMessage && (
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e02424] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#e02424] text-[7px] text-white font-black items-center justify-center">
+                      !
+                    </span>
                   </span>
                 )}
               </button>
@@ -332,21 +337,22 @@ export const Navbar: React.FC = () => {
           <Search className="w-5 h-5 stroke-[2.5]" />
         </button>
 
-        {/* 3. Add Note / Post Button (Gumroad Center Action) */}
+        {/* 3. Freedom Wall Button */}
         <button
           type="button"
           onClick={() => {
             setShowNotifPopover(false);
-            setViewState('add_note');
+            setViewState('freedom_wall');
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
-            viewState === 'add_note' && !showNotifPopover
+            (viewState === 'freedom_wall' || viewState === 'add_note') && !showNotifPopover
               ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
-              : 'text-[#000000]'
+              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
-          aria-label="Add Note"
+          aria-label="Freedom Wall"
+          title="Campus Freedom Wall"
         >
-          <Plus className="w-5 h-5 stroke-[2.5]" />
+          <MessageSquareText className="w-5 h-5 stroke-[2.2]" />
         </button>
 
         {/* 4. Real-Time Notification Bell Icon */}
@@ -383,18 +389,19 @@ export const Navbar: React.FC = () => {
           }}
           className="p-2 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]"
           aria-label="Kept Connections"
+          title="Kept Contact & Messages"
         >
           <div className="relative flex items-center justify-center">
             <Mail className="w-5 h-5 stroke-[2]" fill="none" />
-            {hasNewConnectionNotif ? (
+            {hasUnreadFriendMessage ? (
               <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e02424] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
-                  !
+                  {unreadDmCount > 1 ? (unreadDmCount > 9 ? '9+' : unreadDmCount) : '!'}
                 </span>
               </span>
             ) : keptConnection ? (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ff90e8] ring-1 ring-[#000000]" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[#000000]" />
             ) : null}
           </div>
         </button>

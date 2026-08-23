@@ -242,6 +242,16 @@ class RoomManager {
         this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
         break;
       }
+      case 'GLOBAL_DM_MESSAGE': {
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
     }
   }
 
