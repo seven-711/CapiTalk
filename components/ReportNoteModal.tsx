@@ -41,48 +41,51 @@ export const ReportNoteModal: React.FC<ReportNoteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <div className="bg-white border-2 border-black rounded-[24px] max-w-md w-full p-6 relative shadow-2xl animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+      <div className="bg-white border border-[#d1d5dc] rounded-2xl max-w-md w-full p-5 sm:p-6 relative shadow-2xl animate-in zoom-in-95 duration-150 text-neutral-900">
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded-full text-black transition-colors"
+          className="absolute top-4 right-4 p-1.5 hover:bg-neutral-100 rounded-full text-neutral-400 hover:text-black transition-colors cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2.5 bg-[#dc341e]/10 border border-[#dc341e] rounded-full text-[#dc341e]">
-            <Flag className="w-6 h-6" />
+        <div className="flex items-center gap-2.5 mb-3">
+          <div className="p-2 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+            <Flag className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xl font-extrabold text-black">Report Wall Note</h3>
-            <p className="text-xs text-[#242423]">
-              Flagging note by <span className="font-bold">{post.author_alias || 'Anon Student'}</span>
+            <h3 className="text-base font-bold text-neutral-900">Report Post</h3>
+            <p className="text-xs text-neutral-500 font-medium">
+              Flagging content by @{post.author_alias || 'Anon Student'}
             </p>
           </div>
         </div>
 
-        {/* Note Preview Box */}
-        <div
-          style={{ backgroundColor: post.color || '#ffc900' }}
-          className="p-3.5 rounded-xl border-2 border-black mb-4 text-xs font-bold text-black shadow-xs max-h-28 overflow-y-auto"
-        >
-          <p className="italic mb-1">"{post.message}"</p>
-          <span className="text-[10px] opacity-75 font-extrabold block text-right">
-            — {post.author_alias || 'Anon Student'} ({post.department})
-          </span>
+        {/* Note / Song Preview Box */}
+        <div className="p-3 bg-neutral-50 border border-neutral-200/70 rounded-xl mb-4 text-xs text-neutral-700 font-normal leading-relaxed max-h-24 overflow-y-auto custom-scrollbar">
+          {post.song_title ? (
+            <div>
+              <p className="font-bold text-neutral-900">{post.song_title} <span className="font-normal text-neutral-500">— {post.song_artist}</span></p>
+              {post.message && post.message.trim() && !post.message.startsWith('🎵 ') && (
+                <p className="italic mt-1 text-neutral-600">&ldquo;{post.message}&rdquo;</p>
+              )}
+            </div>
+          ) : (
+            <p className="italic">&ldquo;{post.message}&rdquo;</p>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
+            <label className="block text-xs font-bold text-neutral-900 mb-1">
               Violation Reason
             </label>
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="gumroad-input w-full bg-white text-sm"
+              className="w-full bg-[#f4f4f0] border border-[#d1d5dc] focus:border-black focus:bg-white rounded-xl px-3 py-2 text-xs font-medium text-neutral-900 focus:outline-none transition-all cursor-pointer"
             >
               {REPORT_NOTE_REASONS.map((r) => (
                 <option key={r} value={r}>
@@ -93,29 +96,30 @@ export const ReportNoteModal: React.FC<ReportNoteModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
-              Additional Details (Optional)
+            <label className="block text-xs font-bold text-neutral-900 mb-1 flex items-center justify-between">
+              <span>Additional Details</span>
+              <span className="text-[11px] text-neutral-400 font-medium">Optional</span>
             </label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Why should this note be removed from the campus wall?"
-              className="gumroad-input w-full text-sm resize-none"
+              placeholder="Why should this post be reviewed or removed?"
+              className="w-full bg-[#f4f4f0] border border-[#d1d5dc] focus:border-black focus:bg-white rounded-xl p-2.5 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed transition-all font-medium"
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-3">
+          <div className="pt-2 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="btn-gumroad-ghost text-xs px-4 py-2"
+              className="px-3.5 py-2 text-xs font-semibold text-neutral-500 hover:text-black transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-gumroad-primary text-xs px-5 py-2 bg-[#dc341e] hover:bg-[#dc341e]/90 text-white flex items-center gap-1.5"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <ShieldAlert className="w-3.5 h-3.5" />
               <span>Submit Report</span>

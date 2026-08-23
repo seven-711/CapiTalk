@@ -54,12 +54,6 @@ export const FeedbackModal: React.FC = () => {
           Found a bug or have an idea to make campus chat better? We read every student submission!
         </p>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border-2 border-red-500 text-red-700 text-xs font-bold rounded-2xl">
-            ⚠️ {error}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Category Selector */}
           <div>
@@ -70,7 +64,7 @@ export const FeedbackModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCategory('suggestion')}
-                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all ${
+                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
                   category === 'suggestion'
                     ? 'bg-[#701a31] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                     : 'bg-white text-black border-black/30 hover:border-black'
@@ -83,7 +77,7 @@ export const FeedbackModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCategory('bug')}
-                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all ${
+                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
                   category === 'bug'
                     ? 'bg-[#c41e3a] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                     : 'bg-white text-black border-black/30 hover:border-black'
@@ -96,7 +90,7 @@ export const FeedbackModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCategory('ui_ux')}
-                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all ${
+                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
                   category === 'ui_ux'
                     ? 'bg-purple-700 text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                     : 'bg-white text-black border-black/30 hover:border-black'
@@ -109,7 +103,7 @@ export const FeedbackModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCategory('general')}
-                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all ${
+                className={`p-2.5 rounded-2xl border-2 text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
                   category === 'general'
                     ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                     : 'bg-white text-black border-black/30 hover:border-black'
@@ -132,7 +126,7 @@ export const FeedbackModal: React.FC = () => {
                   key={star}
                   type="button"
                   onClick={() => setRating(star)}
-                  className="p-1 hover:scale-125 transition-transform"
+                  className="p-1 hover:scale-125 transition-transform cursor-pointer"
                 >
                   <Star
                     className={`w-7 h-7 ${
@@ -149,31 +143,49 @@ export const FeedbackModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Feedback Text Input */}
+          {/* Feedback Text Input (Highlighted when required) */}
           <div>
-            <label className="block text-xs font-bold text-[#242423] uppercase tracking-wider mb-1">
-              Your Message or Bug Details
+            <label className="block text-xs font-bold text-[#242423] uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span>Your Message or Bug Details <span className="text-rose-500">*</span></span>
+              {error && <span className="text-[11px] text-red-600 font-bold normal-case">Required</span>}
             </label>
             <textarea
               rows={4}
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                if (error) setError(null);
+              }}
               placeholder="Tell us what you loved, what broke, or feature suggestions..."
-              className="w-full p-3 text-xs sm:text-sm border-2 border-black rounded-2xl font-medium focus:outline-none focus:ring-2 focus:ring-black bg-[#fbf9f5] text-black"
+              className={`w-full p-3 text-xs sm:text-sm border-2 rounded-2xl font-medium focus:outline-none transition-all text-black ${
+                error
+                  ? 'border-red-500 ring-2 ring-red-500/20 bg-red-50/40 placeholder-red-400'
+                  : 'border-black focus:ring-2 focus:ring-black bg-[#fbf9f5]'
+              }`}
+              autoFocus={!!error}
             />
+            {error && (
+              <p className="text-xs font-bold text-red-600 mt-1.5 flex items-center gap-1.5 animate-in fade-in duration-150">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
+                {error}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => setShowFeedbackModal(false)}
-              className="btn-gumroad-ghost text-xs px-4 py-2.5"
+              onClick={() => {
+                setShowFeedbackModal(false);
+                setError(null);
+              }}
+              className="btn-gumroad-ghost text-xs px-4 py-2.5 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-gumroad-primary text-xs px-6 py-2.5 bg-[#701a31] hover:bg-[#4d0d1f] text-white border-2 border-black font-extrabold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              className="btn-gumroad-primary text-xs px-6 py-2.5 bg-[#701a31] hover:bg-[#4d0d1f] text-white border-2 border-black font-extrabold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Submit Feedback</span>

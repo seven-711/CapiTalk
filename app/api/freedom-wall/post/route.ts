@@ -49,14 +49,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'Post created successfully.' }, { status: 200 });
     }
 
-    if (!postData || !postData.id || !postData.message) {
+    if (!postData || !postData.id || (!postData.message && !postData.song_title)) {
       return NextResponse.json({ success: false, error: 'Invalid post data.' }, { status: 400 });
     }
 
     // LAYER 10: Server-side validation
-    const message = postData.message.trim();
-    if (message.length === 0 || message.length > 300) {
+    const rawMessage = (postData.message || '').trim();
+    const message = rawMessage || (postData.song_title ? `🎵 ${postData.song_title}${postData.song_artist ? ` - ${postData.song_artist}` : ''}` : '');
+
+    if (!postData.song_title && (rawMessage.length === 0 || rawMessage.length > 300)) {
       return NextResponse.json({ success: false, error: 'Message must be between 1 and 300 characters.' }, { status: 400 });
+    }
+    if (rawMessage.length > 300) {
+      return NextResponse.json({ success: false, error: 'Message cannot exceed 300 characters.' }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

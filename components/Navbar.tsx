@@ -100,7 +100,7 @@ export const Navbar: React.FC = () => {
   }, [approvedNotes, readFreedomSet, viewState]);
 
   const unreadMusicNotesCount = React.useMemo(() => {
-    if (viewState === 'music_wall') return 0;
+    if (viewState === 'music_wall' || viewState === 'dedicate_song') return 0;
     if (readMusicSet.size === 0 && approvedSongs.length > 0) {
       return Math.min(approvedSongs.length, 3);
     }
@@ -111,7 +111,7 @@ export const Navbar: React.FC = () => {
   React.useEffect(() => {
     if (viewState === 'freedom_wall' || viewState === 'add_note') {
       markFreedomPostsAsRead();
-    } else if (viewState === 'music_wall') {
+    } else if (viewState === 'music_wall' || viewState === 'dedicate_song') {
       markMusicPostsAsRead();
     }
   }, [viewState, markFreedomPostsAsRead, markMusicPostsAsRead]);
@@ -261,9 +261,9 @@ export const Navbar: React.FC = () => {
                 }`}
                 title="Campus Freedom Wall"
               >
-                <span> Freedom Wall</span>
+                <span> Wall</span>
                 {unreadFreedomNotesCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e02424] text-white flex items-center justify-center border border-white shadow-2xs">
+                  <span className="px-1 py-0.2 rounded-full text-[9px] font-black bg-[#e02424] text-white flex items-center justify-center border border-white shadow-2xs">
                     {unreadFreedomNotesCount > 9 ? '9+' : unreadFreedomNotesCount}
                   </span>
                 )}
@@ -276,13 +276,13 @@ export const Navbar: React.FC = () => {
                   setViewState('music_wall');
                 }}
                 className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all relative ${
-                  viewState === 'music_wall'
+                  viewState === 'music_wall' || viewState === 'dedicate_song'
                     ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
                     : 'bg-[#fff1f3] text-black hover:bg-[#ffe3e8]'
                 }`}
                 title="Campus Music Dedications"
               >
-                <span> Music Wall</span>
+                <span> Music </span>
                 {unreadMusicNotesCount > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e02424] text-white flex items-center justify-center border border-white shadow-2xs">
                     {unreadMusicNotesCount > 9 ? '9+' : unreadMusicNotesCount}
@@ -475,7 +475,7 @@ export const Navbar: React.FC = () => {
             setViewState('music_wall');
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
-            viewState === 'music_wall' && !showNotifPopover
+            (viewState === 'music_wall' || viewState === 'dedicate_song') && !showNotifPopover
               ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
               : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
           }`}
@@ -960,7 +960,7 @@ export const Navbar: React.FC = () => {
                     setShowMenuDrawer(false);
                   }}
                   className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
-                    viewState === 'music_wall'
+                    viewState === 'music_wall' || viewState === 'dedicate_song'
                       ? 'bg-[#701a31] text-white scale-[1.02]'
                       : 'bg-white text-black hover:bg-[#ffe3e8]'
                   }`}

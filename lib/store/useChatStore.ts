@@ -3617,9 +3617,11 @@ export const useChatStore = create<ChatStoreState>()(
           } else {
             const username = currentUser ? currentUser.username : `Student #${userId.slice(-4)}`;
             const department = currentUser ? currentUser.department : 'General';
+            const avatar_url = currentUser?.avatar_url || getAvatarForPseudonym(username);
             profiles[userId] = {
               username,
               department,
+              avatar_url,
             };
           }
 

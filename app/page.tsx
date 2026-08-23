@@ -17,6 +17,7 @@ import { TermsOfConduct } from '../components/TermsOfConduct';
 import { BlockedUsersPage } from '../components/BlockedUsersPage';
 import { MidtermSzn } from '../components/MidtermSzn';
 import { KeptConnectionsPage } from '../components/KeptConnectionsPage';
+import { DedicateSongPage } from '../components/DedicateSongPage';
 import { StreakModal } from '../components/StreakModal';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
@@ -357,6 +358,7 @@ export default function Home() {
         {viewState === 'freedom_wall' && <FreedomWall />}
         {viewState === 'add_note' && <PostNotePage />}
         {viewState === 'music_wall' && <MusicWall />}
+        {viewState === 'dedicate_song' && <DedicateSongPage />}
         {viewState === 'privacy' && <PrivacyPolicy />}
         {viewState === 'terms' && <TermsOfConduct onAccept={handleAcceptToc} isStandaloneView={true} />}
         {viewState === 'blocked_users' && <BlockedUsersPage />}

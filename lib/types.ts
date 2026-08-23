@@ -2,7 +2,7 @@ import { DepartmentType } from "./constants";
 
 export type UserStatus = "online" | "searching" | "in_chat" | "offline";
 
-export type ViewState = 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note' | 'blocked_users' | 'midterm_szn' | 'kept_connections';
+export type ViewState = 'ceased' | 'landing' | 'register' | 'queue' | 'chat' | 'admin' | 'freedom_wall' | 'music_wall' | 'privacy' | 'terms' | 'add_note' | 'dedicate_song' | 'blocked_users' | 'midterm_szn' | 'kept_connections';
 
 export interface KeptConnection {
   id: string;
@@ -119,7 +119,7 @@ export interface FreedomPost {
   color: string;
   likes_count: number;
   liked_by_users: string[];
-  liked_by_profiles?: Record<string, { username: string; department: string }>;
+  liked_by_profiles?: Record<string, { username: string; department: string; avatar_url?: string }>;
   comments_count?: number;
   is_admin?: boolean;
   is_pinned?: boolean;

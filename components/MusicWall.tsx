@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
-import { CU_DEPARTMENTS } from '../lib/constants';
+import { CU_DEPARTMENTS, getAvatarForPseudonym } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomPost } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
@@ -28,6 +28,7 @@ import {
   AlertCircle,
   MessageSquare,
   Users,
+  ExternalLink,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -56,6 +57,7 @@ export const MusicWall: React.FC = () => {
     togglePinFreedomPost,
     myPostIds,
     myPseudonyms,
+    setViewState,
   } = useChatStore();
 
   const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
@@ -211,10 +213,14 @@ export const MusicWall: React.FC = () => {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedPostForComments) return;
 
+    const authorAlias = currentUser ? currentUser.username : 'Anon Student';
+    const authorAvatar = currentUser?.avatar_url || getAvatarForPseudonym(authorAlias);
+
     const newComment = {
       id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       post_id: selectedPostForComments.id,
-      author_alias: currentUser ? currentUser.username : 'Anon Student',
+      author_alias: authorAlias,
+      author_avatar: authorAvatar,
       department: currentUser ? currentUser.department : 'General',
       message: newCommentText.trim(),
       created_at: new Date().toISOString(),
@@ -240,6 +246,7 @@ export const MusicWall: React.FC = () => {
           id: newComment.id,
           post_id: newComment.post_id,
           author_alias: newComment.author_alias,
+          author_avatar: newComment.author_avatar,
           department: newComment.department,
           message: newComment.message,
           created_at: newComment.created_at,
@@ -744,8 +751,9 @@ export const MusicWall: React.FC = () => {
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 bg-[#ffc900] text-black font-black text-sm px-6 py-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all"
+                type="button"
+                onClick={() => setViewState('dedicate_song')}
+                className="inline-flex items-center gap-2 bg-[#ffc900] text-black font-black text-sm px-6 py-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all cursor-pointer"
               >
                 <Send className="w-4 h-4" />
                 Share Your First Song
@@ -844,7 +852,38 @@ export const MusicWall: React.FC = () => {
       </div>
       {/* ──────────────────────────────────────────────────────── */}
 
-      <div id="recent-songs" className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-10">
+      <div id="recent-songs" className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-8 space-y-4">
+        {/* Prominent "Dedicate a Song" Composer Card */}
+        <div className="bg-white border-y sm:border border-[#e4e6eb] sm:rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setViewState('register')}
+            className="shrink-0 relative group/avatar cursor-pointer"
+            title={currentUser ? `@${currentUser.username}` : 'Profile'}
+          >
+            <img
+              src={currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg')}
+              alt={currentUser?.username || 'You'}
+              className="w-10 h-10 rounded-full object-cover border border-[#d1d5dc] bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity"
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewState('dedicate_song')}
+            className="flex-1 bg-[#f0f2f5] hover:bg-[#e4e6eb] border border-[#e4e6eb] hover:border-[#ccd0d5] transition-all rounded-full px-4 py-2.5 text-left text-[#65676b] hover:text-black text-[14px] sm:text-[15px] font-medium truncate cursor-pointer flex items-center justify-between gap-2 shadow-2xs group"
+          >
+            <span className="truncate flex items-center gap-2">
+              <Music className="w-4 h-4 text-[#dc341e]" />
+              <span>Dedicate a song, {currentUser?.username || 'Capitolian'}...</span>
+            </span>
+            <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+            </div>
+          </button>
+        </div>
+
+        {/* Song Cards Grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-4 md:gap-5">
           {filteredPosts.map((post) => renderPostCard(post))}
         </div>
@@ -856,265 +895,6 @@ export const MusicWall: React.FC = () => {
            </div>
         )}
       </div>
-
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white border-4 border-black rounded-3xl w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative my-auto max-h-[95vh] flex flex-col">
-            <div className="p-4 sm:p-5 border-b-2 border-black flex justify-between items-center bg-[#fff1f3] rounded-t-2xl shrink-0">
-              <h2 className="text-lg sm:text-xl font-black text-black flex items-center gap-2">
-                <Music className="w-5 h-5 text-[#dc341e]" />
-                Dedicate a Song
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="p-1 hover:bg-black/10 rounded-full transition-colors active:scale-95 text-black"
-              >
-                <X className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar">
-              {moderationError && (
-                <div className="mb-4 p-3.5 sm:p-4 bg-rose-100 border-2 border-black rounded-xl text-black font-extrabold text-xs sm:text-sm flex items-start gap-2.5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95">
-                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 leading-snug break-words">
-                    {moderationError}
-                  </div>
-                </div>
-              )}
-
-              <form id="create-post-form" onSubmit={handlePostSubmit} className="space-y-4 sm:space-y-6">
-                {!isAdminUser && (
-                  <div className="hidden">
-                    <label htmlFor="music-honeypot">Leave empty</label>
-                    <input
-                      type="text"
-                      id="music-honeypot"
-                      name="music-honeypot"
-                      value={honeypot}
-                      onChange={(e) => setHoneypot(e.target.value)}
-                      autoComplete="off"
-                      tabIndex={-1}
-                    />
-                  </div>
-                )}
-
-                {isAdminUser && (
-                  <div className="p-3 sm:p-4 bg-[#fff1f3] border-2 border-[#701a31] rounded-xl flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 text-[#701a31]" />
-                      <span className="text-xs font-black text-black">Post as Admin?</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={postAsAdmin}
-                        onChange={(e) => setPostAsAdmin(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#701a31] border-2 border-black"></div>
-                    </label>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 sm:gap-6">
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <label className="text-xs sm:text-sm font-black text-black">Posting As</label>
-                    <div className="w-full bg-[#f4f4f0] text-black text-xs sm:text-sm px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 border-black font-extrabold flex items-center justify-between shadow-xs">
-                      <span className="truncate">{currentUser ? currentUser.username : 'Anon Student'}</span>
-                      <span className="text-[9px] font-black text-[#701a31] bg-white border border-black px-1.5 py-0.5 rounded uppercase shrink-0">
-                        Registered Name
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <label className="text-xs sm:text-sm font-black text-black flex items-center justify-between">
-                      <span>Dedicate To</span>
-                      <span className="text-[10px] text-gray-500 font-normal">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={dedicatedTo}
-                      onChange={(e) => setDedicatedTo(e.target.value)}
-                      placeholder="Enter their name here..."
-                      maxLength={40}
-                      className="w-full bg-[#f4f4f0] text-black text-xs sm:text-sm px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 border-black focus:outline-none focus:ring-2 focus:ring-[#ffc900] transition-shadow shadow-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 sm:space-y-2">
-                   <label className="text-xs sm:text-sm font-black text-black">Search for a Song</label>
-                   
-                   {!selectedSong ? (
-                      <div className="relative">
-                        <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
-                        <input
-                          type="text"
-                          value={songSearchQuery}
-                          onChange={(e) => setSongSearchQuery(e.target.value)}
-                          placeholder="Type a song title or artist..."
-                          className="w-full bg-[#f4f4f0] text-black text-xs sm:text-sm pl-9 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-xl border-2 border-black focus:outline-none focus:ring-2 focus:ring-[#ffc900] transition-shadow shadow-xs font-bold"
-                        />
-                        {isSearchingSong && (
-                          <div className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2">
-                            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-[#ffc900] animate-spin" />
-                          </div>
-                        )}
-                        
-                        {songSearchResults.length > 0 && (
-                          <div className="absolute z-10 w-full mt-2 bg-white border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-h-48 overflow-y-auto">
-                            {songSearchResults.map((track, i) => (
-                              <div
-                                key={i}
-                                onClick={() => {
-                                  setSelectedSong(track);
-                                  setSongSearchResults([]);
-                                  setSongSearchQuery('');
-                                }}
-                                className="flex items-center gap-3 p-3 hover:bg-[#f4f4f0] cursor-pointer border-b border-gray-200 last:border-0"
-                              >
-                                {(track.image_url || (track.image?.[1]?.['#text'] && !track.image[1]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f'))) ? (
-                                  <img src={track.image_url || track.image[1]['#text']} alt="" referrerPolicy="no-referrer" className="w-8 h-8 rounded border border-black/10 object-cover" />
-                                ) : (
-                                  <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center border border-black/10">🎵</div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-black truncate text-black">{track.name}</div>
-                                  <div className="text-xs font-bold text-gray-500 truncate">{track.artist}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                   ) : (
-                      <div className="flex items-center gap-3 p-3 sm:p-4 bg-white border-2 border-black rounded-xl shadow-sm relative">
-                        {(selectedSong.image_url || (selectedSong.image?.[2]?.['#text'] && !selectedSong.image[2]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f'))) ? (
-                          <img src={selectedSong.image_url || selectedSong.image[2]['#text']} alt="" referrerPolicy="no-referrer" className="w-12 h-12 rounded-lg border-2 border-black object-cover" />
-                        ) : (
-                          <div className="w-12 h-12 rounded-lg bg-[#f4f4f0] border-2 border-black flex items-center justify-center">
-                            <Music className="w-6 h-6 text-gray-500" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm sm:text-base font-black truncate text-black">{selectedSong.name}</div>
-                          <div className="text-xs font-bold text-gray-600 truncate">{selectedSong.artist}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSong(null)}
-                          className="p-2 hover:bg-rose-100 text-rose-600 rounded-full transition-colors active:scale-95 border border-transparent hover:border-rose-200"
-                        >
-                          <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                      </div>
-                   )}
-                </div>
-                
-                <div className="space-y-1.5 sm:space-y-2">
-                  <label className="text-xs sm:text-sm font-black text-black">Dedication Message (Optional)</label>
-                  <textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Why are you dedicating this song? (Max 300 characters)"
-                    maxLength={300}
-                    rows={3}
-                    className="w-full bg-[#f4f4f0] text-black text-xs sm:text-sm px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 border-black focus:outline-none focus:ring-2 focus:ring-[#ffc900] transition-shadow resize-none shadow-xs font-bold"
-                  />
-                  <div className="text-right text-[10px] sm:text-xs font-bold text-gray-500">
-                    {message.length}/300
-                  </div>
-                </div>
-
-                {/* Souvenir Card Color Selector */}
-                <div className="space-y-1.5 sm:space-y-2">
-                  <label className="text-xs sm:text-sm font-black text-black block">
-                    Souvenir Note Color 🎨
-                  </label>
-                  <div className="flex items-center gap-2 overflow-x-auto p-2 bg-[#f4f4f0] border-2 border-black rounded-xl custom-scrollbar">
-                    {MUSIC_POST_COLORS.map((col) => (
-                      <button
-                        key={col.hex}
-                        type="button"
-                        onClick={() => setSelectedColor(col.hex)}
-                        style={{ backgroundColor: col.hex }}
-                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border-2 border-black shrink-0 transition-all ${
-                          selectedColor === col.hex
-                            ? 'ring-4 ring-black scale-110 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                            : 'hover:scale-105 opacity-80 hover:opacity-100'
-                        }`}
-                        title={col.name}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-              </form>
-            </div>
-
-            <div className="p-4 sm:p-5 border-t-2 border-black bg-[#f4f4f0] rounded-b-2xl shrink-0 flex flex-col gap-2.5">
-              {!isAdminUser && cooldownRemaining > 0 && (
-                <div className="p-3 bg-amber-50 border-2 border-amber-400 rounded-xl text-black shadow-xs">
-                  <div className="flex items-center gap-2 text-xs font-black text-amber-900">
-                    <Clock className="w-4 h-4 shrink-0 animate-spin text-amber-700" />
-                    <span>Cooldown Active ({cooldownRemaining}s remaining)</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-amber-900 mt-1">
-                    You can post your next song dedication at <strong>{new Date(Date.now() + cooldownRemaining * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>.
-                  </p>
-                </div>
-              )}
-
-              {!isAdminUser && cooldownRemaining === 0 && dailyPostCount >= DAILY_MAX_POSTS && (
-                <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-black shadow-xs">
-                  <div className="flex items-center gap-2 text-xs font-black text-rose-900">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-700" />
-                    <span>Daily Limit Reached (10/10 posts)</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-rose-900 mt-1">
-                    You have published 10 notes today. You can post again at <strong>{(() => {
-                      try {
-                        const raw = localStorage.getItem('capitalk_wall_post_history');
-                        if (raw) {
-                          const ts: number[] = JSON.parse(raw);
-                          if (ts.length >= DAILY_MAX_POSTS) {
-                            return new Date(Math.min(...ts) + 24 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                          }
-                        }
-                      } catch (e) {}
-                      return 'tomorrow';
-                    })()}</strong>.
-                  </p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                form="create-post-form"
-                disabled={!selectedSong || isSubmitting || (!isAdminUser && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))}
-                className="w-full bg-[#ffc900] hover:bg-[#ffdb4d] disabled:opacity-50 disabled:hover:bg-[#ffc900] disabled:cursor-not-allowed text-black font-black py-3 sm:py-3.5 px-4 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
-              >
-                {isSubmitting ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 sm:w-5 sm:h-5" />
-                )}
-                <span>
-                  {isSubmitting
-                    ? 'Publishing...'
-                    : cooldownRemaining > 0 && !isAdminUser
-                    ? `Wait ${cooldownRemaining}s...`
-                    : dailyPostCount >= DAILY_MAX_POSTS && !isAdminUser
-                    ? 'Daily Limit Reached'
-                    : 'Post Dedication'}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Full Music Dedication Detail Modal */}
       {selectedPostForDetail && (() => {
@@ -1133,76 +913,81 @@ export const MusicWall: React.FC = () => {
         const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId) || (cleanPostAlias && allMyAliases.includes(cleanPostAlias));
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-            <div
-              style={{ backgroundColor: isPostAdmin ? '#701a31' : (post.color || '#fff1f3') }}
-              className="border-3 sm:border-4 border-black rounded-3xl w-full max-w-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] sm:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] relative my-auto max-h-[92vh] flex flex-col text-black animate-in zoom-in-95 duration-200 overflow-hidden"
-            >
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+            <div className="bg-white border border-[#d1d5dc] rounded-2xl w-full max-w-md shadow-2xl relative my-auto max-h-[90vh] flex flex-col text-neutral-900 animate-in zoom-in-95 duration-150 overflow-hidden">
               {/* Header Bar */}
-              <div className="p-3.5 sm:p-4 border-b-3 border-black flex justify-between items-center bg-white/90 shrink-0">
+              <div className="p-3.5 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
                 <div className="flex items-center gap-2 truncate">
-                  <span className="px-2.5 py-1 bg-[#701a31] text-white text-[10px] sm:text-xs font-black rounded-full uppercase border border-black shadow-xs">
-                    Music Dedication
-                  </span>
+                  {post.dedicated_to ? (
+                    <span className="px-2.5 py-0.5 bg-rose-50 text-rose-600 text-xs font-bold rounded-full border border-rose-100 flex items-center gap-1">
+                      <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
+                      <span className="truncate">For: {post.dedicated_to}</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
+                      {post.department ? post.department.replace('College of ', '') : 'Music Wall'}
+                    </span>
+                  )}
                   {isPinned && (
-                    <span className="px-2 py-0.5 bg-[#ffc900] text-black text-[10px] font-black rounded-full border border-black">
-                      📌 Pinned
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
+                      Pinned
+                    </span>
+                  )}
+                  {post.status === 'pending' && (
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
+                      Pending Review
                     </span>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedPostForDetail(null)}
-                  className="p-1.5 bg-white hover:bg-black hover:text-white border-2 border-black rounded-full transition-all text-black shadow-xs active:scale-95 shrink-0"
+                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-black transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Scrollable Content Body */}
-              <div className="p-3.5 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-3.5">
-                {/* Side-by-Side: Music Cover (Left) + Dedication Note (Right) */}
-                <div className="flex flex-row items-stretch gap-3 sm:gap-4">
-                  {/* Left Column: Music Cover Artwork & Song Details */}
-                  <div className="w-28 sm:w-36 shrink-0 flex flex-col items-center justify-center text-center p-2 sm:p-3">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)] overflow-hidden shrink-0 mb-1.5 relative">
-                      {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
-                        <img
-                          src={post.song_image_url}
-                          alt={post.song_title}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-[#fff1f3]">
-                          <Music className="w-8 h-8 text-black/70" />
-                        </div>
-                      )}
-                    </div>
+              {/* Modal Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4">
+                {/* Track Card */}
+                <div className="flex items-center gap-3 p-3 bg-neutral-50 border border-neutral-200/70 rounded-xl">
+                  <div className="w-14 h-14 rounded-xl border border-neutral-200 overflow-hidden bg-white shrink-0 shadow-2xs">
+                    {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
+                      <img
+                        src={post.song_image_url}
+                        alt={post.song_title}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
+                        <Music className="w-6 h-6" />
+                      </div>
+                    )}
+                  </div>
 
-                    <h2 className={`text-xs sm:text-sm font-black tracking-tight leading-tight px-1 truncate w-full ${isPostAdmin && !isPinned ? 'text-white' : 'text-black'}`} title={post.song_title}>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-sm sm:text-base text-neutral-900 truncate leading-snug" title={post.song_title}>
                       {post.song_title}
-                    </h2>
-                    <p className={`text-[10px] sm:text-xs font-bold truncate w-full mt-0.5 ${isPostAdmin && !isPinned ? 'text-[#ffc900]' : 'text-black/70'}`} title={post.song_artist}>
+                    </h3>
+                    <p className="text-xs text-neutral-500 font-medium truncate mt-0.5" title={post.song_artist}>
                       {post.song_artist}
                     </p>
-                  </div>
-
-                  {/* Right Column: Dedication Note Message */}
-                  <div className="bg-white/95 border-2 border-black p-3 sm:p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex-1 min-w-0 flex flex-col justify-between">
-                    <div className="overflow-y-auto max-h-[140px] sm:max-h-[160px] custom-scrollbar pr-1">
-                      <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-black whitespace-pre-wrap break-words">
-                        "{post.message}"
-                      </p>
-                    </div>
-
-                    <div className="mt-2 pt-2 border-t-2 border-black/10 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] font-bold text-gray-700 shrink-0">
-                      <span className="font-extrabold italic text-black min-w-0 flex-1">
-                        ~ {post.author_alias || 'Anon Student'}
-                      </span>
-                    </div>
+                    <p className="text-[11px] text-neutral-400 font-medium mt-1 truncate">
+                      Dedicated by @{post.author_alias || 'Anon Student'}
+                    </p>
                   </div>
                 </div>
+
+                {/* Dedication Message (Clean Quote Card) */}
+                {post.message && post.message.trim() && !post.message.startsWith('🎵 ') && (
+                  <div className="bg-white border border-neutral-200/80 rounded-xl p-3.5 shadow-2xs">
+                    <p className="text-xs sm:text-sm text-neutral-800 font-normal leading-relaxed whitespace-pre-wrap break-words">
+                      &ldquo;{post.message.trim()}&rdquo;
+                    </p>
+                  </div>
+                )}
 
                 {/* Audio Preview Player */}
                 {post.song_preview_url && (
@@ -1211,21 +996,22 @@ export const MusicWall: React.FC = () => {
                   </div>
                 )}
 
-                {/* Play full song on Last.fm link */}
+                {/* Full Song Link */}
                 {post.song_link && (
                   <a
                     href={post.song_link}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-full block text-center py-1.5 sm:py-2 px-3 sm:px-4 rounded-xl border-2 border-black bg-[#dc341e] text-white font-black text-xs hover:bg-[#b02213] active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-neutral-700 transition-colors shadow-2xs"
                   >
-                    Play full song on Last.fm ↗
+                    <span>Listen on Last.fm</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
                   </a>
                 )}
               </div>
 
-              {/* Footer Actions */}
-              <div className="p-3 sm:p-4 border-t-3 border-black bg-white/90 shrink-0 flex items-center justify-between gap-2">
+              {/* Clean Minimalist Footer */}
+              <div className="p-3 sm:p-4 border-t border-neutral-100 bg-white shrink-0 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -1233,35 +1019,33 @@ export const MusicWall: React.FC = () => {
                       e.stopPropagation();
                       likeFreedomPost(post.id);
                     }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 transition-all shadow-xs active:scale-95 ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors cursor-pointer ${
                       hasLiked
-                        ? 'bg-black text-rose-500 border-black'
-                        : 'bg-white text-black border-black hover:bg-[#fff1f3] hover:text-rose-600'
+                        ? 'bg-rose-50 text-rose-600 border-rose-200'
+                        : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
                     }`}
-                    title={hasLiked ? "Unlike song dedication" : "Like song dedication"}
                   >
-                    <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                    <span className="text-xs font-black">{post.likes_count || 0}</span>
+                    <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500' : ''}`} />
+                    <span>{post.likes_count || 0}</span>
                   </button>
 
                   {(post.likes_count || 0) > 0 && (
                     <button
                       type="button"
                       onClick={() => setReactorsPost(post)}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-white text-black hover:bg-[#ffc900] transition-all shadow-xs"
-                      title="See who liked this song dedication"
+                      className="w-8 h-8 rounded-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50 flex items-center justify-center transition-colors cursor-pointer"
+                      title="View likes"
                     >
-                      <Users className="w-4 h-4" />
+                      <Users className="w-3.5 h-3.5" />
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={() => openCommentsModal(post)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border-2 border-black bg-white text-black hover:bg-[#fff1f3] transition-all shadow-xs active:scale-95 text-xs font-black"
-                    title="View Comments"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition-colors text-xs font-bold cursor-pointer"
                   >
-                    <MessageSquare className="w-4 h-4" />
+                    <MessageSquare className="w-3.5 h-3.5" />
                     <span>{commentsCountMap[post.id] || 0}</span>
                   </button>
                 </div>
@@ -1270,10 +1054,10 @@ export const MusicWall: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedPostForReport(post)}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs"
+                    className="w-8 h-8 rounded-full border border-neutral-200 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center transition-colors cursor-pointer"
                     title="Report"
                   >
-                    <Flag className="w-4 h-4" />
+                    <Flag className="w-3.5 h-3.5" />
                   </button>
 
                   {isAdminUser && post.status === 'pending' && (
@@ -1283,10 +1067,10 @@ export const MusicWall: React.FC = () => {
                         approveFreedomPost(post.id);
                         setSelectedPostForDetail(null);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-black bg-emerald-500 text-white font-black text-xs hover:bg-emerald-600 transition-all shadow-xs active:scale-95"
-                      title="Admin: Approve & Publish to Music Wall"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                      title="Approve post"
                     >
-                      <CheckCircle className="w-4 h-4" />
+                      <CheckCircle className="w-3.5 h-3.5" />
                       <span>Approve</span>
                     </button>
                   )}
@@ -1295,12 +1079,12 @@ export const MusicWall: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => togglePinFreedomPost(post.id)}
-                      className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black transition-all shadow-xs ${
-                        post.is_pinned ? 'bg-[#ffc900] text-black' : 'bg-white text-black hover:bg-[#f4f4f0]'
+                      className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
+                        post.is_pinned ? 'bg-amber-100 text-amber-800 border-amber-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                       }`}
                       title={post.is_pinned ? 'Unpin' : 'Pin'}
                     >
-                      <Pin className="w-4 h-4" />
+                      <Pin className="w-3.5 h-3.5" />
                     </button>
                   )}
 
@@ -1311,10 +1095,10 @@ export const MusicWall: React.FC = () => {
                         setSelectedPostForDetail(null);
                         setSelectedPostForDelete(post);
                       }}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs"
-                      title={isMyPost && !isAdminUser ? "Delete your note" : "Delete"}
+                      className="w-8 h-8 rounded-full border border-neutral-200 text-neutral-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+                      title="Delete"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -1343,57 +1127,65 @@ export const MusicWall: React.FC = () => {
 
       {/* Comments Modal */}
       {selectedPostForComments && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white border-2 sm:border-4 border-black rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl relative flex flex-col max-h-[85vh]">
-            <button
-              type="button"
-              onClick={() => setSelectedPostForComments(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b-2 border-black shrink-0 pr-8">
-              <span className="p-2 bg-[#ffc900] border-2 border-black rounded-xl text-black">
-                <MessageSquare className="w-5 h-5 stroke-[2.5]" />
-              </span>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-black truncate max-w-[280px]">
-                  Comments
-                </h3>
-                <p className="text-xs text-[#242423] font-medium">
-                  {commentsList.length} student comments
-                </p>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl relative flex flex-col max-h-[85vh] text-neutral-900 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-neutral-900">Comments</h3>
+                <span className="px-2 py-0.5 bg-neutral-100 text-neutral-600 text-[11px] font-semibold rounded-full">
+                  {commentsList.length}
+                </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPostForComments(null)}
+                className="p-1.5 hover:bg-neutral-100 rounded-full text-neutral-400 hover:text-black transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Comments List */}
-            <div className="flex-1 overflow-y-auto space-y-3 py-2 pr-1 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto space-y-2.5 py-3 pr-1 custom-scrollbar">
               {isFetchingComments ? (
-                <div className="text-center py-8 text-xs font-bold text-gray-500">
+                <div className="text-center py-8 text-xs font-medium text-neutral-400">
                   Loading comments...
                 </div>
               ) : commentsList.length === 0 ? (
-                <div className="text-center py-8 text-xs font-extrabold text-gray-500">
-                  No comments yet. Be the first student to leave a comment!
+                <div className="text-center py-8 text-xs font-medium text-neutral-400">
+                  No comments yet. Be the first to leave a comment.
                 </div>
               ) : (
-                commentsList.map((c) => (
-                  <div key={c.id} className="p-3 bg-[#f4f4f0] border-2 border-black rounded-2xl shadow-xs">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="font-black text-xs text-black">{c.author_alias}</span>
-                      <span className="text-[10px] font-bold text-gray-500">
-                        {c.department?.replace('College of ', '')}
-                      </span>
+                commentsList.map((c) => {
+                  const avatarUrl = c.author_avatar || getAvatarForPseudonym(c.author_alias || 'Anon Student');
+                  return (
+                    <div key={c.id} className="p-3 bg-neutral-50 border border-neutral-200/70 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <img
+                            src={avatarUrl}
+                            alt={c.author_alias}
+                            className="w-6 h-6 rounded-full border border-neutral-200 object-cover bg-white shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(c.author_alias || 'Anon Student'));
+                            }}
+                          />
+                          <span className="font-bold text-xs text-neutral-900 truncate">@{c.author_alias}</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-neutral-400 shrink-0">
+                          {c.department?.replace('College of ', '')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-700 font-normal leading-relaxed break-words pl-8">{c.message}</p>
                     </div>
-                    <p className="text-xs text-black font-medium leading-relaxed">{c.message}</p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
             {/* Add Comment Form */}
-            <form onSubmit={handleAddComment} className="pt-3 border-t-2 border-black shrink-0 space-y-2">
+            <form onSubmit={handleAddComment} className="pt-3 border-t border-neutral-100 shrink-0">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1401,13 +1193,13 @@ export const MusicWall: React.FC = () => {
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
                   placeholder="Write a comment..."
-                  className="gumroad-input text-xs font-medium flex-1"
+                  className="w-full bg-[#f4f4f0] border border-[#d1d5dc] focus:border-black focus:bg-white rounded-xl px-3.5 py-2 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none transition-all font-medium"
                 />
                 <button
                   type="submit"
-                  className="btn-gumroad-primary text-xs px-3 py-2 flex items-center justify-center shrink-0"
+                  className="px-4 py-2 bg-black hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5" />
                 </button>
               </div>
             </form>
@@ -1419,54 +1211,59 @@ export const MusicWall: React.FC = () => {
       {reactorsPost && (() => {
         const post = freedomPosts.find((p) => p.id === reactorsPost.id) || reactorsPost;
         return (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-            <div className="bg-white border-2 sm:border-4 border-black rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl relative">
-              <button
-                type="button"
-                onClick={() => setReactorsPost(null)}
-                className="absolute top-4 right-4 p-1.5 rounded-full bg-[#f4f4f0] hover:bg-black hover:text-white border-2 border-black transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-black">
-                <span className="p-2 bg-rose-500 text-white border-2 border-black rounded-xl">
-                  <Heart className="w-5 h-5 fill-white" />
-                </span>
-                <div>
-                  <h3 className="text-base font-extrabold text-black">
-                    People who liked
-                  </h3>
-                  <p className="text-xs text-gray-600 font-bold">
-                    {post.likes_count || 0} reactions
-                  </p>
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+            <div className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-2xl relative text-neutral-900 animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-bold text-neutral-900">Likes</h3>
+                  <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-semibold rounded-full border border-rose-100">
+                    {post.likes_count || 0}
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setReactorsPost(null)}
+                  className="p-1.5 hover:bg-neutral-100 rounded-full text-neutral-400 hover:text-black transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-              {reactorsPost.liked_by_profiles && Object.keys(reactorsPost.liked_by_profiles).length > 0 ? (
-                Object.entries(reactorsPost.liked_by_profiles).map(([uid, prof]) => (
-                  <div key={uid} className="p-2.5 bg-[#f4f4f0] border-2 border-black rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-7 h-7 rounded-full bg-[#ffc900] border border-black flex items-center justify-center font-black text-xs">
-                        {prof.username.charAt(0).toUpperCase()}
-                      </span>
-                      <div>
-                        <div className="text-xs font-black text-black">{prof.username}</div>
-                        <div className="text-[10px] font-semibold text-gray-600">{prof.department.replace('College of ', '')}</div>
+              <div className="space-y-2 max-h-60 overflow-y-auto pt-3 pr-1 custom-scrollbar">
+                {reactorsPost.liked_by_profiles && Object.keys(reactorsPost.liked_by_profiles).length > 0 ? (
+                  Object.entries(reactorsPost.liked_by_profiles).map(([uid, prof]) => {
+                    const displayName = prof.username || (currentUser && currentUser.id === uid ? currentUser.username : `Student #${uid.slice(-4)}`);
+                    const displayDept = prof.department?.replace('College of ', '') || (currentUser && currentUser.id === uid ? currentUser.department.replace('College of ', '') : 'General');
+                    const avatarUrl = prof.avatar_url || (currentUser && currentUser.id === uid && currentUser.avatar_url) || getAvatarForPseudonym(displayName);
+
+                    return (
+                      <div key={uid} className="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <img
+                            src={avatarUrl}
+                            alt={displayName}
+                            className="w-8 h-8 rounded-full border border-neutral-200 object-cover bg-white shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(displayName));
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-neutral-900 truncate">@{displayName}</div>
+                            <div className="text-[10px] font-medium text-neutral-400 truncate">{displayDept}</div>
+                          </div>
+                        </div>
+                        <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 shrink-0 ml-2" />
                       </div>
-                    </div>
-                    <span className="text-xs text-rose-500">❤️</span>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-6 text-xs font-medium text-neutral-400">
+                    {reactorsPost.likes_count || 0} anonymous likes registered.
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-xs font-bold text-gray-500">
-                  {reactorsPost.likes_count || 0} anonymous reactions registered.
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
         );
       })()}
 

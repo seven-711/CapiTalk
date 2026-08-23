@@ -118,8 +118,10 @@ export const PostNotePage: React.FC = () => {
   const [message, setMessage] = useState('');
   const [selectedColor, setSelectedColor] = useState('#ffc900');
   const [moderationError, setModerationError] = useState<string | null>(null);
+  const [messageRequiredError, setMessageRequiredError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNoteSentSuccess, setIsNoteSentSuccess] = useState(false);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Poll Feature State
   const [showPollForm, setShowPollForm] = useState(false);
@@ -271,9 +273,16 @@ export const PostNotePage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setModerationError(null);
+    setMessageRequiredError(false);
 
-    if (!message.trim() || message.length > 300) {
-      setModerationError('Message must be between 1 and 300 characters.');
+    if (!message.trim()) {
+      setMessageRequiredError(true);
+      messageInputRef.current?.focus();
+      return;
+    }
+
+    if (message.length > 300) {
+      setModerationError('Message cannot exceed 300 characters.');
       return;
     }
 
@@ -451,15 +460,31 @@ export const PostNotePage: React.FC = () => {
 
           {/* Text Area */}
           <div className="space-y-1">
-            <textarea
-              rows={4}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              maxLength={300}
-              placeholder="What's on your mind? Share confession, midterm notes, or campus vibe..."
-              className="w-full p-1 text-sm sm:text-base text-black placeholder-gray-400 bg-transparent border-0 focus:ring-0 focus:outline-none resize-none leading-relaxed"
-              autoFocus
-            />
+            <div className={`transition-all rounded-xl ${
+              messageRequiredError
+                ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40 p-2.5'
+                : 'p-1'
+            }`}>
+              <textarea
+                ref={messageInputRef}
+                rows={4}
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  if (messageRequiredError) setMessageRequiredError(false);
+                }}
+                maxLength={300}
+                placeholder={messageRequiredError ? "Please enter your message before publishing..." : "What's on your mind? Share confession, midterm notes, or campus vibe..."}
+                className="w-full text-sm sm:text-base text-black placeholder-gray-400 bg-transparent border-0 focus:ring-0 focus:outline-none resize-none leading-relaxed"
+                autoFocus
+              />
+            </div>
+            {messageRequiredError && (
+              <p className="text-xs font-bold text-red-600 px-1 flex items-center gap-1.5 animate-in fade-in duration-150">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
+                Please write your note before publishing.
+              </p>
+            )}
             <div className="flex justify-end text-[11px] font-medium text-gray-400">
               <span>{message.length}/300</span>
             </div>
