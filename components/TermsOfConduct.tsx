@@ -165,7 +165,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
               className="w-5 h-5 mt-0.5 rounded-md border-2 border-black text-[#701a31] focus:ring-[#701a31] cursor-pointer shrink-0 accent-[#701a31]"
             />
             <label htmlFor="agree-checkbox" className="text-xs sm:text-sm text-black font-extrabold cursor-pointer leading-snug select-none">
-              I confirm that I have read, understood, and agree to uphold the CapiTalk Terms and Conditions and treat my peers with respect.
+              I confirm that I have read, understood, and agree to uphold the <span className="text-[#701a31]">CapiTalk Terms and Conditions</span> and treat my peers with respect.
             </label>
           </div>
 

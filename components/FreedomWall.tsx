@@ -1290,35 +1290,37 @@ export const FreedomWall: React.FC = () => {
     <div className="min-h-screen bg-[#f0f2f5] text-[#050505] flex flex-col font-sans pb-16 sm:pb-8 pt-2 sm:pt-4 px-0 sm:px-4">
       {/* ── Main Feed Column (Matching MidtermSzn max-w-[620px]) ────────────── */}
       <main className="flex-1 max-w-[620px] mx-auto w-full space-y-3 sm:space-y-4">
-
-        {/* ── Facebook-Style "What's on your mind?" Bar (Matching user image) ──── */}
-        <div className="bg-white p-2.5 sm:p-3 rounded-full flex items-center gap-2.5 sm:gap-3 transition-all">
-          {/* User Avatar */}
+        {/* ── Prominent "What's on your mind?" Composer Card ──────────────────── */}
+        <div className="bg-white border-y sm:border border-[#e4e6eb] sm:rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all flex items-center gap-3">
+          {/* User Avatar (Outside of the input element) */}
           <button
             type="button"
-            onClick={() => setViewState('add_note')}
+            onClick={() => setViewState(currentUser ? 'register' : 'register')}
             className="shrink-0 relative group/avatar cursor-pointer"
-            title="Post a Note"
+            title={currentUser ? `@${currentUser.username}` : 'Profile'}
           >
             <img
               src={currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg')}
               alt={currentUser?.username || 'You'}
-              className="w-10 h-10 rounded-full object-cover border border-[#393a3b] bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity"
+              className="w-10 h-10 rounded-full object-cover border border-[#d1d5dc] bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity ring-2 ring-transparent group-hover/avatar:ring-[#1877f2]/40"
               onError={(e) => {
                 (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(currentUser?.username || 'Anon'));
               }}
             />
           </button>
 
-          {/* Capsule Input Bar */}
+          {/* Emphasized "What's on your mind?" Interactive Trigger */}
           <button
             type="button"
             onClick={() => setViewState('add_note')}
-            className="flex-1 bg-gray transition-colors rounded-full px-4 py-2.5 text-left text-[#b0b3b8] hover:text-black text-[14px] sm:text-[15px] font-normal truncate cursor-pointer flex items-center"
+            className="flex-1 bg-[#f0f2f5] hover:bg-[#e4e6eb] border border-[#e4e6eb] hover:border-[#ccd0d5] transition-all rounded-full px-4 py-2.5 text-left text-[#65676b] hover:text-black text-[14px] sm:text-[15px] font-medium truncate cursor-pointer flex items-center justify-between gap-2 shadow-2xs group"
           >
             <span className="truncate">
-              What&apos;s on your mind, {currentUser?.username || 'July Franz'}?
+              What&apos;s on your mind, {currentUser?.username || 'Capitolian'}?
             </span>
+            <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+            </div>
           </button>
         </div>
 
@@ -1366,7 +1368,7 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setActiveTab('latest')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                     activeTab === 'latest'
-                      ? 'bg-[#1877f2] text-white shadow-xs'
+                      ? 'bg-black text-white shadow-xs'
                       : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
                   }`}
                 >
@@ -1378,7 +1380,7 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setActiveTab('trending')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                     activeTab === 'trending'
-                      ? 'bg-[#1877f2] text-white shadow-xs'
+                      ? 'bg-black text-white shadow-xs'
                       : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
                   }`}
                 >
@@ -1390,7 +1392,7 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setActiveTab('my_notes')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                     activeTab === 'my_notes'
-                      ? 'bg-[#1877f2] text-white shadow-xs'
+                      ? 'bg-black text-white shadow-xs'
                       : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
                   }`}
                 >
@@ -1433,7 +1435,7 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setShowDeptModal(true)}
                   className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer border relative ${
                     departmentFilter !== 'all'
-                      ? 'bg-[#1877f2] text-white border-[#1877f2]'
+                      ? 'bg-black text-white border-black'
                       : 'bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] border-[#e4e6eb]'
                   }`}
                   title={departmentFilter === 'all' ? 'Filter by department' : `Filtering by ${departmentFilter.replace('College of ', '')}`}
