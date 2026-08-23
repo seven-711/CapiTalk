@@ -316,10 +316,10 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowStreakCelebrationModal(true)}
-              className="flex md:hidden items-center gap-1 px-2 py-1 hover:bg-[#fff8e6] text-black rounded-xl transition-all active:scale-95 shrink-0 select-none cursor-pointer"
+              className="flex md:hidden items-center mr-2 hover:bg-[#fff8e6] text-black rounded-xl transition-all active:scale-95 shrink-0 select-none cursor-pointer"
               title={`Daily Streak: ${streakCount} ${streakCount === 1 ? 'day' : 'days'}`}
             >
-              <div className="w-10 h-5 flex  items-center justify-center shrink-0 pointer-events-none">
+              <div className="w-9 h-5 flex  items-center justify-center shrink-0 pointer-events-none">
                 <DotLottieReact
                   src={isStreakTriggeredToday ? '/animated-assets/triggeredStreak.lottie' : '/animated-assets/untriggeredStreak.lottie'}
                   loop
@@ -330,18 +330,6 @@ export const Navbar: React.FC = () => {
               <span className="text-xs mt-1 font-black text-black">
                 {streakCount}
               </span>
-            </button>
-
-            {/* Hamburger Navbar Menu Toggle Button (Mobile only) */}
-            <button
-              type="button"
-              onClick={() => setShowMenuDrawer(!showMenuDrawer)}
-              className={`p-1.5 sm:p-2 rounded-xl border-2 border-black transition-all flex md:hidden items-center justify-center shadow-xs active:scale-95 shrink-0 ${
-                showMenuDrawer ? 'bg-black text-white' : 'bg-white hover:bg-[#ffc900] text-black'
-              }`}
-              title="Open App Feature Menu"
-            >
-              {showMenuDrawer ? <X className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />}
             </button>
           </div>
         </div>
@@ -449,8 +437,6 @@ export const Navbar: React.FC = () => {
                   {unreadDmCount > 1 ? (unreadDmCount > 9 ? '9+' : unreadDmCount) : '!'}
                 </span>
               </span>
-            ) : keptConnection ? (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[#000000]" />
             ) : null}
           </div>
         </button>
