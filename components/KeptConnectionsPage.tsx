@@ -288,6 +288,14 @@ export const KeptConnectionsPage: React.FC = () => {
     if (!currentUser) return;
     const myUserId = currentUser.id;
 
+    if (typeof window !== 'undefined') {
+      try {
+        const audio = new Audio('/audio/sent_msg.webm');
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+      } catch (e) {}
+    }
+
     setMessages((prev) => {
       const updated = prev.map((m) => {
         if (m.id !== messageId) return m;
@@ -502,6 +510,15 @@ export const KeptConnectionsPage: React.FC = () => {
           } else if (data?.type === 'dm_reaction' && data.payload?.userId !== currentUser.id) {
             const { messageId, reactionKey, userId } = data.payload;
             markPartnerOnline();
+
+            if (typeof window !== 'undefined') {
+              try {
+                const audio = new Audio('/audio/sent_msg.webm');
+                audio.volume = 0.5;
+                audio.play().catch(() => {});
+              } catch (e) {}
+            }
+
             setMessages((prev) => {
               const updated = prev.map((m) => {
                 if (m.id !== messageId) return m;
@@ -596,6 +613,15 @@ export const KeptConnectionsPage: React.FC = () => {
             if (payload && payload.userId !== currentUser.id) {
               const { messageId, reactionKey, userId } = payload;
               markPartnerOnline();
+
+              if (typeof window !== 'undefined') {
+                try {
+                  const audio = new Audio('/audio/sent_msg.webm');
+                  audio.volume = 0.5;
+                  audio.play().catch(() => {});
+                } catch (e) {}
+              }
+
               setMessages((prev) => {
                 const updated = prev.map((m) => {
                   if (m.id !== messageId) return m;

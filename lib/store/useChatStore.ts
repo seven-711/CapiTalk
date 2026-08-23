@@ -2267,6 +2267,15 @@ export const useChatStore = create<ChatStoreState>()(
               set((state) => {
                 if (incomingMsg.reaction_update) {
                   if (currentUser && incomingMsg.sender_id === currentUser.id) return state;
+
+                  if (typeof window !== 'undefined') {
+                    try {
+                      const audio = new Audio('/audio/sent_msg.webm');
+                      audio.volume = 0.5;
+                      audio.play().catch(() => {});
+                    } catch (e) {}
+                  }
+
                   const { message_id, emoji_key } = incomingMsg.reaction_update;
                   const updatedMessages = state.messages.map((m) => {
                     if (m.id !== message_id) return m;
@@ -2504,6 +2513,15 @@ export const useChatStore = create<ChatStoreState>()(
               set((state) => {
                 if (incomingMsg.reaction_update) {
                   if (currentUser && incomingMsg.sender_id === currentUser.id) return state;
+
+                  if (typeof window !== 'undefined') {
+                    try {
+                      const audio = new Audio('/audio/sent_msg.webm');
+                      audio.volume = 0.5;
+                      audio.play().catch(() => {});
+                    } catch (e) {}
+                  }
+
                   const { message_id, emoji_key } = incomingMsg.reaction_update;
                   const updatedMessages = state.messages.map((m) => {
                     if (m.id !== message_id) return m;
@@ -2738,6 +2756,14 @@ export const useChatStore = create<ChatStoreState>()(
       toggleReaction: (messageId: string, emojiKey: string) => {
         const { messages, currentUser, activeRoom } = get();
         if (!currentUser || !activeRoom) return;
+
+        if (typeof window !== 'undefined') {
+          try {
+            const audio = new Audio('/audio/sent_msg.webm');
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+          } catch (e) {}
+        }
 
         const updatedMessages = messages.map((msg) => {
           if (msg.id !== messageId) return msg;
