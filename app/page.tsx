@@ -79,13 +79,23 @@ export default function Home() {
   const isMatchmakingTimedOut = showQueueTimeoutModal || (viewState === 'queue' && !isSearching && searchingTimeSeconds >= 35);
   const shouldHideNavAndFooter = viewState === 'chat' || viewState === 'kept_connections' || (viewState === 'queue' && isSearching) || isMatchmakingTimedOut || viewState === 'midterm_szn' || transitionPhase !== 'idle';
 
-  const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(null);
+  const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        localStorage.getItem('capitalk_toc_accepted_v1') === 'true' ||
+        sessionStorage.getItem('capitalk_toc_accepted_session') === 'true'
+      );
+    }
+    return null;
+  });
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      const sessionAccepted = sessionStorage.getItem('capitalk_toc_accepted_session') === 'true';
-      setHasAcceptedToc(sessionAccepted);
-      if (sessionAccepted) {
+      const accepted =
+        localStorage.getItem('capitalk_toc_accepted_v1') === 'true' ||
+        sessionStorage.getItem('capitalk_toc_accepted_session') === 'true';
+      setHasAcceptedToc(accepted);
+      if (accepted) {
         checkAndTriggerStreak();
       }
     }
@@ -93,7 +103,10 @@ export default function Home() {
 
   const handleAcceptToc = () => {
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('capitalk_toc_accepted_session', 'true');
+      try {
+        localStorage.setItem('capitalk_toc_accepted_v1', 'true');
+        sessionStorage.setItem('capitalk_toc_accepted_session', 'true');
+      } catch (e) {}
     }
     setHasAcceptedToc(true);
     checkAndTriggerStreak(true);

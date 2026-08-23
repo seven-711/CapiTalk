@@ -188,6 +188,23 @@ let searchTimer: NodeJS.Timeout | null = null;
 let unsubscribeMatch: (() => void) | null = null;
 let sessionInitialized = false;
 let globalPollInterval: NodeJS.Timeout | null = null;
+export function getPhilippineDateStr(date: Date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    return `${year}-${month}-${day}`;
+  } catch {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+}
 
 export const useChatStore = create<ChatStoreState>()(
   persist(
@@ -212,8 +229,34 @@ export const useChatStore = create<ChatStoreState>()(
         }
       },
 
-      currentUser: null,
-      setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
+      currentUser: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const standalone = localStorage.getItem('capitalk_current_user_profile_v1');
+              if (standalone) return JSON.parse(standalone);
+              const zustandRaw = localStorage.getItem('capitalk-storage');
+              if (zustandRaw) {
+                const parsed = JSON.parse(zustandRaw);
+                if (parsed.state?.currentUser) return parsed.state.currentUser;
+              }
+            } catch (e) {}
+            return null;
+          })()
+        : null,
+      setCurrentUser: (user: UserProfile | null) => {
+        if (typeof window !== 'undefined') {
+          try {
+            if (user) {
+              localStorage.setItem('capitalk_current_user_profile_v1', JSON.stringify(user));
+              localStorage.setItem('capitalk_user_pseudonym', user.username);
+              localStorage.setItem('capitalk_user_id', user.id);
+            } else {
+              localStorage.removeItem('capitalk_current_user_profile_v1');
+            }
+          } catch (e) {}
+        }
+        set({ currentUser: user });
+      },
 
       streakCount: typeof window !== 'undefined'
         ? parseInt(localStorage.getItem('capitalk_streak_count_v2') || '1', 10)
@@ -223,8 +266,7 @@ export const useChatStore = create<ChatStoreState>()(
         : null,
       isStreakTriggeredToday: typeof window !== 'undefined'
         ? (() => {
-            const d = new Date();
-            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const todayStr = getPhilippineDateStr();
             return localStorage.getItem('capitalk_streak_last_date_v2') === todayStr;
           })()
         : false,
@@ -234,12 +276,8 @@ export const useChatStore = create<ChatStoreState>()(
       checkAndTriggerStreak: (forceShowModal = false) => {
         if (typeof window === 'undefined') return { streakCount: 1, isNewTrigger: false };
 
-        const d = new Date();
-        const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-        const y = new Date();
-        y.setDate(y.getDate() - 1);
-        const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+        const todayStr = getPhilippineDateStr();
+        const yesterdayStr = getPhilippineDateStr(new Date(Date.now() - 24 * 60 * 60 * 1000));
 
         const storedDate = localStorage.getItem('capitalk_streak_last_date_v2');
         const storedCount = parseInt(localStorage.getItem('capitalk_streak_count_v2') || '0', 10);
@@ -291,7 +329,20 @@ export const useChatStore = create<ChatStoreState>()(
         }
       },
 
-      keptConnection: null,
+      keptConnection: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const standalone = localStorage.getItem('capitalk_kept_connection_v1');
+              if (standalone) return JSON.parse(standalone);
+              const zustandRaw = localStorage.getItem('capitalk-storage');
+              if (zustandRaw) {
+                const parsed = JSON.parse(zustandRaw);
+                if (parsed.state?.keptConnection) return parsed.state.keptConnection;
+              }
+            } catch (e) {}
+            return null;
+          })()
+        : null,
       pendingIncomingRequests: typeof window !== 'undefined'
         ? (() => {
             try {
@@ -344,7 +395,10 @@ export const useChatStore = create<ChatStoreState>()(
           },
         });
         if (typeof window !== 'undefined') {
-          try { localStorage.removeItem('capitalk_pending_outgoing_v1'); } catch (e) {}
+          try {
+            localStorage.setItem('capitalk_kept_connection_v1', JSON.stringify(newConn));
+            localStorage.removeItem('capitalk_pending_outgoing_v1');
+          } catch (e) {}
         }
 
         if (isReciprocal) {
@@ -582,7 +636,10 @@ export const useChatStore = create<ChatStoreState>()(
           },
         });
         if (typeof window !== 'undefined') {
-          try { localStorage.removeItem('capitalk_has_new_conn_notif'); } catch (e) {}
+          try {
+            localStorage.removeItem('capitalk_kept_connection_v1');
+            localStorage.removeItem('capitalk_has_new_conn_notif');
+          } catch (e) {}
         }
 
         if (current && currentUser) {
@@ -925,10 +982,24 @@ export const useChatStore = create<ChatStoreState>()(
         if (sessionInitialized) return;
         sessionInitialized = true;
 
-        const { activeRoom, currentUser, isSearching } = get();
-        
+        // Fallback profile and kept connection restoration
+        if (typeof window !== 'undefined') {
+          try {
+            if (!get().currentUser) {
+              const rawUser = localStorage.getItem('capitalk_current_user_profile_v1');
+              if (rawUser) set({ currentUser: JSON.parse(rawUser) });
+            }
+            if (!get().keptConnection) {
+              const rawKept = localStorage.getItem('capitalk_kept_connection_v1');
+              if (rawKept) set({ keptConnection: JSON.parse(rawKept) });
+            }
+          } catch (e) {}
+        }
+
         // Initial real-time ban check via API
         get().checkBanStatus();
+
+        const { activeRoom, currentUser, isSearching } = get();
 
         // 1. Sync reports & bans across browser tabs & sessions via shared localStorage
         if (typeof window !== 'undefined') {
@@ -2357,6 +2428,10 @@ export const useChatStore = create<ChatStoreState>()(
 
         if (typeof window !== 'undefined') {
           try {
+            localStorage.setItem('capitalk_current_user_profile_v1', JSON.stringify(newUser));
+            localStorage.setItem('capitalk_user_pseudonym', trimmedUsername);
+            localStorage.setItem('capitalk_user_id', persistentId);
+            localStorage.setItem('capitalk_anon_user_id', persistentId);
             const raw = localStorage.getItem('capitalk_taken_usernames_v1');
             const takenMap: Record<string, string> = raw ? JSON.parse(raw) : {};
             takenMap[trimmedUsername.toLowerCase()] = persistentId;
