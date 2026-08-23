@@ -102,6 +102,10 @@ interface ChatStoreState {
   markWallNotificationsAsRead: () => void;
   markSingleNotificationAsRead: (id: string) => void;
   clearWallNotifications: () => void;
+  readFreedomPostIds: string[];
+  readMusicPostIds: string[];
+  markFreedomPostsAsRead: () => void;
+  markMusicPostsAsRead: () => void;
   keptConnection: KeptConnection | null;
   hasNewConnectionNotif: boolean;
   setHasNewConnectionNotif: (hasNotif: boolean) => void;
@@ -909,6 +913,54 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
         set({ wallNotifications: [] });
+      },
+
+      readFreedomPostIds: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const raw = localStorage.getItem('capitalk_read_freedom_ids_v1');
+              return raw ? JSON.parse(raw) : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+
+      readMusicPostIds: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const raw = localStorage.getItem('capitalk_read_music_ids_v1');
+              return raw ? JSON.parse(raw) : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+
+      markFreedomPostsAsRead: () => {
+        const allApprovedIds = get().freedomPosts
+          .filter((p) => !p.song_title && (p.status === 'approved' || !p.status || p.is_admin))
+          .map((p) => p.id);
+        const merged = Array.from(new Set([...(get().readFreedomPostIds || []), ...allApprovedIds]));
+        set({ readFreedomPostIds: merged });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_read_freedom_ids_v1', JSON.stringify(merged));
+          } catch (e) {}
+        }
+      },
+
+      markMusicPostsAsRead: () => {
+        const allApprovedSongIds = get().freedomPosts
+          .filter((p) => Boolean(p.song_title) && (p.status === 'approved' || !p.status || p.is_admin))
+          .map((p) => p.id);
+        const merged = Array.from(new Set([...(get().readMusicPostIds || []), ...allApprovedSongIds]));
+        set({ readMusicPostIds: merged });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_read_music_ids_v1', JSON.stringify(merged));
+          } catch (e) {}
+        }
       },
 
       queueFilter: 'anyone',

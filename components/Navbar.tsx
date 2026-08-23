@@ -47,6 +47,10 @@ export const Navbar: React.FC = () => {
     viewState,
     setViewState,
     freedomPosts,
+    readFreedomPostIds,
+    readMusicPostIds,
+    markFreedomPostsAsRead,
+    markMusicPostsAsRead,
     wallNotifications,
     markWallNotificationsAsRead,
     markSingleNotificationAsRead,
@@ -71,67 +75,46 @@ export const Navbar: React.FC = () => {
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
   const onlineCount = useOnlineCount();
 
-  // Wall Seen Timestamps & Unread Indicators
-  const [lastSeenFreedomTime, setLastSeenFreedomTime] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('capitalk_last_seen_freedom_time_v1');
-      if (saved) return parseInt(saved, 10);
-      const now = Date.now();
-      localStorage.setItem('capitalk_last_seen_freedom_time_v1', String(now));
-      return now;
+  // Calculate unread approved notes & songs based on read IDs (consistent with notifications)
+  const approvedNotes = React.useMemo(() => {
+    return (freedomPosts || []).filter(
+      (p) => !p.song_title && (p.status === 'approved' || !p.status || p.is_admin)
+    );
+  }, [freedomPosts]);
+
+  const approvedSongs = React.useMemo(() => {
+    return (freedomPosts || []).filter(
+      (p) => Boolean(p.song_title) && (p.status === 'approved' || !p.status || p.is_admin)
+    );
+  }, [freedomPosts]);
+
+  const readFreedomSet = React.useMemo(() => new Set(readFreedomPostIds || []), [readFreedomPostIds]);
+  const readMusicSet = React.useMemo(() => new Set(readMusicPostIds || []), [readMusicPostIds]);
+
+  const unreadFreedomNotesCount = React.useMemo(() => {
+    if (viewState === 'freedom_wall' || viewState === 'add_note') return 0;
+    if (readFreedomSet.size === 0 && approvedNotes.length > 0) {
+      return Math.min(approvedNotes.length, 3);
     }
-    return 0;
-  });
+    return approvedNotes.filter((p) => !readFreedomSet.has(p.id)).length;
+  }, [approvedNotes, readFreedomSet, viewState]);
 
-  const [lastSeenMusicTime, setLastSeenMusicTime] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('capitalk_last_seen_music_time_v1');
-      if (saved) return parseInt(saved, 10);
-      const now = Date.now();
-      localStorage.setItem('capitalk_last_seen_music_time_v1', String(now));
-      return now;
+  const unreadMusicNotesCount = React.useMemo(() => {
+    if (viewState === 'music_wall') return 0;
+    if (readMusicSet.size === 0 && approvedSongs.length > 0) {
+      return Math.min(approvedSongs.length, 3);
     }
-    return 0;
-  });
+    return approvedSongs.filter((p) => !readMusicSet.has(p.id)).length;
+  }, [approvedSongs, readMusicSet, viewState]);
 
-  // Calculate unread approved notes on Freedom Wall
-  const hasUnreadFreedomNotes = React.useMemo(() => {
-    if (viewState === 'freedom_wall' || viewState === 'add_note') return false;
-    const latestApprovedNote = (freedomPosts || [])
-      .filter((p) => !p.song_title && (p.status === 'approved' || !p.status))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-    if (!latestApprovedNote) return false;
-    const postTime = new Date(latestApprovedNote.created_at).getTime();
-    return postTime > lastSeenFreedomTime;
-  }, [freedomPosts, lastSeenFreedomTime, viewState]);
-
-  // Calculate unread approved songs on Music Wall
-  const hasUnreadMusicNotes = React.useMemo(() => {
-    if (viewState === 'music_wall') return false;
-    const latestApprovedSong = (freedomPosts || [])
-      .filter((p) => Boolean(p.song_title) && (p.status === 'approved' || !p.status))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-    if (!latestApprovedSong) return false;
-    const postTime = new Date(latestApprovedSong.created_at).getTime();
-    return postTime > lastSeenMusicTime;
-  }, [freedomPosts, lastSeenMusicTime, viewState]);
-
-  // Automatically update last seen timestamps when user opens Freedom Wall or Music Wall
+  // Automatically mark as read when user opens Freedom Wall or Music Wall
   React.useEffect(() => {
     if (viewState === 'freedom_wall' || viewState === 'add_note') {
-      const now = Date.now();
-      setLastSeenFreedomTime(now);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('capitalk_last_seen_freedom_time_v1', String(now));
-      }
+      markFreedomPostsAsRead();
     } else if (viewState === 'music_wall') {
-      const now = Date.now();
-      setLastSeenMusicTime(now);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('capitalk_last_seen_music_time_v1', String(now));
-      }
+      markMusicPostsAsRead();
     }
-  }, [viewState]);
+  }, [viewState, markFreedomPostsAsRead, markMusicPostsAsRead]);
 
   const displayNotifications = React.useMemo(() => {
     const seenSignatures = new Set<string>();
@@ -268,9 +251,7 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const now = Date.now();
-                  setLastSeenFreedomTime(now);
-                  if (typeof window !== 'undefined') localStorage.setItem('capitalk_last_seen_freedom_time_v1', String(now));
+                  markFreedomPostsAsRead();
                   setViewState('freedom_wall');
                 }}
                 className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all relative ${
@@ -281,10 +262,9 @@ export const Navbar: React.FC = () => {
                 title="Campus Freedom Wall"
               >
                 <span> Freedom Wall</span>
-                {hasUnreadFreedomNotes && (
-                  <span className="flex h-2.5 w-2.5 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#dc341e] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#dc341e] border-1.5 border-white shadow-xs"></span>
+                {unreadFreedomNotesCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e02424] text-white flex items-center justify-center border border-white shadow-2xs">
+                    {unreadFreedomNotesCount > 9 ? '9+' : unreadFreedomNotesCount}
                   </span>
                 )}
               </button>
@@ -292,9 +272,7 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const now = Date.now();
-                  setLastSeenMusicTime(now);
-                  if (typeof window !== 'undefined') localStorage.setItem('capitalk_last_seen_music_time_v1', String(now));
+                  markMusicPostsAsRead();
                   setViewState('music_wall');
                 }}
                 className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all relative ${
@@ -305,10 +283,9 @@ export const Navbar: React.FC = () => {
                 title="Campus Music Dedications"
               >
                 <span> Music Wall</span>
-                {hasUnreadMusicNotes && (
-                  <span className="flex h-2.5 w-2.5 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#ffc900] border-1.5 border-white shadow-xs"></span>
+                {unreadMusicNotesCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e02424] text-white flex items-center justify-center border border-white shadow-2xs">
+                    {unreadMusicNotesCount > 9 ? '9+' : unreadMusicNotesCount}
                   </span>
                 )}
               </button>
@@ -465,9 +442,7 @@ export const Navbar: React.FC = () => {
           type="button"
           onClick={() => {
             setShowNotifPopover(false);
-            const now = Date.now();
-            setLastSeenFreedomTime(now);
-            if (typeof window !== 'undefined') localStorage.setItem('capitalk_last_seen_freedom_time_v1', String(now));
+            markFreedomPostsAsRead();
             setViewState('freedom_wall');
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
@@ -480,10 +455,12 @@ export const Navbar: React.FC = () => {
         >
           <div className="relative flex items-center justify-center">
             <MessageSquareText className="w-5 h-5 stroke-[2.2]" />
-            {hasUnreadFreedomNotes && (
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#dc341e] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#dc341e] border-1.5 border-white shadow-xs"></span>
+            {unreadFreedomNotesCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
+                  {unreadFreedomNotesCount > 9 ? '9+' : unreadFreedomNotesCount}
+                </span>
               </span>
             )}
           </div>
@@ -494,9 +471,7 @@ export const Navbar: React.FC = () => {
           type="button"
           onClick={() => {
             setShowNotifPopover(false);
-            const now = Date.now();
-            setLastSeenMusicTime(now);
-            if (typeof window !== 'undefined') localStorage.setItem('capitalk_last_seen_music_time_v1', String(now));
+            markMusicPostsAsRead();
             setViewState('music_wall');
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
@@ -509,10 +484,12 @@ export const Navbar: React.FC = () => {
         >
           <div className="relative flex items-center justify-center">
             <Music className="w-5 h-5 stroke-[2.2]" />
-            {hasUnreadMusicNotes && (
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            {unreadMusicNotesCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ffc900] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#ffc900] border-1.5 border-white shadow-xs"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
+                  {unreadMusicNotesCount > 9 ? '9+' : unreadMusicNotesCount}
+                </span>
               </span>
             )}
           </div>
@@ -954,9 +931,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const now = Date.now();
-                    setLastSeenFreedomTime(now);
-                    if (typeof window !== 'undefined') localStorage.setItem('capitalk_last_seen_freedom_time_v1', String(now));
+                    markFreedomPostsAsRead();
                     setViewState('freedom_wall');
                     setShowMenuDrawer(false);
                   }}
@@ -968,9 +943,9 @@ export const Navbar: React.FC = () => {
                 >
                   <span className="flex items-center gap-2.5">
                     <span>Freedom Wall</span>
-                    {hasUnreadFreedomNotes && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#dc341e] text-white text-[10px] font-black animate-pulse">
-                        NEW
+                    {unreadFreedomNotesCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#dc341e] text-white text-[10px] font-black">
+                        {unreadFreedomNotesCount > 9 ? '9+' : unreadFreedomNotesCount} new
                       </span>
                     )}
                   </span>
@@ -980,9 +955,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const now = Date.now();
-                    setLastSeenMusicTime(now);
-                    if (typeof window !== 'undefined') localStorage.setItem('capitalk_last_seen_music_time_v1', String(now));
+                    markMusicPostsAsRead();
                     setViewState('music_wall');
                     setShowMenuDrawer(false);
                   }}
@@ -994,9 +967,9 @@ export const Navbar: React.FC = () => {
                 >
                   <span className="flex items-center gap-2.5">
                     <span>Music Wall</span>
-                    {hasUnreadMusicNotes && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#ffc900] text-black text-[10px] font-black border border-black animate-pulse">
-                        NEW
+                    {unreadMusicNotesCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#dc341e] text-white text-[10px] font-black">
+                        {unreadMusicNotesCount > 9 ? '9+' : unreadMusicNotesCount} new
                       </span>
                     )}
                   </span>
