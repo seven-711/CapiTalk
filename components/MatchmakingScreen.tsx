@@ -245,9 +245,6 @@ export const MatchmakingScreen: React.FC = () => {
                   <span className="font-extrabold text-xs sm:text-sm text-black truncate">
                     @{currentUser.username}
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 text-[#701a31] rounded-md shrink-0">
-                    from {currentUser.department.replace('College of ', '')}
-                  </span>
                 </div>
                 <p className="text-[10px] text-gray-400 font-medium">Ready to match</p>
               </div>
