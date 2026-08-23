@@ -23,6 +23,8 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   BarChart2,
   RefreshCw,
   CornerUpLeft,
@@ -1631,7 +1633,7 @@ export const FreedomWall: React.FC = () => {
             </div>
 
             {/* Scrollable Content (Original Note Snippet + Comments Thread) */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#f0f2f5]">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 bg-[#f0f2f5]">
               {/* Original Note Snippet */}
               {(() => {
                 const isCmPostAdmin = selectedPostForComments.is_admin || selectedPostForComments.author_alias?.toLowerCase().includes('admin');
@@ -1641,7 +1643,7 @@ export const FreedomWall: React.FC = () => {
                 return (
                   <div
                     style={{ backgroundColor: cmNoteBg }}
-                    className={`rounded-xl p-3 sm:p-4 border shadow-2xs space-y-2 ${
+                    className={`rounded-xl p-2.5 sm:p-3 border shadow-2xs space-y-1.5 ${
                       isCmNoteDark ? 'border-black/20 text-white' : 'border-[#e4e6eb] text-[#050505]'
                     }`}
                   >
@@ -1650,7 +1652,7 @@ export const FreedomWall: React.FC = () => {
                         <img
                           src={selectedPostForComments.author_avatar || getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon')}
                           alt={selectedPostForComments.author_alias}
-                          className={`w-8 h-8 rounded-full border object-cover ${
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border object-cover ${
                             isCmNoteDark ? 'border-white/40 bg-white/10' : 'border-[#e4e6eb] bg-[#f0f2f5]'
                           }`}
                         />
@@ -1658,7 +1660,7 @@ export const FreedomWall: React.FC = () => {
                           <p className={`font-bold text-xs ${isCmNoteDark ? 'text-white' : 'text-[#050505]'}`}>
                             {selectedPostForComments.author_alias}
                           </p>
-                          <p className={`text-[11px] ${isCmNoteDark ? 'text-white/80' : 'text-[#65676b]'}`}>
+                          <p className={`text-[10.5px] sm:text-[11px] ${isCmNoteDark ? 'text-white/80' : 'text-[#65676b]'}`}>
                             {!isCmPostAdmin && selectedPostForComments.department && !selectedPostForComments.department.toLowerCase().includes('admin')
                               ? `${selectedPostForComments.department.replace('College of ', '')} · `
                               : ''}
@@ -1668,18 +1670,18 @@ export const FreedomWall: React.FC = () => {
                       </div>
                     </div>
 
-                    <p className={`text-[13.5px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+                    <p className={`text-[13px] sm:text-[13.5px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
                       isCmNoteDark ? 'text-white' : 'text-[#050505]'
                     }`}>
                       {selectedPostForComments.message}
                     </p>
 
                     {selectedPostForComments.image_url && (
-                      <div className="rounded-lg overflow-hidden border border-[#e4e6eb] bg-[#1c1e21] max-h-48 mt-2">
+                      <div className="rounded-lg overflow-hidden border border-[#e4e6eb] bg-[#1c1e21] max-h-44 mt-1.5">
                         <img
                           src={selectedPostForComments.image_url}
                           alt="Attached media"
-                          className="w-full h-auto max-h-48 object-contain cursor-pointer"
+                          className="w-full h-auto max-h-44 object-contain cursor-pointer"
                           onClick={() => setZoomedImage(selectedPostForComments?.image_url || null)}
                         />
                       </div>
@@ -1689,16 +1691,16 @@ export const FreedomWall: React.FC = () => {
               })()}
 
               {/* Comments Feed List */}
-              <div className="space-y-2">
+              <div className="space-y-1 sm:space-y-1.5">
                 {isFetchingComments ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-[#65676b]">
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-[#65676b]">
                     <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-[#1877f2] animate-spin" />
                     <p className="text-xs font-medium">Loading comments...</p>
                   </div>
                 ) : commentsList.length === 0 ? (
-                  <div className="text-center py-10 bg-white rounded-xl border border-[#e4e6eb] p-6 shadow-2xs">
-                    <p className="font-bold text-sm text-[#050505]">No comments yet</p>
-                    <p className="text-xs text-[#65676b] mt-1">
+                  <div className="text-center py-8 bg-white rounded-xl border border-[#e4e6eb] p-4 shadow-2xs">
+                    <p className="font-bold text-xs sm:text-sm text-[#050505]">No comments yet</p>
+                    <p className="text-[11px] sm:text-xs text-[#65676b] mt-0.5">
                       Be the first to share your thoughts on this note!
                     </p>
                   </div>
@@ -1709,8 +1711,16 @@ export const FreedomWall: React.FC = () => {
                       (c) => !c.reply_to_comment_id || !allCommentIds.has(c.reply_to_comment_id)
                     );
 
+                    const countAllDescendants = (commentId: string, visited = new Set<string>()): number => {
+                      if (visited.has(commentId)) return 0;
+                      visited.add(commentId);
+                      const children = commentsList.filter((c) => c.reply_to_comment_id === commentId);
+                      return children.reduce((total, child) => total + 1 + countAllDescendants(child.id, visited), 0);
+                    };
+
                     const renderNode = (cm: FreedomComment, depth = 0) => {
                       const directReplies = commentsList.filter((c) => c.reply_to_comment_id === cm.id);
+                      const totalRepliesCount = countAllDescendants(cm.id);
                       const isReply = depth > 0;
                       const isExpanded = !!expandedReplyCommentIds[cm.id];
 
@@ -1720,8 +1730,8 @@ export const FreedomWall: React.FC = () => {
                       const likesCount = cm.likes_count || 0;
 
                       return (
-                        <div key={cm.id} className="space-y-1.5">
-                          <div className={`flex items-start gap-2 ${isReply ? 'ml-6 sm:ml-8' : ''}`}>
+                        <div key={cm.id} className="space-y-0.5">
+                          <div className={`flex items-start gap-1.5 sm:gap-2 ${isReply ? 'ml-5 sm:ml-7' : ''}`}>
                             <button
                               type="button"
                               onClick={() => setViewingProfile({
@@ -1736,14 +1746,14 @@ export const FreedomWall: React.FC = () => {
                               <img
                                 src={cm.author_avatar || getAvatarForPseudonym(cm.author_alias)}
                                 alt={cm.author_alias}
-                                className="w-8 h-8 rounded-full border border-[#e4e6eb] object-cover bg-white"
+                                className={`${isReply ? 'w-6 h-6' : 'w-7 h-7 sm:w-7.5 sm:h-7.5'} rounded-full border border-[#e4e6eb] object-cover bg-white`}
                               />
                             </button>
 
                             <div className="flex-1 min-w-0">
-                              {/* Bubble */}
-                              <div className="bg-white rounded-2xl p-2.5 sm:p-3 border border-[#e4e6eb] shadow-2xs space-y-1 inline-block max-w-full">
-                                <div className="flex items-center gap-1.5 flex-wrap leading-none">
+                              {/* Thin Compact Bubble */}
+                              <div className="bg-white rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 border border-[#e4e6eb] shadow-2xs space-y-0.5 inline-block max-w-[92%] sm:max-w-[85%]">
+                                <div className="flex items-center gap-1 leading-tight flex-wrap">
                                   <button
                                     type="button"
                                     onClick={() => setViewingProfile({
@@ -1753,29 +1763,29 @@ export const FreedomWall: React.FC = () => {
                                       bio: cm.author_bio,
                                       author_id: cm.author_id,
                                     })}
-                                    className="font-bold text-[13px] text-[#050505] hover:underline cursor-pointer truncate"
+                                    className="font-bold text-[12px] sm:text-[12.5px] text-[#050505] hover:underline cursor-pointer truncate"
                                   >
                                     @{cm.author_alias}
                                   </button>
                                   {cm.department && (
-                                    <span className="text-[10px] text-[#65676b] font-medium">
+                                    <span className="text-[10px] text-[#65676b] font-normal">
                                       · {cm.department.replace('College of ', '')}
                                     </span>
                                   )}
                                 </div>
 
-                                <p className="text-[13.5px] text-[#050505] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                <p className="text-[12.5px] sm:text-[13px] text-[#050505] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                   {cm.message}
                                 </p>
                               </div>
 
                               {/* Footer action links */}
-                              <div className="flex items-center gap-3 px-2 pt-1 text-[11px] text-[#65676b] font-semibold">
+                              <div className="flex items-center gap-2.5 sm:gap-3 px-2 pt-0.5 text-[10.5px] sm:text-[11px] text-[#65676b] font-bold leading-none">
                                 <span>{formatRelativeTime(cm.created_at, now)}</span>
                                 <button
                                   type="button"
                                   onClick={() => toggleLikeComment(cm)}
-                                  className={`hover:underline cursor-pointer flex items-center gap-1 ${
+                                  className={`hover:underline cursor-pointer flex items-center gap-0.5 ${
                                     hasLiked ? 'text-[#f33e5b] font-bold' : ''
                                   }`}
                                 >
@@ -1795,22 +1805,32 @@ export const FreedomWall: React.FC = () => {
 
                           {/* Nested Replies Collapsible */}
                           {directReplies.length > 0 && (
-                            <div className="pl-8 sm:pl-10 space-y-1.5 pt-0.5">
+                            <div className="pl-6 sm:pl-7 space-y-1 pt-0.5">
                               <button
                                 type="button"
                                 onClick={() => toggleExpandReplies(cm.id)}
-                                className="text-[11px] font-bold text-[#1877f2] hover:underline flex items-center gap-1 cursor-pointer"
+                                className="group/reply flex items-center gap-1.5 text-[11px] font-bold text-[#65676b] hover:text-[#050505] py-0.5 cursor-pointer select-none transition-colors"
                               >
-                                <span>
-                                  {isExpanded
-                                    ? `Hide ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`
-                                    : `View ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`}
-                                </span>
-                                <span>{isExpanded ? '▲' : '▼'}</span>
+                                <span className="w-4 h-[1.5px] bg-[#ccd0d5] group-hover/reply:bg-[#65676b] transition-colors shrink-0" />
+                                {isExpanded ? (
+                                  <span className="flex items-center gap-1 text-[#65676b] group-hover/reply:text-[#050505]">
+                                    <ChevronUp className="w-3 h-3" />
+                                    <span>Hide {totalRepliesCount === 1 ? 'reply' : `${totalRepliesCount} replies`}</span>
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-[#65676b] group-hover/reply:text-[#050505]">
+                                    <ChevronDown className="w-3 h-3" />
+                                    <span>
+                                      {totalRepliesCount === 1
+                                        ? 'View 1 reply'
+                                        : `View ${totalRepliesCount} replies`}
+                                    </span>
+                                  </span>
+                                )}
                               </button>
 
                               {isExpanded && (
-                                <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-150">
+                                <div className="space-y-1 animate-in slide-in-from-top-1 duration-150 border-l border-[#e4e6eb] pl-2 -ml-2">
                                   {directReplies.map((reply) => renderNode(reply, depth + 1))}
                                 </div>
                               )}
@@ -1827,11 +1847,11 @@ export const FreedomWall: React.FC = () => {
             </div>
 
             {/* Modal Input Footer */}
-            <div className="p-3 bg-white border-t border-[#e4e6eb] shrink-0">
+            <div className="p-2 sm:p-2.5 bg-white border-t border-[#e4e6eb] shrink-0">
               {replyingTo && (
-                <div className="mb-2 px-3 py-1.5 bg-[#f0f2f5] rounded-lg text-xs font-medium text-[#050505] flex items-center justify-between animate-in fade-in">
+                <div className="mb-1.5 px-2.5 py-1 bg-[#f0f2f5] rounded-md text-[11px] font-medium text-[#050505] flex items-center justify-between animate-in fade-in">
                   <div className="flex items-center gap-1.5">
-                    <Reply className="w-3.5 h-3.5 text-[#1877f2]" />
+                    <Reply className="w-3 h-3 text-[#1877f2]" />
                     <span>Replying to <span className="font-bold">@{replyingTo.alias}</span></span>
                   </div>
                   <button
@@ -1840,16 +1860,16 @@ export const FreedomWall: React.FC = () => {
                     className="p-0.5 hover:bg-gray-200 rounded text-[#65676b] hover:text-[#050505] cursor-pointer"
                     title="Cancel reply"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               )}
 
-              <form onSubmit={handleAddComment} className="flex items-center gap-2">
+              <form onSubmit={handleAddComment} className="flex items-center gap-1.5 sm:gap-2">
                 <img
                   src={currentUser?.avatar_url || getAvatarForPseudonym(commentAlias)}
                   alt="My avatar"
-                  className="w-8 h-8 rounded-full border border-[#e4e6eb] object-cover bg-[#f0f2f5] shrink-0 hidden xs:block"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-[#e4e6eb] object-cover bg-[#f0f2f5] shrink-0 hidden xs:block"
                 />
                 <textarea
                   ref={commentInputRef}
@@ -1864,15 +1884,15 @@ export const FreedomWall: React.FC = () => {
                   placeholder={replyingTo ? `Reply to @${replyingTo.alias}...` : "Write a comment..."}
                   rows={1}
                   maxLength={2000}
-                  className="flex-1 bg-[#f0f2f5] border border-[#e4e6eb] rounded-2xl px-3.5 py-2 text-[13.5px] text-[#050505] placeholder-[#65676b] outline-none focus:bg-white focus:border-[#1877f2] transition-colors resize-none max-h-28 overflow-y-auto leading-relaxed"
+                  className="flex-1 bg-[#f0f2f5] border border-[#e4e6eb] rounded-2xl px-3 py-1.5 sm:py-2 text-[13px] text-[#050505] placeholder-[#65676b] outline-none focus:bg-white focus:border-[#1877f2] transition-colors resize-none max-h-24 overflow-y-auto leading-snug"
                   required
                 />
                 <button
                   type="submit"
                   disabled={!newCommentText.trim()}
-                  className="w-9 h-9 rounded-full bg-[#1877f2] hover:bg-[#166fe5] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shrink-0 active:scale-95 shadow-xs cursor-pointer"
+                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-[#1877f2] hover:bg-[#166fe5] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shrink-0 active:scale-95 shadow-xs cursor-pointer"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5" />
                 </button>
               </form>
             </div>
