@@ -23,6 +23,7 @@ import {
   Sparkles,
   UserMinus,
   MessageSquareText,
+  Music,
 } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
@@ -392,7 +393,25 @@ export const Navbar: React.FC = () => {
           <MessageSquareText className="w-5 h-5 stroke-[2.2]" />
         </button>
 
-        {/* 4. Real-Time Notification Bell Icon */}
+        {/* 4. Music Wall Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setShowNotifPopover(false);
+            setViewState('music_wall');
+          }}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
+            viewState === 'music_wall' && !showNotifPopover
+              ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
+              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+          }`}
+          aria-label="Music Wall"
+          title="Campus Music Wall"
+        >
+          <Music className="w-5 h-5 stroke-[2.2]" />
+        </button>
+
+        {/* 5. Real-Time Notification Bell Icon */}
         <button
           type="button"
           onClick={() => setShowNotifPopover(!showNotifPopover)}
