@@ -28,6 +28,7 @@ import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 import { WallNotification } from '../lib/types';
 import { getAvatarForPseudonym } from '../lib/constants';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 const FacebookIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -53,8 +54,15 @@ export const Navbar: React.FC = () => {
     keptConnection,
     hasNewConnectionNotif,
     setHasNewConnectionNotif,
+    pendingIncomingRequests,
+    acceptPendingRequest,
+    declinePendingRequest,
+    keepPartner,
     removeKeptConnection,
     setActionToast,
+    streakCount,
+    isStreakTriggeredToday,
+    setShowStreakCelebrationModal,
   } = useChatStore();
 
   const [showNotifPopover, setShowNotifPopover] = useState(false);
@@ -141,7 +149,7 @@ export const Navbar: React.FC = () => {
             className="flex items-center gap-1.5 sm:gap-2 cursor-pointer group shrink-0"
           >
             <CoinMascot size={22} tiltAngle={-8} />
-            <div>
+            <div className="hidden sm:block">
               <div className="flex items-center gap-1">
                 <span className="font-extrabold text-sm sm:text-xl tracking-tight text-[#000000]">
                   CapiTalk
@@ -153,11 +161,32 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
 
-          {/* Live Status Badge */}
-          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 bg-[#00e599] text-black font-extrabold text-[10px] sm:text-[11px] rounded-full border border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] sm:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase tracking-wider shrink-0">
-            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-black animate-ping" />
-            <span>{onlineCount} <span className="hidden xs:inline">Active </span>Online</span>
+          {/* Peak Hours Indicator */}
+          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 text-black font-black text-[10px] sm:text-[11px] rounded-full tracking-wider uppercase shrink-0 select-none">
+            <span className="truncate">
+              Peak Hours: 9PM – 3AM
+            </span>
           </div>
+
+          {/* Desktop Streak Badge */}
+          <button
+            type="button"
+            onClick={() => setShowStreakCelebrationModal(true)}
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#fff8e6] text-black rounded-full transition-all cursor-pointer active:scale-95 shrink-0 select-none"
+            title={`Daily Streak: ${streakCount} ${streakCount === 1 ? 'day' : 'days'}`}
+          >
+            <div className="w-10 h-5 flex items-center justify-center shrink-0 pointer-events-none">
+              <DotLottieReact
+                src={isStreakTriggeredToday ? '/animated-assets/triggeredStreak.lottie' : '/animated-assets/untriggeredStreak.lottie'}
+                loop
+                autoplay
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <span className="text-xs font-black text-black">
+              {streakCount}
+            </span>
+          </button>
 
           {/* Navigation Links & Action Buttons */}
           <div className="flex items-center gap-1 sm:gap-2">
@@ -282,6 +311,26 @@ export const Navbar: React.FC = () => {
                 </button>
               </div>
             )}
+
+            {/* Mobile Streak Badge (Next to Hamburger Icon) */}
+            <button
+              type="button"
+              onClick={() => setShowStreakCelebrationModal(true)}
+              className="flex md:hidden items-center gap-1 px-2 py-1 hover:bg-[#fff8e6] text-black rounded-xl transition-all active:scale-95 shrink-0 select-none cursor-pointer"
+              title={`Daily Streak: ${streakCount} ${streakCount === 1 ? 'day' : 'days'}`}
+            >
+              <div className="w-10 h-5 flex  items-center justify-center shrink-0 pointer-events-none">
+                <DotLottieReact
+                  src={isStreakTriggeredToday ? '/animated-assets/triggeredStreak.lottie' : '/animated-assets/untriggeredStreak.lottie'}
+                  loop
+                  autoplay
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <span className="text-xs mt-1 font-black text-black">
+                {streakCount}
+              </span>
+            </button>
 
             {/* Hamburger Navbar Menu Toggle Button (Mobile only) */}
             <button
@@ -570,6 +619,7 @@ export const Navbar: React.FC = () => {
                             {item.type === 'like' && '💖'}
                             {item.type === 'comment' && '💬'}
                             {item.type === 'friend_add' && '👥'}
+                            {item.type === 'friend_request_pending' && '⏳'}
                             {item.type === 'friend_remove' && '💔'}
                             {item.type === 'dm' && '💌'}
                             {item.type === 'admin_remark' && '👑'}
@@ -581,6 +631,7 @@ export const Navbar: React.FC = () => {
                               {item.type === 'like' && `${displayName} reacted`}
                               {item.type === 'comment' && `${displayName} commented`}
                               {item.type === 'friend_add' && `${displayName} added you`}
+                              {item.type === 'friend_request_pending' && `${displayName} sent a friend request`}
                               {item.type === 'friend_remove' && `${displayName} unfriended you`}
                               {item.type === 'dm' && `Message from ${displayName}`}
                               {item.type === 'admin_remark' && 'CapiTalk Admin'}
@@ -604,6 +655,66 @@ export const Navbar: React.FC = () => {
                           <p className={`text-xs font-medium line-clamp-2 mt-0.5 ${item.read ? 'text-zinc-500' : 'text-zinc-800'}`}>
                             {item.comment_text || item.admin_remark || item.message_snippet}
                           </p>
+
+                          {/* Pending Friend Request Action (Slot Full: Switch / Decline) */}
+                          {item.type === 'friend_request_pending' && (
+                            <div className="pt-2 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const targetReq = pendingIncomingRequests.find(
+                                    (r) => r.sender_username?.toLowerCase() === rawUsername.toLowerCase() || r.id === item.post_id
+                                  ) || pendingIncomingRequests[0];
+
+                                  if (targetReq) {
+                                    acceptPendingRequest(targetReq.id);
+                                  } else if (item.actor_username) {
+                                    keepPartner({
+                                      id: item.actor_username,
+                                      username: item.actor_username,
+                                      department: (item.actor_department as any) || 'General',
+                                      avatar_url: item.actor_avatar,
+                                      status: 'online',
+                                    }, true);
+                                  }
+                                  markSingleNotificationAsRead(item.id);
+                                  setActionToast({
+                                    type: 'info',
+                                    message: `✓ Switched and connected with @${displayName}!`,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-[11px] font-black rounded-xl border border-black shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                title="Unfriend current connection and switch to this friend"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>{keptConnection ? `Switch to @${displayName}` : `Accept @${displayName}`}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const targetReq = pendingIncomingRequests.find(
+                                    (r) => r.sender_username?.toLowerCase() === rawUsername.toLowerCase() || r.id === item.post_id
+                                  ) || pendingIncomingRequests[0];
+
+                                  if (targetReq) {
+                                    declinePendingRequest(targetReq.id);
+                                  }
+                                  markSingleNotificationAsRead(item.id);
+                                  setActionToast({
+                                    type: 'info',
+                                    message: `Declined request from @${displayName}.`,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[11px] font-bold rounded-xl border border-zinc-300 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Decline</span>
+                              </button>
+                            </div>
+                          )}
 
                           {/* Unfriend Back / Find Match Action for friend_remove Notifications */}
                           {item.type === 'friend_remove' && (

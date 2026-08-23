@@ -274,7 +274,7 @@ wss.on('connection', (ws) => {
       });
     }
 
-    else if (type === 'GLOBAL_DM_MESSAGE') {
+    else if (type === 'GLOBAL_DM_MESSAGE' || (type && type.startsWith('CONNECTION_'))) {
       allClients.forEach((client) => {
         if (client.readyState === client.OPEN) {
           send(client, msg);

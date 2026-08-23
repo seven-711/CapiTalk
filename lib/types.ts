@@ -151,7 +151,7 @@ export interface UserFeedback {
 export interface WallNotification {
   id: string;
   post_id: string;
-  type: 'like' | 'comment' | 'admin_remark' | 'friend_add' | 'friend_remove' | 'dm';
+  type: 'like' | 'comment' | 'admin_remark' | 'friend_add' | 'friend_remove' | 'friend_request_pending' | 'dm';
   actor_alias: string; // e.g. "Someone from Engr." or "👑 CapiTalk Admin"
   actor_username?: string;
   actor_department?: string;
@@ -169,6 +169,25 @@ export interface BlockedUserInfo {
   department: string;
   avatar_url?: string;
   blocked_at: string;
+}
+
+export interface PendingFriendRequest {
+  id: string;
+  sender_id: string;
+  sender_username: string;
+  sender_department: string;
+  sender_avatar?: string;
+  sender_bio?: string;
+  created_at: string;
+}
+
+export interface PendingOutgoingConnection {
+  target_user_id: string;
+  target_username: string;
+  target_department: string;
+  target_avatar?: string;
+  target_bio?: string;
+  created_at: string;
 }
 
 

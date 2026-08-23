@@ -39,6 +39,7 @@ import {
   Flame,
   Scale,
   CheckCircle2,
+  Clock,
   RotateCcw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -207,6 +208,7 @@ export const ChatRoom: React.FC = () => {
     dismissAnnouncement,
     setShowFeedbackModal,
     keptConnection,
+    pendingOutgoingConnection,
     keepPartner,
     setViewState,
   } = useChatStore();
@@ -1694,13 +1696,22 @@ export const ChatRoom: React.FC = () => {
                 </div>
               </div>
 
-              {keptConnection?.user_id === partner.id ? (
+              {keptConnection && keptConnection.user_id === partner.id ? (
                 <button
                   type="button"
                   onClick={() => setViewState('kept_connections')}
                   className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border-2 border-black shadow-xs transition-all cursor-pointer shrink-0"
                 >
                   Message
+                </button>
+              ) : pendingOutgoingConnection && pendingOutgoingConnection.target_user_id === partner.id ? (
+                <button
+                  type="button"
+                  onClick={() => setViewState('kept_connections')}
+                  className="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border-2 border-indigo-700 text-xs font-black rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                >
+                  <Clock className="w-3.5 h-3.5 animate-spin text-indigo-800" />
+                  <span>Requested (Pending)</span>
                 </button>
               ) : keptConnection && keptConnection.user_id !== partner.id ? (
                 <button

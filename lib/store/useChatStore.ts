@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo, KeptConnection } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo, KeptConnection, PendingFriendRequest, PendingOutgoingConnection } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType, getAvatarForPseudonym } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -39,6 +39,8 @@ interface ChatStoreState {
   partnerTyping: boolean;
   partnerLeft: boolean;
   partnerLeftReason: 'inactivity' | 'left' | 'disconnected' | 'exited' | 'skipped' | null;
+  isMatchTransitioning: boolean;
+  setIsMatchTransitioning: (transitioning: boolean) => void;
   
   blockedUserIds: string[];
   blockedUsers: BlockedUserInfo[];
@@ -103,8 +105,20 @@ interface ChatStoreState {
   keptConnection: KeptConnection | null;
   hasNewConnectionNotif: boolean;
   setHasNewConnectionNotif: (hasNotif: boolean) => void;
-  keepPartner: (partnerProfile: UserProfile, isReciprocal?: boolean) => { success: boolean; message: string };
+  pendingIncomingRequests: PendingFriendRequest[];
+  pendingOutgoingConnection: PendingOutgoingConnection | null;
+  keepPartner: (partnerProfile: UserProfile, isReciprocal?: boolean) => { success: boolean; pending?: boolean; message: string };
+  acceptPendingRequest: (requestId: string) => void;
+  declinePendingRequest: (requestId: string) => void;
+  cancelPendingOutgoingConnection: () => void;
   removeKeptConnection: () => void;
+
+  streakCount: number;
+  lastStreakDate: string | null;
+  isStreakTriggeredToday: boolean;
+  showStreakCelebrationModal: boolean;
+  setShowStreakCelebrationModal: (show: boolean) => void;
+  checkAndTriggerStreak: (forceShowModal?: boolean) => { streakCount: number; isNewTrigger: boolean };
 
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
@@ -201,6 +215,70 @@ export const useChatStore = create<ChatStoreState>()(
       currentUser: null,
       setCurrentUser: (user: UserProfile | null) => set({ currentUser: user }),
 
+      streakCount: typeof window !== 'undefined'
+        ? parseInt(localStorage.getItem('capitalk_streak_count_v2') || '1', 10)
+        : 1,
+      lastStreakDate: typeof window !== 'undefined'
+        ? localStorage.getItem('capitalk_streak_last_date_v2')
+        : null,
+      isStreakTriggeredToday: typeof window !== 'undefined'
+        ? (() => {
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return localStorage.getItem('capitalk_streak_last_date_v2') === todayStr;
+          })()
+        : false,
+      showStreakCelebrationModal: false,
+      setShowStreakCelebrationModal: (show: boolean) => set({ showStreakCelebrationModal: show }),
+
+      checkAndTriggerStreak: (forceShowModal = false) => {
+        if (typeof window === 'undefined') return { streakCount: 1, isNewTrigger: false };
+
+        const d = new Date();
+        const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+
+        const storedDate = localStorage.getItem('capitalk_streak_last_date_v2');
+        const storedCount = parseInt(localStorage.getItem('capitalk_streak_count_v2') || '0', 10);
+
+        if (storedDate === todayStr) {
+          set({
+            streakCount: storedCount > 0 ? storedCount : 1,
+            lastStreakDate: todayStr,
+            isStreakTriggeredToday: true,
+            showStreakCelebrationModal: forceShowModal ? true : get().showStreakCelebrationModal,
+          });
+          return { streakCount: storedCount > 0 ? storedCount : 1, isNewTrigger: false };
+        }
+
+        let newCount = 1;
+        if (storedDate === yesterdayStr) {
+          newCount = (storedCount > 0 ? storedCount : 1) + 1;
+        } else {
+          newCount = 1;
+        }
+
+        try {
+          localStorage.setItem('capitalk_streak_last_date_v2', todayStr);
+          localStorage.setItem('capitalk_streak_count_v2', String(newCount));
+        } catch (e) {}
+
+        set({
+          streakCount: newCount,
+          lastStreakDate: todayStr,
+          isStreakTriggeredToday: true,
+          showStreakCelebrationModal: true,
+        });
+
+        return { streakCount: newCount, isNewTrigger: true };
+      },
+
+      isMatchTransitioning: false,
+      setIsMatchTransitioning: (isMatchTransitioning: boolean) => set({ isMatchTransitioning }),
+
       hasNewConnectionNotif: typeof window !== 'undefined' ? localStorage.getItem('capitalk_has_new_conn_notif') === 'true' : false,
       setHasNewConnectionNotif: (hasNotif: boolean) => {
         set({ hasNewConnectionNotif: hasNotif });
@@ -214,6 +292,27 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       keptConnection: null,
+      pendingIncomingRequests: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const raw = localStorage.getItem('capitalk_pending_incoming_v1');
+              return raw ? JSON.parse(raw) : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+      pendingOutgoingConnection: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const raw = localStorage.getItem('capitalk_pending_outgoing_v1');
+              return raw ? JSON.parse(raw) : null;
+            } catch {
+              return null;
+            }
+          })()
+        : null,
+
       keepPartner: (partnerProfile: UserProfile, isReciprocal = false) => {
         const current = get().keptConnection;
         if (current && current.user_id !== partnerProfile.id) {
@@ -222,6 +321,7 @@ export const useChatStore = create<ChatStoreState>()(
             message: `You already have @${current.username} saved. You can only keep 1 person at a time!`,
           };
         }
+
         const newConn: KeptConnection = {
           id: 'kc_' + Date.now(),
           user_id: partnerProfile.id,
@@ -232,8 +332,10 @@ export const useChatStore = create<ChatStoreState>()(
           added_at: new Date().toISOString(),
           last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         };
+
         set({
           keptConnection: newConn,
+          pendingOutgoingConnection: null,
           actionToast: {
             type: 'info',
             message: isReciprocal
@@ -241,6 +343,9 @@ export const useChatStore = create<ChatStoreState>()(
               : `✨ @${partnerProfile.username} has been added to your Kept Connections!`,
           },
         });
+        if (typeof window !== 'undefined') {
+          try { localStorage.removeItem('capitalk_pending_outgoing_v1'); } catch (e) {}
+        }
 
         if (isReciprocal) {
           set({ hasNewConnectionNotif: true });
@@ -262,15 +367,15 @@ export const useChatStore = create<ChatStoreState>()(
         if (!isReciprocal) {
           const currentUser = get().currentUser;
           if (currentUser) {
+            const payload = {
+              type: 'CONNECTION_ADDED_TWO_WAY',
+              sender: currentUser,
+              targetUserId: partnerProfile.id,
+              timestamp: Date.now(),
+            };
+
             if (broadcastChannel) {
-              try {
-                broadcastChannel.postMessage({
-                  type: 'CONNECTION_ADDED_TWO_WAY',
-                  sender: currentUser,
-                  targetUserId: partnerProfile.id,
-                  timestamp: Date.now(),
-                });
-              } catch (e) {}
+              try { broadcastChannel.postMessage(payload); } catch (e) {}
             }
 
             if (supabase && isSupabaseConfigured) {
@@ -279,11 +384,7 @@ export const useChatStore = create<ChatStoreState>()(
                 globalChan.send({
                   type: 'broadcast',
                   event: 'connection_added_two_way',
-                  payload: {
-                    sender: currentUser,
-                    targetUserId: partnerProfile.id,
-                    timestamp: Date.now(),
-                  },
+                  payload,
                 });
               } catch (e) {}
             }
@@ -299,6 +400,176 @@ export const useChatStore = create<ChatStoreState>()(
           message: `Added @${partnerProfile.username} to your Kept Connections.`,
         };
       },
+
+      acceptPendingRequest: (requestId: string) => {
+        const store = get();
+        const req = store.pendingIncomingRequests.find((r) => r.id === requestId);
+        if (!req) return;
+
+        const currentFriend = store.keptConnection;
+        const currentUser = store.currentUser;
+
+        // 1. If currently have a friend, unfriend them first and notify them
+        if (currentFriend && currentUser) {
+          const unfriendPayload = {
+            type: 'CONNECTION_REMOVED_TWO_WAY',
+            senderId: currentUser.id,
+            senderUsername: currentUser.username,
+            senderAvatar: currentUser.avatar_url,
+            senderDept: currentUser.department,
+            targetUserId: currentFriend.user_id,
+            timestamp: Date.now(),
+          };
+          if (broadcastChannel) {
+            try { broadcastChannel.postMessage(unfriendPayload); } catch (e) {}
+          }
+          if (supabase && isSupabaseConfigured) {
+            try {
+              const chan = supabase.channel('capitalk_global_announcements_v1');
+              chan.send({
+                type: 'broadcast',
+                event: 'connection_removed_two_way',
+                payload: unfriendPayload,
+              });
+            } catch (e) {}
+          }
+        }
+
+        // 2. Set new friend
+        const newConn: KeptConnection = {
+          id: 'kc_' + Date.now(),
+          user_id: req.sender_id,
+          username: req.sender_username,
+          department: req.sender_department,
+          avatar_url: req.sender_avatar,
+          bio: req.sender_bio,
+          added_at: new Date().toISOString(),
+          last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        };
+
+        const updatedPending = store.pendingIncomingRequests.filter((r) => r.id !== requestId);
+
+        set({
+          keptConnection: newConn,
+          pendingIncomingRequests: updatedPending,
+          hasNewConnectionNotif: false,
+          actionToast: {
+            type: 'info',
+            message: `✨ Connected with @${req.sender_username}!`,
+          },
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updatedPending));
+            localStorage.removeItem('capitalk_has_new_conn_notif');
+          } catch (e) {}
+        }
+
+        // 3. Broadcast CONNECTION_ACCEPTED_TWO_WAY to requester
+        if (currentUser) {
+          const acceptPayload = {
+            type: 'CONNECTION_ACCEPTED_TWO_WAY',
+            sender: currentUser,
+            targetUserId: req.sender_id,
+            timestamp: Date.now(),
+          };
+
+          if (broadcastChannel) {
+            try { broadcastChannel.postMessage(acceptPayload); } catch (e) {}
+          }
+          if (supabase && isSupabaseConfigured) {
+            try {
+              const chan = supabase.channel('capitalk_global_announcements_v1');
+              chan.send({
+                type: 'broadcast',
+                event: 'connection_accepted_two_way',
+                payload: acceptPayload,
+              });
+            } catch (e) {}
+          }
+        }
+      },
+
+      declinePendingRequest: (requestId: string) => {
+        const store = get();
+        const req = store.pendingIncomingRequests.find((r) => r.id === requestId);
+        const updated = store.pendingIncomingRequests.filter((r) => r.id !== requestId);
+        set({
+          pendingIncomingRequests: updated,
+          actionToast: {
+            type: 'info',
+            message: req ? `Declined request from @${req.sender_username}.` : 'Request declined.',
+          },
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        if (req && store.currentUser) {
+          const declinePayload = {
+            type: 'CONNECTION_DECLINED_TWO_WAY',
+            senderId: store.currentUser.id,
+            senderUsername: store.currentUser.username,
+            targetUserId: req.sender_id,
+            timestamp: Date.now(),
+          };
+          if (broadcastChannel) {
+            try { broadcastChannel.postMessage(declinePayload); } catch (e) {}
+          }
+          if (supabase && isSupabaseConfigured) {
+            try {
+              const chan = supabase.channel('capitalk_global_announcements_v1');
+              chan.send({
+                type: 'broadcast',
+                event: 'connection_declined_two_way',
+                payload: declinePayload,
+              });
+            } catch (e) {}
+          }
+        }
+      },
+
+      cancelPendingOutgoingConnection: () => {
+        const store = get();
+        const outgoing = store.pendingOutgoingConnection;
+        set({
+          pendingOutgoingConnection: null,
+          actionToast: {
+            type: 'info',
+            message: 'Cancelled pending friend request.',
+          },
+        });
+        if (typeof window !== 'undefined') {
+          try { localStorage.removeItem('capitalk_pending_outgoing_v1'); } catch (e) {}
+        }
+
+        if (outgoing && store.currentUser) {
+          const cancelPayload = {
+            type: 'CONNECTION_CANCELLED_TWO_WAY',
+            senderId: store.currentUser.id,
+            targetUserId: outgoing.target_user_id,
+            timestamp: Date.now(),
+          };
+          if (broadcastChannel) {
+            try { broadcastChannel.postMessage(cancelPayload); } catch (e) {}
+          }
+          if (supabase && isSupabaseConfigured) {
+            try {
+              const chan = supabase.channel('capitalk_global_announcements_v1');
+              chan.send({
+                type: 'broadcast',
+                event: 'connection_cancelled_two_way',
+                payload: cancelPayload,
+              });
+            } catch (e) {}
+          }
+        }
+      },
+
       removeKeptConnection: () => {
         const current = get().keptConnection;
         const currentUser = get().currentUser;
@@ -1062,11 +1333,152 @@ export const useChatStore = create<ChatStoreState>()(
                         message: `✨ @${sender.username} added you as a friend!`,
                       });
                     } else {
+                      // 1 slot full! Record pending incoming request
+                      const newPendingReq: PendingFriendRequest = {
+                        id: 'req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                        sender_id: sender.id,
+                        sender_username: sender.username,
+                        sender_department: sender.department,
+                        sender_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                        sender_bio: sender.bio,
+                        created_at: new Date().toISOString(),
+                      };
+                      const existingRequests = (store.pendingIncomingRequests || []).filter((r) => r.sender_id !== sender.id);
+                      const updatedPending = [newPendingReq, ...existingRequests];
+                      set({
+                        pendingIncomingRequests: updatedPending,
+                        hasNewConnectionNotif: true,
+                      });
+                      try {
+                        localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updatedPending));
+                        localStorage.setItem('capitalk_has_new_conn_notif', 'true');
+                      } catch (e) {}
+
+                      store.addWallNotification({
+                        post_id: 'req_' + Date.now(),
+                        type: 'friend_request_pending',
+                        actor_alias: `@${sender.username}`,
+                        actor_username: sender.username,
+                        actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                        actor_department: sender.department,
+                        message_snippet: `✨ @${sender.username} wants to connect, but your 1 friend slot is full (@${currentKept.username}).`,
+                      });
+
                       store.setActionToast({
                         type: 'info',
-                        message: `✨ @${sender.username} wants to connect with you, but your 1 connection slot is currently full.`,
+                        message: `✨ @${sender.username} wants to connect (Your 1 slot is used by @${currentKept.username})`,
                       });
+
+                      // Notify requester that target's slot is currently full
+                      const currentUser = store.currentUser;
+                      if (currentUser) {
+                        const slotFullPayload = {
+                          type: 'CONNECTION_TARGET_SLOT_FULL',
+                          senderId: currentUser.id,
+                          senderUsername: currentUser.username,
+                          senderDepartment: currentUser.department,
+                          senderAvatar: currentUser.avatar_url,
+                          targetUserId: sender.id,
+                          timestamp: Date.now(),
+                        };
+                        if (broadcastChannel) {
+                          try { broadcastChannel.postMessage(slotFullPayload); } catch (e) {}
+                        }
+                        if (supabase && isSupabaseConfigured) {
+                          try {
+                            const chan = supabase.channel('capitalk_global_announcements_v1');
+                            chan.send({
+                              type: 'broadcast',
+                              event: 'connection_target_slot_full',
+                              payload: slotFullPayload,
+                            });
+                          } catch (e) {}
+                        }
+                      }
                     }
+                  }
+                } else if (event.data?.type === 'CONNECTION_TARGET_SLOT_FULL') {
+                  const { senderId, senderUsername, senderDepartment, senderAvatar, targetUserId } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && targetUserId === myUserId) {
+                    const pendingOutgoing: PendingOutgoingConnection = {
+                      target_user_id: senderId,
+                      target_username: senderUsername || 'Student',
+                      target_department: senderDepartment || 'General',
+                      target_avatar: senderAvatar || getAvatarForPseudonym(senderUsername || 'Student'),
+                      created_at: new Date().toISOString(),
+                    };
+                    if (store.keptConnection?.user_id === senderId) {
+                      set({ keptConnection: null });
+                    }
+                    set({ pendingOutgoingConnection: pendingOutgoing });
+                    try {
+                      localStorage.setItem('capitalk_pending_outgoing_v1', JSON.stringify(pendingOutgoing));
+                    } catch (e) {}
+                    store.setActionToast({
+                      type: 'info',
+                      message: `⏳ @${senderUsername}'s 1 friend slot is full. Your request is pending!`,
+                    });
+                  }
+                } else if (event.data?.type === 'CONNECTION_ACCEPTED_TWO_WAY') {
+                  const { sender, targetUserId } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && targetUserId === myUserId && sender) {
+                    const newConn: KeptConnection = {
+                      id: 'kc_' + Date.now(),
+                      user_id: sender.id,
+                      username: sender.username,
+                      department: sender.department,
+                      avatar_url: sender.avatar_url,
+                      bio: sender.bio,
+                      added_at: new Date().toISOString(),
+                      last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    };
+                    set({
+                      keptConnection: newConn,
+                      pendingOutgoingConnection: null,
+                      hasNewConnectionNotif: true,
+                    });
+                    try {
+                      localStorage.removeItem('capitalk_pending_outgoing_v1');
+                      localStorage.setItem('capitalk_has_new_conn_notif', 'true');
+                    } catch (e) {}
+                    store.addWallNotification({
+                      post_id: 'conn_' + Date.now(),
+                      type: 'friend_add',
+                      actor_alias: `@${sender.username}`,
+                      actor_username: sender.username,
+                      actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                      actor_department: sender.department,
+                      message_snippet: `✨ @${sender.username} accepted your request! You can now chat.`,
+                    });
+                    store.setActionToast({
+                      type: 'info',
+                      message: `✨ @${sender.username} accepted your request! You can now chat.`,
+                    });
+                  }
+                } else if (event.data?.type === 'CONNECTION_DECLINED_TWO_WAY') {
+                  const { senderUsername, targetUserId } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && targetUserId === myUserId) {
+                    set({ pendingOutgoingConnection: null });
+                    try { localStorage.removeItem('capitalk_pending_outgoing_v1'); } catch (e) {}
+                    store.setActionToast({
+                      type: 'info',
+                      message: `@${senderUsername || 'Student'} kept their current friend.`,
+                    });
+                  }
+                } else if (event.data?.type === 'CONNECTION_CANCELLED_TWO_WAY') {
+                  const { senderId, targetUserId } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id;
+                  if (myUserId && targetUserId === myUserId) {
+                    const updatedPending = (store.pendingIncomingRequests || []).filter((r) => r.sender_id !== senderId);
+                    set({ pendingIncomingRequests: updatedPending });
+                    try { localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updatedPending)); } catch (e) {}
                   }
                 } else if (event.data?.type === 'CONNECTION_REMOVED_TWO_WAY') {
                   const { senderId, senderUsername, senderAvatar, senderDept, targetUserId } = event.data;
@@ -1186,11 +1598,164 @@ export const useChatStore = create<ChatStoreState>()(
                             message: `✨ @${sender.username} added you as a friend!`,
                           });
                         } else {
+                          // 1 slot full! Record pending incoming request
+                          const newPendingReq: PendingFriendRequest = {
+                            id: 'req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                            sender_id: sender.id,
+                            sender_username: sender.username,
+                            sender_department: sender.department,
+                            sender_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                            sender_bio: sender.bio,
+                            created_at: new Date().toISOString(),
+                          };
+                          const existingRequests = (store.pendingIncomingRequests || []).filter((r) => r.sender_id !== sender.id);
+                          const updatedPending = [newPendingReq, ...existingRequests];
+                          set({
+                            pendingIncomingRequests: updatedPending,
+                            hasNewConnectionNotif: true,
+                          });
+                          try {
+                            localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updatedPending));
+                            localStorage.setItem('capitalk_has_new_conn_notif', 'true');
+                          } catch (e) {}
+
+                          store.addWallNotification({
+                            post_id: 'req_' + Date.now(),
+                            type: 'friend_request_pending',
+                            actor_alias: `@${sender.username}`,
+                            actor_username: sender.username,
+                            actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                            actor_department: sender.department,
+                            message_snippet: `✨ @${sender.username} wants to connect, but your 1 friend slot is full (@${currentKept.username}).`,
+                          });
+
                           store.setActionToast({
                             type: 'info',
-                            message: `✨ @${sender.username} wants to connect with you, but your 1 connection slot is currently full.`,
+                            message: `✨ @${sender.username} wants to connect (Your 1 slot is used by @${currentKept.username})`,
                           });
+
+                          // Notify requester that target's slot is currently full
+                          const currentUser = store.currentUser;
+                          if (currentUser) {
+                            const slotFullPayload = {
+                              type: 'CONNECTION_TARGET_SLOT_FULL',
+                              senderId: currentUser.id,
+                              senderUsername: currentUser.username,
+                              senderDepartment: currentUser.department,
+                              senderAvatar: currentUser.avatar_url,
+                              targetUserId: sender.id,
+                              timestamp: Date.now(),
+                            };
+                            if (broadcastChannel) {
+                              try { broadcastChannel.postMessage(slotFullPayload); } catch (e) {}
+                            }
+                            if (supabase && isSupabaseConfigured) {
+                              try {
+                                const chan = supabase.channel('capitalk_global_announcements_v1');
+                                chan.send({
+                                  type: 'broadcast',
+                                  event: 'connection_target_slot_full',
+                                  payload: slotFullPayload,
+                                });
+                              } catch (e) {}
+                            }
+                          }
                         }
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'connection_target_slot_full' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { senderId, senderUsername, senderDepartment, senderAvatar, targetUserId } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && targetUserId === myUserId) {
+                        const pendingOutgoing: PendingOutgoingConnection = {
+                          target_user_id: senderId,
+                          target_username: senderUsername || 'Student',
+                          target_department: senderDepartment || 'General',
+                          target_avatar: senderAvatar || getAvatarForPseudonym(senderUsername || 'Student'),
+                          created_at: new Date().toISOString(),
+                        };
+                        if (store.keptConnection?.user_id === senderId) {
+                          set({ keptConnection: null });
+                        }
+                        set({ pendingOutgoingConnection: pendingOutgoing });
+                        try {
+                          localStorage.setItem('capitalk_pending_outgoing_v1', JSON.stringify(pendingOutgoing));
+                        } catch (e) {}
+                        store.setActionToast({
+                          type: 'info',
+                          message: `⏳ @${senderUsername}'s 1 friend slot is full. Your request is pending!`,
+                        });
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'connection_accepted_two_way' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { sender, targetUserId } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && targetUserId === myUserId && sender) {
+                        const newConn: KeptConnection = {
+                          id: 'kc_' + Date.now(),
+                          user_id: sender.id,
+                          username: sender.username,
+                          department: sender.department,
+                          avatar_url: sender.avatar_url,
+                          bio: sender.bio,
+                          added_at: new Date().toISOString(),
+                          last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                        };
+                        set({
+                          keptConnection: newConn,
+                          pendingOutgoingConnection: null,
+                          hasNewConnectionNotif: true,
+                        });
+                        try {
+                          localStorage.removeItem('capitalk_pending_outgoing_v1');
+                          localStorage.setItem('capitalk_has_new_conn_notif', 'true');
+                        } catch (e) {}
+                        store.addWallNotification({
+                          post_id: 'conn_' + Date.now(),
+                          type: 'friend_add',
+                          actor_alias: `@${sender.username}`,
+                          actor_username: sender.username,
+                          actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                          actor_department: sender.department,
+                          message_snippet: `✨ @${sender.username} accepted your request! You can now chat.`,
+                        });
+                        store.setActionToast({
+                          type: 'info',
+                          message: `✨ @${sender.username} accepted your request! You can now chat.`,
+                        });
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'connection_declined_two_way' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { senderUsername, targetUserId } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && targetUserId === myUserId) {
+                        set({ pendingOutgoingConnection: null });
+                        try { localStorage.removeItem('capitalk_pending_outgoing_v1'); } catch (e) {}
+                        store.setActionToast({
+                          type: 'info',
+                          message: `@${senderUsername || 'Student'} kept their current friend.`,
+                        });
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'connection_cancelled_two_way' }, ({ payload }: any) => {
+                    if (payload) {
+                      const { senderId, targetUserId } = payload;
+                      const store = get();
+                      const myUserId = store.currentUser?.id;
+                      if (myUserId && targetUserId === myUserId) {
+                        const updatedPending = (store.pendingIncomingRequests || []).filter((r) => r.sender_id !== senderId);
+                        set({ pendingIncomingRequests: updatedPending });
+                        try { localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updatedPending)); } catch (e) {}
                       }
                     }
                   })
@@ -1913,11 +2478,20 @@ export const useChatStore = create<ChatStoreState>()(
             created_at: new Date().toISOString(),
           };
 
+          if (typeof window !== 'undefined') {
+            try {
+              const audio = new Audio('/audio/sent_msg.webm');
+              audio.volume = 0.4;
+              audio.play().catch(() => {});
+            } catch (e) {}
+          }
+
           set({
             isSearching: false,
             searchingTimeSeconds: 0,
             activeRoom: newRoom,
             messages: [welcomeMsg],
+            isMatchTransitioning: true,
             viewState: 'chat',
             bayotCount: 0,
           });

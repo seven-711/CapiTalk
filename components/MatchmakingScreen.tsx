@@ -13,26 +13,53 @@ import {
   Target,
   Sparkles,
   HelpCircle,
+  Globe,
+  GraduationCap,
+  Shuffle,
+  Laptop,
+  Cog,
+  HeartPulse,
+  Microscope,
+  Briefcase,
+  BookOpen,
+  Shield,
+  Palette,
+  Anchor,
+  Building2,
 } from 'lucide-react';
 
-const DEPARTMENT_ICONS: Record<DepartmentType, string> = {
-  'College of Computer Studies': '💻',
-  'College of Engineering': '⚙️',
-  'College of Nursing': '🩺',
-  'College of Medical Technology': '🔬',
-  'College of Business Administration': '📊',
-  'College of Education': '📚',
-  'College of Criminology': '🛡️',
-  'College of Arts and Sciences': '🎭',
-  'College of Maritime Education': '⚓',
-  'Senior High School': '🎓',
+const getDepartmentIcon = (dept: DepartmentType, className = 'w-4 h-4') => {
+  switch (dept) {
+    case 'College of Computer Studies':
+      return <Laptop className={className} />;
+    case 'College of Engineering':
+      return <Cog className={className} />;
+    case 'College of Nursing':
+      return <HeartPulse className={className} />;
+    case 'College of Medical Technology':
+      return <Microscope className={className} />;
+    case 'College of Business Administration':
+      return <Briefcase className={className} />;
+    case 'College of Education':
+      return <BookOpen className={className} />;
+    case 'College of Criminology':
+      return <Shield className={className} />;
+    case 'College of Arts and Sciences':
+      return <Palette className={className} />;
+    case 'College of Maritime Education':
+      return <Anchor className={className} />;
+    case 'Senior High School':
+      return <GraduationCap className={className} />;
+    default:
+      return <Building2 className={className} />;
+  }
 };
 
-const getPreferenceIcon = (filter: QueueFilter) => {
-  if (filter === 'anyone') return '🌍';
-  if (filter === 'same') return '🎓';
-  if (filter === 'different') return '🔀';
-  return DEPARTMENT_ICONS[filter as DepartmentType] || '🏛️';
+const getPreferenceIconElement = (filter: QueueFilter, className = 'w-4 h-4') => {
+  if (filter === 'anyone') return <Globe className={className} />;
+  if (filter === 'same') return <GraduationCap className={className} />;
+  if (filter === 'different') return <Shuffle className={className} />;
+  return getDepartmentIcon(filter as DepartmentType, className);
 };
 
 const getPreferenceTitle = (filter: QueueFilter, myDept?: string) => {
@@ -218,8 +245,8 @@ export const MatchmakingScreen: React.FC = () => {
                   <span className="font-extrabold text-xs sm:text-sm text-black truncate">
                     @{currentUser.username}
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#fff1f3] text-[#701a31] rounded-md border border-[#701a31]/20 shrink-0">
-                    {currentUser.department.replace('College of ', '')}
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 text-[#701a31] rounded-md shrink-0">
+                    from {currentUser.department.replace('College of ', '')}
                   </span>
                 </div>
                 <p className="text-[10px] text-gray-400 font-medium">Ready to match</p>
@@ -251,8 +278,8 @@ export const MatchmakingScreen: React.FC = () => {
             className="w-full bg-[#fbfbfa] hover:bg-gray-50 border border-[#d1d5dc] rounded-xl p-3 text-left transition-colors flex items-center justify-between gap-2.5 cursor-pointer group"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-white border border-[#d1d5dc] flex items-center justify-center text-base shrink-0 shadow-2xs">
-                {getPreferenceIcon(queueFilter)}
+              <div className="w-8 h-8 rounded-lg bg-[#fff1f3] text-[#701a31] border border-[#701a31]/20 flex items-center justify-center shrink-0 shadow-2xs">
+                {getPreferenceIconElement(queueFilter, 'w-4 h-4 text-[#701a31]')}
               </div>
               <div className="min-w-0">
                 <p className="text-xs sm:text-sm font-extrabold text-black truncate">
@@ -266,7 +293,6 @@ export const MatchmakingScreen: React.FC = () => {
 
             <div className="flex items-center gap-1 text-xs font-bold text-[#701a31] shrink-0">
               <span>Change</span>
-              <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </button>
         </div>
@@ -324,23 +350,26 @@ export const MatchmakingScreen: React.FC = () => {
         onClick={() => setShowPreferenceModal(false)}
       >
         <div
-          className="bg-white border border-[#d1d5dc] rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col overflow-hidden text-left font-sans text-black"
+          className="bg-white border-2 border-black rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col overflow-hidden text-left font-sans text-black"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-200 shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#fff1f3] text-[#701a31] flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-[#fff1f3] text-[#701a31] flex items-center justify-center border border-[#701a31]/20">
                 <Target className="w-4 h-4" />
               </div>
-              <h3 className="text-sm sm:text-base font-extrabold text-black">
-                Match Preference
-              </h3>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-black">
+                  Match Preferences
+                </h3>
+                <p className="text-[11px] text-gray-500 font-medium">Choose who you want to connect with in chat</p>
+              </div>
             </div>
             <button
               type="button"
               onClick={() => setShowPreferenceModal(false)}
-              className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -348,102 +377,117 @@ export const MatchmakingScreen: React.FC = () => {
 
           {/* Scrollable Preference Options */}
           <div className="overflow-y-auto py-3 space-y-4 custom-scrollbar pr-1 flex-1">
-            {/* General Options */}
+            {/* General Scope */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block px-1">
-                General
+              <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block px-1">
+                General Scope
               </span>
 
               {/* Anyone */}
               <button
                 type="button"
                 onClick={() => handleSelectPreference('anyone')}
-                className={`w-full p-2.5 rounded-xl border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                className={`w-full p-2.5 rounded-xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
                   queueFilter === 'anyone'
-                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31]'
-                    : 'bg-white border-[#d1d5dc] hover:border-black hover:bg-gray-50 text-black'
+                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31] shadow-xs'
+                    : 'bg-white border-gray-200 hover:border-black hover:bg-gray-50 text-black'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="text-base">🌍</span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    queueFilter === 'anyone' ? 'bg-[#701a31] text-white' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    <Globe className="w-4 h-4" />
+                  </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">Anyone (Any Department)</p>
-                    <p className="text-[10px] text-gray-500">Open to all students</p>
+                    <p className="text-xs font-black truncate">Anyone (All Departments)</p>
+                    <p className="text-[10px] text-gray-500 font-medium">Open to all active students</p>
                   </div>
                 </div>
-                {queueFilter === 'anyone' && <Check className="w-4 h-4 text-[#701a31]" />}
+                {queueFilter === 'anyone' && <Check className="w-4 h-4 text-[#701a31] stroke-[2.5]" />}
               </button>
 
               {/* Same Department */}
               <button
                 type="button"
                 onClick={() => handleSelectPreference('same')}
-                className={`w-full p-2.5 rounded-xl border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                className={`w-full p-2.5 rounded-xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
                   queueFilter === 'same'
-                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31]'
-                    : 'bg-white border-[#d1d5dc] hover:border-black hover:bg-gray-50 text-black'
+                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31] shadow-xs'
+                    : 'bg-white border-gray-200 hover:border-black hover:bg-gray-50 text-black'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="text-base">🎓</span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    queueFilter === 'same' ? 'bg-[#701a31] text-white' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">
+                    <p className="text-xs font-black truncate">
                       Same Department ({currentUser?.department.replace('College of ', '') || 'My College'})
                     </p>
-                    <p className="text-[10px] text-gray-500">Match inside your college</p>
+                    <p className="text-[10px] text-gray-500 font-medium">Match only within your college</p>
                   </div>
                 </div>
-                {queueFilter === 'same' && <Check className="w-4 h-4 text-[#701a31]" />}
+                {queueFilter === 'same' && <Check className="w-4 h-4 text-[#701a31] stroke-[2.5]" />}
               </button>
 
               {/* Different Department */}
               <button
                 type="button"
                 onClick={() => handleSelectPreference('different')}
-                className={`w-full p-2.5 rounded-xl border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                className={`w-full p-2.5 rounded-xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
                   queueFilter === 'different'
-                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31]'
-                    : 'bg-white border-[#d1d5dc] hover:border-black hover:bg-gray-50 text-black'
+                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31] shadow-xs'
+                    : 'bg-white border-gray-200 hover:border-black hover:bg-gray-50 text-black'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="text-base">🔀</span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    queueFilter === 'different' ? 'bg-[#701a31] text-white' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    <Shuffle className="w-4 h-4" />
+                  </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">Different Department</p>
-                    <p className="text-[10px] text-gray-500">
+                    <p className="text-xs font-black truncate">Different Department</p>
+                    <p className="text-[10px] text-gray-500 font-medium">
                       Match outside {currentUser?.department.replace('College of ', '') || 'your college'}
                     </p>
                   </div>
                 </div>
-                {queueFilter === 'different' && <Check className="w-4 h-4 text-[#701a31]" />}
+                {queueFilter === 'different' && <Check className="w-4 h-4 text-[#701a31] stroke-[2.5]" />}
               </button>
             </div>
 
-            {/* Specific Department Section */}
+            {/* Specific College Section */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block px-1">
-                Specific College
+              <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block px-1">
+                Filter by College
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {CU_DEPARTMENTS.map((dept) => {
                   const isSelected = queueFilter === dept;
-                  const icon = DEPARTMENT_ICONS[dept] || '🏛️';
                   return (
                     <button
                       key={dept}
                       type="button"
                       onClick={() => handleSelectPreference(dept)}
-                      className={`p-2 rounded-xl border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                      className={`p-2 rounded-xl border transition-all flex items-center justify-between text-left cursor-pointer ${
                         isSelected
-                          ? 'bg-[#701a31] text-white border-[#701a31] font-extrabold'
-                          : 'bg-white text-black border-[#d1d5dc] hover:border-black hover:bg-gray-50 font-medium'
+                          ? 'bg-[#701a31] text-white border-[#701a31] font-black shadow-xs'
+                          : 'bg-white text-black border-gray-200 hover:border-black hover:bg-gray-50 font-semibold'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm shrink-0">{icon}</span>
+                        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
+                          isSelected ? 'text-white' : 'text-gray-600'
+                        }`}>
+                          {getDepartmentIcon(dept, 'w-3.5 h-3.5')}
+                        </div>
                         <span className="text-xs truncate">{dept.replace('College of ', '')}</span>
                       </div>
-                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />}
                     </button>
                   );
                 })}
@@ -452,11 +496,11 @@ export const MatchmakingScreen: React.FC = () => {
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-3 border-t border-gray-100 flex justify-end shrink-0">
+          <div className="pt-3 border-t border-gray-200 flex justify-end shrink-0">
             <button
               type="button"
               onClick={() => setShowPreferenceModal(false)}
-              className="px-4 py-1.5 rounded-lg text-xs font-bold bg-gray-100 hover:bg-gray-200 text-black transition-colors cursor-pointer"
+              className="px-5 py-2 rounded-xl text-xs font-black bg-black hover:bg-zinc-800 text-white transition-all cursor-pointer shadow-xs active:scale-95"
             >
               Done
             </button>

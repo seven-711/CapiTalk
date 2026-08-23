@@ -242,7 +242,13 @@ class RoomManager {
         this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
         break;
       }
-      case 'GLOBAL_DM_MESSAGE': {
+      case 'GLOBAL_DM_MESSAGE':
+      case 'CONNECTION_ADDED_TWO_WAY':
+      case 'CONNECTION_REMOVED_TWO_WAY':
+      case 'CONNECTION_TARGET_SLOT_FULL':
+      case 'CONNECTION_ACCEPTED_TWO_WAY':
+      case 'CONNECTION_DECLINED_TWO_WAY':
+      case 'CONNECTION_CANCELLED_TWO_WAY': {
         if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
           try {
             const bc = new BroadcastChannel('capitalk_global_realtime');
