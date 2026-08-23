@@ -76,9 +76,6 @@ export const PrivacyPolicy: React.FC = () => {
           {/* 1. Header Section */}
           <div className="space-y-3 pb-6 border-b border-zinc-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#fff1f3] text-[#701a31] flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-black tracking-tight">
                   Privacy &amp; Data Transparency
