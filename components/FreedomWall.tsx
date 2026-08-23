@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { CU_DEPARTMENTS, getAvatarForPseudonym } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
@@ -34,19 +32,123 @@ import {
   Shuffle,
   SlidersHorizontal,
   Check,
-} from 'lucide-react';
-import { ReportNoteModal } from './ReportNoteModal';
-import { DeleteNoteModal } from './DeleteNoteModal';
-import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
-import { processUploadedImage } from '../lib/utils/imagePipeline';
-import Silk from './Silk';
-import {
+  Globe,
+  MoreHorizontal,
+  ThumbsUp,
   Image as ImageIcon,
   Film,
   UploadCloud,
   Eye,
   Link as LinkIcon,
 } from 'lucide-react';
+import { ReportNoteModal } from './ReportNoteModal';
+import { DeleteNoteModal } from './DeleteNoteModal';
+import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
+import { processUploadedImage } from '../lib/utils/imagePipeline';
+
+// ─── Facebook-style SVGs ──────────────────────────────────────────────────────
+
+const FbLikeSvg = ({ filled = false, color = '#65676b', className = 'w-4 h-4' }: { filled?: boolean; color?: string; className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill={filled ? color : 'currentColor'}>
+    <path d="M14.0001 3.5C14.0001 2.67157 13.3285 2 12.5001 2C11.9669 2 11.4795 2.28483 11.2096 2.74415L7.79153 8.55486C7.54589 8.97246 7.09886 9.22727 6.61391 9.22727H4.00008C2.89551 9.22727 2.00008 10.1227 2.00008 11.2273V19.2273C2.00008 20.3318 2.89551 21.2273 4.00008 21.2273H17.4305C18.8471 21.2273 20.0617 20.2188 20.3113 18.8213L21.5613 11.8213C21.8722 10.0798 20.5222 8.5 18.75 8.5H14.7501C14.3359 8.5 14.0001 8.16421 14.0001 7.75V3.5Z" />
+  </svg>
+);
+
+const FbCommentSvg = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M4.5 3.75A2.25 2.25 0 002.25 6v10.5A2.25 2.25 0 004.5 18.75h2.25v3.19c0 .67.8 1.02 1.3.57l3.76-3.76h7.69A2.25 2.25 0 0021.75 16.5V6a2.25 2.25 0 00-2.25-2.25H4.5zM6 8.25a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 8.25zm0 3.75a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5H6.75A.75.75 0 016 12z" clipRule="evenodd" />
+  </svg>
+);
+
+const FbLiveVideoIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4zM10 15c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm0-4.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z" />
+  </svg>
+);
+
+const FbPhotoIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 14H6l3.5-4.5 2.5 3.01L15.5 11l3.5 4.5zM8.5 9.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+  </svg>
+);
+
+const FbGifIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12.5H9.5v-5H11v5zm-3.5-2H6.5v-1H8v-1H6.5v-1H8V8H5.5v8H8v-2.5zm9 2H15V9.5h3.5V11H16.5v1h1.5v1.5h-1.5v1h2v1z" />
+  </svg>
+);
+
+// ─── Real-time Relative Time Formatter ─────────────────────────────────────────
+
+const formatRelativeTime = (timestamp?: number | string | null, currentNow: number = Date.now()): string => {
+  if (!timestamp) return 'Just now';
+  const numTimestamp = typeof timestamp === 'string' ? Number(timestamp) || Date.parse(timestamp) : timestamp;
+  if (!numTimestamp || isNaN(numTimestamp)) return 'Just now';
+
+  const diffSeconds = Math.max(0, Math.floor((currentNow - numTimestamp) / 1000));
+  if (diffSeconds < 45) return 'Just now';
+  
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 4) return `${diffWeeks}w ago`;
+
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo ago`;
+
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears}y ago`;
+};
+
+// ─── Color Luminance & Contrast Helper ─────────────────────────────────────────
+
+const isColorDark = (hexColor?: string): boolean => {
+  if (!hexColor) return false;
+  const c = hexColor.trim().toLowerCase();
+  if (c === '#701a31' || c === '#c41e3a' || c === '#4d0d1f' || c === '#000000' || c === '#18181b' || c === '#1f2937') return true;
+  if (c === '#ffffff' || c === '#ffc900' || c === '#ff90e8' || c === '#00e599' || c === '#7dd3fc') return false;
+  const hex = c.replace('#', '');
+  if (hex.length === 6) {
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.55;
+  }
+  return false;
+};
+
+// ─── Stacked Reaction Badges ──────────────────────────────────────────────────
+
+const renderStackedReactionBadges = (hasLiked: boolean, likesCount: number) => {
+  if (likesCount <= 0) {
+    return (
+      <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center border border-white shadow-2xs">
+        <Heart className="w-2.5 h-2.5 text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex -space-x-1.5 items-center shrink-0">
+      <div className="w-5 h-5 rounded-full bg-[#f33e5b] flex items-center justify-center border-2 border-white shadow-2xs z-20">
+        <Heart className="w-2.5 h-2.5 text-white fill-white" />
+      </div>
+      {likesCount > 1 && (
+        <div className="w-5 h-5 rounded-full bg-[#1877f2] flex items-center justify-center border-2 border-white shadow-2xs z-10">
+          <FbLikeSvg filled color="#ffffff" className="w-2.5 h-2.5" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface CampusGifItem {
   title: string;
@@ -135,8 +237,24 @@ export const FreedomWall: React.FC = () => {
     setTargetPostId,
   } = useChatStore();
 
-  // Admin Privilege Detection
-  const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
+  // Admin Privilege Detection (Reactive & Multi-Source)
+  const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('capitalk_admin_auth_v1') === 'true' ||
+           Boolean(currentUser?.is_admin || currentUser?.department?.toLowerCase().includes('admin'));
+  });
+
+  useEffect(() => {
+    const checkAdmin = () => {
+      const isAuthAdmin = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
+      const isUserAdmin = Boolean(currentUser?.is_admin || currentUser?.department?.toLowerCase().includes('admin'));
+      setIsAdminUser(Boolean(isAuthAdmin || isUserAdmin));
+    };
+    checkAdmin();
+    window.addEventListener('storage', checkAdmin);
+    return () => window.removeEventListener('storage', checkAdmin);
+  }, [currentUser]);
+
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -185,6 +303,16 @@ export const FreedomWall: React.FC = () => {
 
   const [honeypot, setHoneypot] = useState('');
   const [deviceId, setDeviceId] = useState<string>('');
+  const [openActionMenuPostId, setOpenActionMenuPostId] = useState<string | null>(null);
+
+  // Real-time ticking clock for relative timestamps (e.g. 2m ago, 3h ago)
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
   
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -237,7 +365,7 @@ export const FreedomWall: React.FC = () => {
     return () => clearInterval(interval);
   }, [isAdminUser]);
 
-  const [activeTab, setActiveTab] = useState<'trending' | 'latest' | 'my_notes'>('latest');
+  const [activeTab, setActiveTab] = useState<'trending' | 'latest' | 'my_notes' | 'pending'>('latest');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -571,6 +699,10 @@ export const FreedomWall: React.FC = () => {
     }).length;
   }, [freedomPosts, checkIsMyPost]);
 
+  const pendingNotesCount = React.useMemo(() => {
+    return (freedomPosts || []).filter((p) => !p.song_title && p.status === 'pending').length;
+  }, [freedomPosts]);
+
   const filteredPosts = (freedomPosts || [])
     .filter((post) => {
       // Filter out song dedications (they belong on the Music Wall)
@@ -578,9 +710,14 @@ export const FreedomWall: React.FC = () => {
 
       const isMyPost = checkIsMyPost(post);
 
-      // Pending approval filter: pending notes are only visible to the author or admins
-      if (post.status === 'pending') {
-        if (!isMyPost && !isAdminUser) return false;
+      // Pending Notes tab filter
+      if (activeTab === 'pending') {
+        if (post.status !== 'pending') return false;
+      } else {
+        // In other tabs: pending notes are only visible to their author or admins
+        if (post.status === 'pending' && !isMyPost && !isAdminUser) {
+          return false;
+        }
       }
 
       // My Notes tab filter
@@ -714,184 +851,52 @@ export const FreedomWall: React.FC = () => {
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = isPinnedActive(post);
     const isMyPost = checkIsMyPost(post);
+    const commentsCount = commentsCountMap[post.id] || 0;
+    const isActionMenuOpen = openActionMenuPostId === post.id;
+
+    // Retain user's chosen note color (e.g. #ffc900, #701a31, #ff90e8, #00e599, #7dd3fc, etc.)
+    const cardBgColor = post.color || (isPostAdmin ? '#701a31' : '#ffffff');
+    const isDark = isColorDark(cardBgColor);
 
     return (
-      <div
+      <article
         key={post.id}
         id={`post-${post.id}`}
-        style={{ backgroundColor: post.color || (isPostAdmin ? '#701a31' : '#ffc900') }}
-        className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all flex flex-col justify-between group relative overflow-hidden ${
-          isPinned
-            ? 'border-4 border-black ring-4 ring-[#ffc900] shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
-            : isPostAdmin
-            ? 'border-4 border-[#ffc900] ring-4 ring-[#701a31]/60 shadow-[0_10px_35px_rgba(112,26,49,0.7)] text-white'
-            : 'border-black text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]'
-        }`}
+        style={{ backgroundColor: cardBgColor }}
+        className={`sm:rounded-xl shadow-xs border-y sm:border overflow-visible relative transition-all duration-200 ${
+          isDark
+            ? 'border-black/20 text-white shadow-md'
+            : 'border-[#e4e6eb] text-[#050505]'
+        } ${isPinned ? 'ring-2 ring-amber-400/90' : ''}`}
       >
-        {/* Silk WebGL background layer for Admin Notes */}
-        {isPostAdmin && (
-          <div className="absolute inset-0 pointer-events-none z-0 opacity-90 overflow-hidden rounded-2xl sm:rounded-3xl">
-            <Silk
-              speed={5}
-              scale={1}
-              color="#701a31"
-              noiseIntensity={1.5}
-              rotation={0}
-              className="w-full h-full"
-            />
+        {/* Pending Note Banner with 1-Click Approve Button for Admin */}
+        {post.status === 'pending' && (
+          <div className="bg-amber-500/20 border-b border-amber-500/30 px-3.5 py-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-700" />
+              <span>Pending Review</span>
+            </div>
+            {isAdminUser && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  approveFreedomPost(post.id);
+                }}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Approve note to make it visible to all students"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Approve Note</span>
+              </button>
+            )}
           </div>
         )}
 
-        <div className="relative z-10 flex flex-col justify-between h-full min-w-0">
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-2 sm:mb-3">
-              <div className="flex flex-wrap items-center gap-1 sm:gap-2 min-w-0">
-                {post.status === 'pending' && (
-                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-0.5 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1 animate-pulse" title="Awaiting Admin Review before public display">
-                    PENDING REVIEW
-                  </span>
-                )}
-                {isPinned ? (
-                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                    PINNED NOTE
-                  </span>
-                ) : isPostAdmin ? (
-                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-[#ffc900] text-black text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs flex items-center gap-1">
-                    ADMIN NOTE
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 sm:px-2.5 bg-black text-white text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0">
-                    {post.department.replace('College of ', '')}
-                  </span>
-                )}
-                {isMyPost && !isPinned && !isPostAdmin && (
-                  <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] sm:text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs" title="Created by you">
-                    YOU
-                  </span>
-                )}
-              </div>
-              <span className={`text-[9px] sm:text-[10px] font-bold shrink-0 ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
-                {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-
-            <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-2.5 sm:mb-4 ${isPostAdmin ? 'text-white drop-shadow-sm' : 'text-black'}`}>
-              "{post.message}"
-            </p>
-
-            {/* Attached Image / Animated GIF Media Display */}
-            {post.image_url && (
-              <div className="mb-3 rounded-2xl border-2 border-black overflow-hidden bg-black/5 relative group/media shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <img
-                  src={post.image_url}
-                  alt="Campus Note Attachment"
-                  className="w-full max-h-56 sm:max-h-72 object-cover object-center rounded-xl transition-transform duration-300 group-hover/media:scale-[1.02] cursor-pointer"
-                  onClick={() => setZoomedImage(post.image_url || null)}
-                  loading="lazy"
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setZoomedImage(post.image_url || null);
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-white/95 hover:bg-white text-black text-[10px] font-black rounded-lg border border-black shadow-xs opacity-0 group-hover/media:opacity-100 transition-opacity cursor-pointer flex items-center gap-1"
-                  title="View full image"
-                >
-                  <Eye className="w-3 h-3" />
-                  <span>View</span>
-                </button>
-                {post.image_type === 'gif' && (
-                  <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/85 text-[#ffc900] text-[9px] font-black uppercase rounded-md border border-black shadow-xs pointer-events-none">
-                    GIF
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Freedom Poll Widget */}
-            {post.poll_options && post.poll_options.length > 0 && (() => {
-              const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'guest_anon');
-              const totalVotes = post.poll_options.reduce((sum, opt) => sum + (opt.votes_count || 0), 0);
-              const userVotedOption = post.poll_options.find((opt) => opt.voted_users?.includes(currentUserId));
-              const hasUserVoted = !!userVotedOption;
-
-              return (
-                <div className="my-2.5 p-2.5 sm:p-3 rounded-xl border-2 border-black bg-white/95 text-black shadow-xs">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-black flex items-center gap-1.5 truncate">
-                      <BarChart2 className="w-3.5 h-3.5 text-[#701a31] shrink-0" />
-                      <span className="truncate">{post.poll_question || 'Campus Poll'}</span>
-                    </span>
-                    <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-black text-white rounded-full shrink-0">
-                      {hasUserVoted ? `${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}` : 'Tap option to vote'}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {post.poll_options.map((opt) => {
-                      const optVotes = opt.votes_count || 0;
-                      const percentage = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
-                      const isMySelection = userVotedOption?.id === opt.id;
-
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => voteFreedomPoll(post.id, opt.id)}
-                          className={`w-full relative text-left p-1.5 sm:p-2 rounded-lg border-2 border-black transition-all overflow-hidden ${
-                            isMySelection
-                              ? 'bg-amber-200 border-black ring-2 ring-black font-black'
-                              : 'bg-gray-50 hover:bg-amber-100 hover:border-black'
-                          }`}
-                        >
-                          {/* Progress bar background — ONLY show if user has voted */}
-                          {hasUserVoted && (
-                            <div
-                              className={`absolute top-0 bottom-0 left-0 transition-all duration-500 ${
-                                isMySelection ? 'bg-[#ffc900] opacity-60' : 'bg-gray-300 opacity-40'
-                              }`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          )}
-
-                          <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] sm:text-xs font-bold text-black">
-                            <div className="flex items-center gap-1.5 truncate">
-                              {isMySelection && <CheckCircle className="w-3.5 h-3.5 text-black shrink-0 fill-black/20" />}
-                              <span className="truncate">{opt.text}</span>
-                            </div>
-
-                            {/* Option percentages and vote counts — ONLY show if user has voted */}
-                            {hasUserVoted ? (
-                              <div className="flex items-center gap-1 shrink-0 text-[10px] sm:text-[11px] font-extrabold text-black">
-                                <span>{percentage}%</span>
-                                <span className="text-black/70 text-[9px] sm:text-[10px]">({optVotes})</span>
-                              </div>
-                            ) : (
-                              <div className="shrink-0 text-[9px] sm:text-[10px] font-extrabold text-black/70 uppercase">
-                                Vote
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {hasUserVoted ? (
-                    <p className="text-[9px] sm:text-[10px] font-extrabold text-[#701a31] text-center mt-1.5">
-                      ✓ You voted in this poll
-                    </p>
-                  ) : (
-                    <p className="text-[9px] sm:text-[10px] font-bold text-black/70 text-center mt-1.5 italic">
-                      Vote to reveal result
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
-          <div className={`pt-2 sm:pt-3 border-t flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 ${isPostAdmin ? 'border-white/30' : 'border-black/20'}`}>
+        {/* Post Header */}
+        <div className="p-3.5 pb-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Profile Avatar */}
             <button
               type="button"
               onClick={() => setViewingProfile({
@@ -902,604 +907,800 @@ export const FreedomWall: React.FC = () => {
                 is_admin: isPostAdmin,
                 author_id: post.author_id,
               })}
-              className="flex items-center gap-1.5 group/avatar text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
-              title="Click to view student profile"
+              className="relative shrink-0 cursor-pointer group/avatar"
+              title="View student profile"
             >
               <img
                 src={post.author_avatar || getAvatarForPseudonym(post.author_alias || 'Anon')}
                 alt={post.author_alias}
-                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/avatar:scale-105 transition-transform"
+                className={`w-10 h-10 rounded-full border object-cover group-hover/avatar:scale-105 transition-transform ${
+                  isDark ? 'border-white/40 bg-white/10' : 'border-[#e4e6eb] bg-[#f0f2f5]'
+                }`}
                 onError={(e) => {
                   (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(post.author_alias || 'Anon'));
                 }}
               />
-              <span className={`text-[10px] sm:text-xs font-extrabold italic truncate max-w-[120px] sm:max-w-none group-hover/avatar:underline ${isPostAdmin ? 'text-[#ffc900]' : 'text-black/80'}`}>
-                ~ {post.author_alias || 'Anon Student'}
-              </span>
+              {isPostAdmin && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1877f2] border-2 border-white flex items-center justify-center text-[9px] text-white font-bold" title="Official Admin">
+                  ✓
+                </div>
+              )}
             </button>
 
-            <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 shrink-0">
-              {isAdminUser && post.status === 'pending' && (
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => approveFreedomPost(post.id)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-2 border-black bg-emerald-500 text-white font-black text-[9px] sm:text-xs hover:bg-emerald-600 transition-all shadow-xs active:scale-95 shrink-0"
-                  title="Admin: Approve Note & Publish to Wall"
-                >
-                  <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  <span>Approve</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setSelectedPostForReport(post)}
-                className="inline-flex items-center justify-center w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full border-2 border-black bg-white text-black hover:bg-rose-50 hover:text-rose-600 transition-all shadow-xs shrink-0"
-                title="Report this note to admin"
-              >
-                <Flag className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              </button>
-
-              {isAdminUser && (
-                <button
-                  type="button"
-                  onClick={() => togglePinFreedomPost(post.id)}
-                  className={`inline-flex items-center justify-center w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full border-2 border-black transition-all shadow-xs shrink-0 ${
-                    isPinned
-                      ? 'bg-[#ffc900] text-black border-black shadow-md scale-105'
-                      : 'bg-white text-black hover:bg-amber-100'
+                  onClick={() => setViewingProfile({
+                    username: post.author_alias || 'Anon Student',
+                    department: post.department || 'General',
+                    avatar_url: post.author_avatar || getAvatarForPseudonym(post.author_alias || 'Anon'),
+                    bio: post.author_bio,
+                    is_admin: isPostAdmin,
+                    author_id: post.author_id,
+                  })}
+                  className={`font-bold text-[14.5px] hover:underline cursor-pointer truncate max-w-[170px] sm:max-w-[240px] text-left leading-tight ${
+                    isDark ? 'text-white' : 'text-[#050505]'
                   }`}
-                  title={isPinned ? "Admin: Unpin Note" : "Admin: Pin Note to top"}
                 >
-                  <Pin className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isPinned ? 'fill-black' : ''}`} />
+                  {post.author_alias || 'Anon Student'}
                 </button>
-              )}
 
-              {(isAdminUser || isMyPost) && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedPostForDelete(post)}
-                  className="inline-flex items-center justify-center w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full border-2 border-black bg-red-500 text-white hover:bg-red-600 transition-all shadow-xs shrink-0"
-                  title={isMyPost && !isAdminUser ? "Delete your note" : "Admin: Delete Note"}
-                >
-                  <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                </button>
-              )}
+                {isPinned && (
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0 flex items-center gap-1 border ${
+                    isDark ? 'bg-white/20 text-white border-white/30' : 'bg-[#ffc900]/30 text-amber-950 border-amber-300'
+                  }`}>
+                    <Pin className="w-2.5 h-2.5 fill-current" />
+                    Pinned
+                  </span>
+                )}
+                {isPostAdmin && !isPinned && (
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0 border ${
+                    isDark ? 'bg-white/20 text-white border-white/30' : 'bg-[#701a31]/10 text-[#701a31] border-[#701a31]/30'
+                  }`}>
+                    Official
+                  </span>
+                )}
+                {isMyPost && !isPinned && !isPostAdmin && (
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0 border ${
+                    isDark ? 'bg-white/20 text-white border-white/30' : 'bg-black/5 text-[#050505] border-black/10'
+                  }`}>
+                    You
+                  </span>
+                )}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => openCommentsModal(post)}
-                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border-2 border-black bg-white text-[10px] sm:text-xs font-extrabold text-black hover:bg-black hover:text-white transition-all shadow-xs shrink-0"
-                title="View & Post Comments"
-              >
-                <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span>{commentsCountMap[post.id] || 0}</span>
-              </button>
-
-              {/* Heart button — long press (mobile) to see reactors, tap to like */}
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button
-                  type="button"
-                  onMouseDown={() => handleHeartPressStart(post)}
-                  onMouseUp={() => handleHeartPressEnd(post)}
-                  onMouseLeave={() => { if (heartPressTimer.current) clearTimeout(heartPressTimer.current); }}
-                  onTouchStart={() => handleHeartPressStart(post)}
-                  onTouchEnd={(e) => { e.preventDefault(); handleHeartPressEnd(post); }}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className={`inline-flex items-center gap-1 pl-2 pr-1.5 sm:pl-3 sm:pr-2 py-0.5 sm:py-1 rounded-l-full border-2 border-r-0 text-[10px] sm:text-xs font-extrabold transition-all shadow-sm select-none ${
-                    hasLiked
-                      ? 'bg-rose-500 text-white border-black shadow-md scale-105'
-                      : 'bg-white border-black text-black hover:bg-black hover:text-white'
-                  }`}
-                  title="Tap to like · Hold to see who liked"
-                >
-                  <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
-                </button>
-                {/* Likes count — click on desktop to open reactors */}
-                <button
-                  type="button"
-                  onClick={() => setReactorsPost(post)}
-                  className={`inline-flex items-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-r-full border-2 border-l-0 text-[10px] sm:text-xs font-extrabold transition-all shadow-sm select-none ${
-                    hasLiked
-                      ? 'bg-rose-500 text-white border-black shadow-md scale-105'
-                      : 'bg-white border-black text-black hover:bg-[#fff1f3] hover:text-rose-600'
-                  }`}
-                  title="See who liked this note"
-                >
-                  {post.likes_count}
-                </button>
+              <div className={`flex items-center gap-1 text-[12px] leading-tight mt-0.5 ${
+                isDark ? 'text-white/80' : 'text-[#65676b]'
+              }`}>
+                {!isPostAdmin && post.department && !post.department.toLowerCase().includes('admin') && (
+                  <>
+                    <span className="font-normal truncate max-w-[130px] sm:max-w-[180px]">
+                      {post.department.replace('College of ', '')}
+                    </span>
+                    <span>·</span>
+                  </>
+                )}
+                <span>{formatRelativeTime(post.created_at, now)}</span>
+                <span>·</span>
+                <Globe className={`w-3 h-3 shrink-0 ${isDark ? 'text-white/80' : 'text-[#65676b]'}`} />
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  };
 
-  return (
-    <div className="w-full max-w-6xl mx-auto py-2 sm:py-8 px-2 sm:px-6 animate-in fade-in duration-200">
-      {/* Top Banner Navigation & Header */}
-      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-4 bg-white border border-[#d1d5dc] p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl shadow-2xs">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => goBack()}
-            className="p-1.5 sm:p-2 bg-gray-50 hover:bg-black hover:text-white border border-[#d1d5dc] rounded-full transition-all shrink-0 cursor-pointer"
-            title="Back"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-          </button>
-          <span className="px-3 py-1 bg-[#701a31] text-white text-xs font-extrabold rounded-full uppercase tracking-wider">
-            Campus Wall
-          </span>
-        </div>
+          {/* Header Right Actions: Instant Approve Button + 3-Dots More Options Menu */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setOpenActionMenuPostId(isActionMenuOpen ? null : post.id)}
+                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  isDark
+                    ? 'text-white/80 hover:text-white hover:bg-white/15'
+                    : 'text-[#65676b] hover:text-[#050505] hover:bg-black/5'
+                }`}
+                title="Post options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => setViewState('add_note')}
-            className="px-3.5 py-1.5 bg-black hover:bg-zinc-800 text-white text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 flex items-center justify-center gap-1"
-          >
-            <span>Share</span>
-          </button>
-          <button
-            type="button"
-            onClick={startSearch}
-            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-black text-xs font-bold rounded-full border border-[#d1d5dc] transition-colors cursor-pointer"
-          >
-            <span>Chat</span>
-          </button>
-        </div>
-      </div>
+              {isActionMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setOpenActionMenuPostId(null)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-[#e4e6eb] rounded-xl shadow-lg z-50 py-1 text-xs font-semibold animate-in fade-in zoom-in-95 duration-100 overflow-hidden text-[#050505]">
+                    {isAdminUser && post.status === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenActionMenuPostId(null);
+                          approveFreedomPost(post.id);
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-[#f0f2f5] text-emerald-600 flex items-center gap-2 cursor-pointer"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Approve Note</span>
+                      </button>
+                    )}
 
-      {/* Filter & Search Bar — Collapsible search on mobile */}
-      <div className="mb-3 sm:mb-6 bg-white p-2 sm:p-2.5 border border-[#d1d5dc] rounded-xl sm:rounded-2xl shadow-2xs transition-all">
-        {isSearchExpanded || searchQuery ? (
-          /* Expanded Search Input Mode */
-          <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search campus notes..."
-                className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-[#fbfbfa] border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black focus:bg-white transition-colors"
-                autoFocus
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-black cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                    {isAdminUser && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenActionMenuPostId(null);
+                          togglePinFreedomPost(post.id);
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-[#f0f2f5] text-[#050505] flex items-center gap-2 cursor-pointer"
+                      >
+                        <Pin className="w-3.5 h-3.5" />
+                        <span>{isPinned ? 'Unpin from Top' : 'Pin to Top'}</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenActionMenuPostId(null);
+                        setSelectedPostForReport(post);
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] flex items-center gap-2 cursor-pointer"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                      <span>Report Note</span>
+                    </button>
+
+                    {(isAdminUser || isMyPost) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenActionMenuPostId(null);
+                          setSelectedPostForDelete(post);
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-rose-50 text-rose-600 flex items-center gap-2 cursor-pointer border-t border-gray-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Note</span>
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setIsSearchExpanded(false);
-              }}
-              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-black text-xs font-bold rounded-lg border border-[#d1d5dc] shrink-0 cursor-pointer transition-colors"
-            >
-              Cancel
-            </button>
           </div>
-        ) : (
-          /* Default Compact View: Tabs + Search Trigger + Dept Filter */
-          <div className="flex items-center justify-between gap-1.5 overflow-x-auto scrollbar-none">
-            {/* Tab Selection */}
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab('latest')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
-                  activeTab === 'latest'
-                    ? 'bg-black text-white shadow-xs'
-                    : 'text-gray-600 hover:text-black hover:bg-gray-100'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Latest</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('trending')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
-                  activeTab === 'trending'
-                    ? 'bg-black text-white shadow-xs'
-                    : 'text-gray-600 hover:text-black hover:bg-gray-100'
-                }`}
-              >
-                <Flame className="w-3.5 h-3.5 text-amber-400" />
-                <span>Trending</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('my_notes')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
-                  activeTab === 'my_notes'
-                    ? 'bg-black text-white shadow-xs'
-                    : 'text-gray-600 hover:text-black hover:bg-gray-100'
-                }`}
-              >
-                <span>Your notes</span>
-              </button>
-            </div>
+        </div>
 
-            {/* Right Actions: Search Icon Trigger + Department Filter Icon Button */}
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSearchExpanded(true);
-                  setTimeout(() => searchInputRef.current?.focus(), 50);
-                }}
-                className="px-2.5 py-1.5 bg-[#fbfbfa] hover:bg-gray-100 text-gray-700 hover:text-black border border-[#d1d5dc] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Search campus notes"
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Search</span>
-              </button>
+        {/* Post Message Body */}
+        <div className={`px-3.5 sm:px-4 pb-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+          isDark ? 'text-white' : 'text-[#050505]'
+        }`}>
+          {post.message}
+        </div>
 
-              <button
-                type="button"
-                onClick={() => setShowDeptModal(true)}
-                className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer border relative ${
-                  departmentFilter !== 'all'
-                    ? 'bg-black text-white border-black'
-                    : 'bg-[#fbfbfa] hover:bg-gray-100 text-gray-700 hover:text-black border-[#d1d5dc]'
-                }`}
-                title={departmentFilter === 'all' ? 'Filter by department' : `Filtering by ${departmentFilter.replace('College of ', '')}`}
-                aria-label="Filter by department"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                {departmentFilter !== 'all' && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ff90e8] ring-1 ring-black" />
-                )}
-              </button>
+        {/* Dedicated Song Embed if present */}
+        {post.song_title && (
+          <div className={`mx-3.5 sm:mx-4 mb-3 p-2.5 rounded-xl flex items-center gap-2.5 border ${
+            isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-[#f0f2f5] border-[#e4e6eb] text-[#050505]'
+          }`}>
+            {post.song_image_url && (
+              <img
+                src={post.song_image_url}
+                alt="Song Cover"
+                className="w-9 h-9 rounded-lg object-cover border border-[#e4e6eb]"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className={`text-[12.5px] font-bold truncate ${isDark ? 'text-white' : 'text-[#050505]'}`}>
+                {post.song_title}
+              </p>
+              <p className={`text-[11px] truncate ${isDark ? 'text-white/80' : 'text-[#65676b]'}`}>
+                {post.song_artist || 'Unknown Artist'}
+              </p>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Minimalist Department Filter Modal (No Emojis) */}
-      {showDeptModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
-          onClick={() => setShowDeptModal(false)}
-        >
-          <div
-            className="bg-white border border-[#d1d5dc] rounded-2xl max-w-sm w-full p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col font-sans text-black max-h-[85vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
-              <h3 className="text-sm sm:text-base font-extrabold text-black">
-                Filter by Department
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowDeptModal(false)}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto py-2 space-y-1 custom-scrollbar pr-1 flex-1">
-              {/* All Departments Option */}
-              <button
-                type="button"
-                onClick={() => {
-                  setDepartmentFilter('all');
-                  setShowDeptModal(false);
-                }}
-                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
-                  departmentFilter === 'all'
-                    ? 'bg-black text-white'
-                    : 'bg-white hover:bg-gray-100 text-black'
-                }`}
-              >
-                <span>All Departments</span>
-                {departmentFilter === 'all' && <Check className="w-4 h-4 text-white" />}
-              </button>
-
-              {/* Individual Departments (No Emojis) */}
-              {CU_DEPARTMENTS.map((dept) => {
-                const isSelected = departmentFilter === dept;
-                return (
-                  <button
-                    key={dept}
-                    type="button"
-                    onClick={() => {
-                      setDepartmentFilter(dept);
-                      setShowDeptModal(false);
-                    }}
-                    className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
-                      isSelected
-                        ? 'bg-black text-white'
-                        : 'bg-white hover:bg-gray-100 text-black'
-                    }`}
-                  >
-                    <span>{dept.replace('College of ', '')}</span>
-                    {isSelected && <Check className="w-4 h-4 text-white" />}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Attached Image / Animated GIF Media */}
+        {post.image_url && (
+          <div className={`relative w-full bg-[#1c1e21] overflow-hidden select-none border-y ${
+            isDark ? 'border-white/20' : 'border-[#e4e6eb]'
+          }`}>
+            <img
+              src={post.image_url}
+              alt="Campus Note Attachment"
+              className="w-full h-auto object-contain max-h-[540px] mx-auto block cursor-pointer transition-transform duration-200 hover:opacity-95"
+              onClick={() => setZoomedImage(post.image_url || null)}
+              loading="lazy"
+              draggable={false}
+            />
+            {post.image_type === 'gif' && (
+              <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/80 text-white text-[10px] font-bold rounded-md uppercase tracking-wider pointer-events-none backdrop-blur-xs">
+                GIF
+              </span>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Freedom Wall Content */}
-      {filteredPosts.length === 0 ? (
-        <div className="text-center py-10 sm:py-16 bg-white border-2 border-black rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#ffc900] border-2 border-black flex items-center justify-center mx-auto mb-3 text-xl sm:text-2xl">
-            📜
-          </div>
-          <h3 className="text-lg sm:text-xl font-extrabold text-black">
-            {activeTab === 'my_notes' ? 'No Created Notes Yet' : 'No Campus Wall Posts Found'}
-          </h3>
-          <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
-            {activeTab === 'my_notes'
-              ? "You haven't created any notes on the Campus Wall yet. Click below to share your first thought or confession!"
-              : searchQuery || departmentFilter !== 'all'
-              ? 'No posts match your active search filter. Try clearing filters!'
-              : 'Be the very first CU student to post an anonymous confession or thought on the wall!'}
-          </p>
-          <button
-            type="button"
-            onClick={() => setViewState('add_note')}
-            className="mt-4 btn-gumroad-primary text-xs px-5 py-2.5 cursor-pointer"
-          >
-            <span>Share</span>
-          </button>
-        </div>
-      ) : (
-        <div id="posts-feed-container" className="scroll-mt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
-            {paginatedPosts.map((post) => renderPostCard(post))}
-          </div>
+        {/* Campus Poll Widget */}
+        {post.poll_options && post.poll_options.length > 0 && (() => {
+          const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'guest_anon');
+          const totalVotes = post.poll_options.reduce((sum, opt) => sum + (opt.votes_count || 0), 0);
+          const userVotedOption = post.poll_options.find((opt) => opt.voted_users?.includes(currentUserId));
+          const hasUserVoted = !!userVotedOption;
 
-          {/* Pagination Controls */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#f4f4f0] border-2 border-black rounded-2xl p-3 sm:p-4 shadow-xs">
-            <span className="text-xs font-bold text-black text-center sm:text-left">
-              Showing <span className="font-extrabold">{((currentPage - 1) * NOTES_PER_PAGE) + 1}</span> - <span className="font-extrabold">{Math.min(currentPage * NOTES_PER_PAGE, filteredPosts.length)}</span> of <span className="font-extrabold">{filteredPosts.length}</span> notes
-            </span>
+          return (
+            <div className={`mx-3.5 sm:mx-4 my-2.5 p-3 rounded-xl border ${
+              isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-[#f0f2f5]/60 border-[#e4e6eb] text-[#050505]'
+            }`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 truncate ${
+                  isDark ? 'text-white/90' : 'text-[#65676b]'
+                }`}>
+                  <BarChart2 className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-white' : 'text-[#1877f2]'}`} />
+                  <span className="truncate">{post.poll_question || 'Campus Poll'}</span>
+                </span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 border ${
+                  isDark ? 'bg-white/20 text-white border-white/30' : 'bg-white text-[#65676b] border-[#e4e6eb]'
+                }`}>
+                  {hasUserVoted ? `${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}` : 'Tap option to vote'}
+                </span>
+              </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1">
-              <button
-                type="button"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage <= 1}
-                className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl border-2 border-black font-black text-sm sm:text-base flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-black hover:text-white text-black active:scale-95 shadow-xs shrink-0"
-                title="Previous Page (<)"
-              >
-                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
-              </button>
+              <div className="space-y-1.5">
+                {post.poll_options.map((opt) => {
+                  const optVotes = opt.votes_count || 0;
+                  const percentage = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
+                  const isMySelection = userVotedOption?.id === opt.id;
 
-              <div className="flex items-center gap-1">
-                {visiblePageNumbers.map((pageNum) => {
-                  const isDisabled = pageNum > totalPages;
-                  const isCurrent = pageNum === currentPage;
                   return (
                     <button
-                      key={pageNum}
+                      key={opt.id}
                       type="button"
-                      onClick={() => !isDisabled && handlePageChange(pageNum)}
-                      disabled={isDisabled}
-                      className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl text-xs sm:text-sm font-extrabold transition-all border-2 border-black flex items-center justify-center shadow-xs ${
-                        isCurrent
-                          ? 'bg-black text-white border-black scale-105 shadow-sm'
-                          : isDisabled
-                          ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-40'
-                          : 'bg-white text-black hover:bg-[#ffc900] active:scale-95'
+                      onClick={() => voteFreedomPoll(post.id, opt.id)}
+                      className={`w-full relative text-left p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${
+                        isMySelection
+                          ? isDark
+                            ? 'bg-white/30 border-white text-white font-bold ring-1 ring-white'
+                            : 'bg-blue-50 border-[#1877f2] ring-1 ring-[#1877f2] text-[#050505]'
+                          : isDark
+                          ? 'bg-white/15 hover:bg-white/25 border-white/20 text-white'
+                          : 'bg-white hover:bg-gray-50 border-[#e4e6eb] text-[#050505]'
                       }`}
                     >
-                      {pageNum}
+                      {/* Progress Bar Fill */}
+                      {hasUserVoted && (
+                        <div
+                          className={`absolute top-0 bottom-0 left-0 transition-all duration-500 ${
+                            isMySelection
+                              ? isDark ? 'bg-white/40' : 'bg-[#1877f2]/20'
+                              : isDark ? 'bg-white/20' : 'bg-gray-200/70'
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      )}
+
+                      <div className="relative z-10 flex items-center justify-between gap-2 text-xs font-semibold">
+                        <div className="flex items-center gap-1.5 truncate">
+                          {isMySelection && <CheckCircle className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-white' : 'text-[#1877f2]'}`} />}
+                          <span className="truncate">{opt.text}</span>
+                        </div>
+
+                        {hasUserVoted ? (
+                          <div className="flex items-center gap-1 shrink-0 text-[11px] font-bold">
+                            <span>{percentage}%</span>
+                            <span className={`font-normal text-[10px] ${isDark ? 'text-white/80' : 'text-[#65676b]'}`}>({optVotes})</span>
+                          </div>
+                        ) : (
+                          <div className={`shrink-0 text-[10px] font-bold uppercase ${isDark ? 'text-white' : 'text-[#1877f2]'}`}>
+                            Vote
+                          </div>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
               </div>
+              {hasUserVoted ? (
+                <p className={`text-[10px] font-bold text-center mt-1.5 ${isDark ? 'text-white' : 'text-[#1877f2]'}`}>
+                  ✓ You voted in this poll
+                </p>
+              ) : (
+                <p className={`text-[10px] text-center mt-1.5 italic ${isDark ? 'text-white/80' : 'text-[#65676b]'}`}>
+                  Vote to reveal results
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
+        {/* Post Metrics Bar */}
+        <div className={`px-3.5 py-2 flex items-center justify-between text-[13px] border-t ${
+          isDark ? 'border-white/15 text-white/80' : 'border-black/10 text-[#65676b]'
+        }`}>
+          <button
+            type="button"
+            onClick={() => setReactorsPost(post)}
+            className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
+          >
+            {renderStackedReactionBadges(hasLiked, post.likes_count)}
+            <span className={`font-medium text-[13px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}>
+              {post.likes_count > 0 ? `${post.likes_count} ${post.likes_count === 1 ? 'reaction' : 'reactions'}` : 'Be the first to react'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openCommentsModal(post)}
+            className={`hover:underline cursor-pointer font-medium text-[13px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}
+          >
+            {commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}
+          </button>
+        </div>
+
+        {/* Action Buttons Bar (Like / Comment) */}
+        <div className={`px-2 py-1 flex items-center justify-between border-t ${
+          isDark ? 'border-white/15' : 'border-black/10'
+        }`}>
+          {/* Like Button */}
+          <button
+            type="button"
+            onMouseDown={() => handleHeartPressStart(post)}
+            onMouseUp={() => handleHeartPressEnd(post)}
+            onMouseLeave={() => { if (heartPressTimer.current) clearTimeout(heartPressTimer.current); }}
+            onTouchStart={() => handleHeartPressStart(post)}
+            onTouchEnd={(e) => { e.preventDefault(); handleHeartPressEnd(post); }}
+            onContextMenu={(e) => { e.preventDefault(); setReactorsPost(post); }}
+            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-[13.5px] font-bold transition-colors cursor-pointer select-none ${
+              hasLiked
+                ? isDark
+                  ? 'text-rose-300 hover:bg-white/10'
+                  : 'text-[#f33e5b] hover:bg-black/5'
+                : isDark
+                ? 'text-white/80 hover:bg-white/10 hover:text-white'
+                : 'text-[#65676b] hover:bg-black/5 hover:text-[#050505]'
+            }`}
+            title="Tap to like · Hold to see who liked"
+          >
+            <Heart className={`w-4 h-4 ${hasLiked ? (isDark ? 'fill-rose-300 text-rose-300' : 'fill-[#f33e5b] text-[#f33e5b]') : ''}`} />
+            <span>{hasLiked ? 'Liked' : 'Like'}</span>
+          </button>
+
+          {/* Comment Button */}
+          <button
+            type="button"
+            onClick={() => openCommentsModal(post)}
+            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-[13.5px] font-bold transition-colors cursor-pointer select-none ${
+              isDark
+                ? 'text-white/80 hover:bg-white/10 hover:text-white'
+                : 'text-[#65676b] hover:bg-black/5 hover:text-[#050505]'
+            }`}
+          >
+            <FbCommentSvg className="w-4 h-4" />
+            <span>Comment</span>
+          </button>
+        </div>
+      </article>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f0f2f5] text-[#050505] flex flex-col font-sans pb-16 sm:pb-8 pt-2 sm:pt-4 px-0 sm:px-4">
+      {/* ── Main Feed Column (Matching MidtermSzn max-w-[620px]) ────────────── */}
+      <main className="flex-1 max-w-[620px] mx-auto w-full space-y-3 sm:space-y-4">
+
+        {/* ── Facebook-Style "What's on your mind?" Bar (Matching user image) ──── */}
+        <div className="bg-white p-2.5 sm:p-3 rounded-full flex items-center gap-2.5 sm:gap-3 transition-all">
+          {/* User Avatar */}
+          <button
+            type="button"
+            onClick={() => setViewState('add_note')}
+            className="shrink-0 relative group/avatar cursor-pointer"
+            title="Post a Note"
+          >
+            <img
+              src={currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg')}
+              alt={currentUser?.username || 'You'}
+              className="w-10 h-10 rounded-full object-cover border border-[#393a3b] bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity"
+              onError={(e) => {
+                (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(currentUser?.username || 'Anon'));
+              }}
+            />
+          </button>
+
+          {/* Capsule Input Bar */}
+          <button
+            type="button"
+            onClick={() => setViewState('add_note')}
+            className="flex-1 bg-gray transition-colors rounded-full px-4 py-2.5 text-left text-[#b0b3b8] hover:text-black text-[14px] sm:text-[15px] font-normal truncate cursor-pointer flex items-center"
+          >
+            <span className="truncate">
+              What&apos;s on your mind, {currentUser?.username || 'July Franz'}?
+            </span>
+          </button>
+        </div>
+
+        {/* ── Filter Tabs & Search Bar ────────────────────────────────────────── */}
+        <div className="bg-white border-y sm:border border-[#e4e6eb] sm:rounded-xl p-2 sm:p-2.5 shadow-xs transition-all">
+          {isSearchExpanded || searchQuery ? (
+            <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-[#65676b] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search notes, topics, aliases..."
+                  className="w-full pl-9 pr-8 py-1.5 text-[13px] bg-[#f0f2f5] border border-[#e4e6eb] rounded-lg font-medium text-[#050505] focus:outline-none focus:border-[#1877f2] focus:bg-white transition-colors"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-[#65676b] hover:text-[#050505] cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage >= totalPages}
-                className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl border-2 border-black font-black text-sm sm:text-base flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-black hover:text-white text-black active:scale-95 shadow-xs shrink-0"
-                title="Next Page (>)"
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchExpanded(false);
+                }}
+                className="px-3 py-1.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold rounded-lg border border-[#e4e6eb] shrink-0 cursor-pointer transition-colors"
               >
-                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
+                Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Comments — Ultra-Premium Full-Screen Panel (Gumroad DESIGN.md - Borderless Edition) */}
-      {selectedPostForComments && (
-        <div className="fixed inset-0 z-[100] bg-[#f4f4f0] flex flex-col animate-in fade-in duration-200">
-
-          {/* ── Top Navigation Bar ── Cream canvas strip */}
-          <div className="h-14 bg-[#f4f4f0] shrink-0">
-            <div className="max-w-[1200px] h-full mx-auto px-4 sm:px-6 md:px-8 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="font-bold text-[18px] text-[#000000] tracking-tight leading-none">
-                  Campus Wall
-                </h2>
-                {/* Nav Pill (Active) */}
-                <span className="bg-[#000000] text-white text-[12px] font-medium px-3 py-1 rounded-full uppercase tracking-wider hidden sm:inline-block">
-                  Thread
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Stat Badge */}
-                <div className="bg-white rounded-full px-3 py-1 text-[13px] font-bold text-[#000000] hidden sm:flex items-center gap-1.5 shadow-xs">
-                  <span className="w-2 h-2 rounded-full bg-[#ffc900]" />
-                  <span>{commentsList.length} Comments</span>
-                </div>
-
-                {/* Close Button */}
+          ) : (
+            <div className="flex items-center justify-between gap-1.5 overflow-x-auto scrollbar-none">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setSelectedPostForComments(null)}
-                  className="flex items-center justify-center w-9 h-9 rounded-full bg-white text-[#000000] hover:bg-black hover:text-white transition-colors shadow-xs"
+                  onClick={() => setActiveTab('latest')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
+                    activeTab === 'latest'
+                      ? 'bg-[#1877f2] text-white shadow-xs'
+                      : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
+                  }`}
                 >
-                  <X className="w-5 h-5" />
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Latest</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('trending')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
+                    activeTab === 'trending'
+                      ? 'bg-[#1877f2] text-white shadow-xs'
+                      : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
+                  }`}
+                >
+                  <Flame className={`w-3.5 h-3.5 ${activeTab === 'trending' ? 'text-amber-300' : 'text-[#f7b125]'}`} />
+                  <span>Trending</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('my_notes')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
+                    activeTab === 'my_notes'
+                      ? 'bg-[#1877f2] text-white shadow-xs'
+                      : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
+                  }`}
+                >
+                  <span>Your notes</span>
+                </button>
+
+                {/* Admin Pending Review Tab */}
+                {isAdminUser && pendingNotesCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('pending')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
+                      activeTab === 'pending'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Pending ({pendingNotesCount})</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSearchExpanded(true);
+                    setTimeout(() => searchInputRef.current?.focus(), 50);
+                  }}
+                  className="px-2.5 py-1.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] border border-[#e4e6eb] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Search campus notes"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Search</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDeptModal(true)}
+                  className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer border relative ${
+                    departmentFilter !== 'all'
+                      ? 'bg-[#1877f2] text-white border-[#1877f2]'
+                      : 'bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] border-[#e4e6eb]'
+                  }`}
+                  title={departmentFilter === 'all' ? 'Filter by department' : `Filtering by ${departmentFilter.replace('College of ', '')}`}
+                  aria-label="Filter by department"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  {departmentFilter !== 'all' && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#f33e5b] ring-2 ring-white" />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Minimalist Department Filter Modal */}
+        {showDeptModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+            onClick={() => setShowDeptModal(false)}
+          >
+            <div
+              className="bg-white border border-[#e4e6eb] rounded-2xl max-w-sm w-full p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col font-sans text-[#050505] max-h-[85vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-[#e4e6eb] shrink-0">
+                <h3 className="text-sm sm:text-base font-bold text-[#050505]">
+                  Filter by Department
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowDeptModal(false)}
+                  className="p-1 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto py-2 space-y-1 custom-scrollbar pr-1 flex-1">
+                {/* All Departments Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDepartmentFilter('all');
+                    setShowDeptModal(false);
+                  }}
+                  className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
+                    departmentFilter === 'all'
+                      ? 'bg-[#1877f2] text-white'
+                      : 'bg-white hover:bg-[#f0f2f5] text-[#050505]'
+                  }`}
+                >
+                  <span>All Departments</span>
+                  {departmentFilter === 'all' && <Check className="w-4 h-4 text-white" />}
+                </button>
+
+                {/* Individual Departments */}
+                {CU_DEPARTMENTS.map((dept) => {
+                  const isSelected = departmentFilter === dept;
+                  return (
+                    <button
+                      key={dept}
+                      type="button"
+                      onClick={() => {
+                        setDepartmentFilter(dept);
+                        setShowDeptModal(false);
+                      }}
+                      className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#1877f2] text-white'
+                          : 'bg-white hover:bg-[#f0f2f5] text-[#050505]'
+                      }`}
+                    >
+                      <span>{dept.replace('College of ', '')}</span>
+                      {isSelected && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Feed Content List ───────────────────────────────────────────────── */}
+        {filteredPosts.length === 0 ? (
+          <div className="text-center py-10 sm:py-16 bg-white border-y sm:border border-[#e4e6eb] sm:rounded-xl p-5 sm:p-8 shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-[#f0f2f5] border border-[#e4e6eb] flex items-center justify-center mx-auto mb-3 text-xl">
+              📝
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-[#050505]">
+              {activeTab === 'my_notes' ? 'No Created Notes Yet' : 'No Campus Notes Found'}
+            </h3>
+            <p className="text-xs text-[#65676b] mt-1 max-w-sm mx-auto leading-relaxed">
+              {activeTab === 'my_notes'
+                ? "You haven't posted any notes on the Campus Wall yet. Click below to share your first confession or thought!"
+                : searchQuery || departmentFilter !== 'all'
+                ? 'No notes match your active search filter. Try clearing your filters!'
+                : 'Be the very first CU student to post an anonymous confession or thought on the wall!'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setViewState('add_note')}
+              className="mt-4 px-4 py-2 bg-[#701a31] hover:bg-[#581527] text-white text-xs font-bold rounded-full shadow-xs transition-all cursor-pointer"
+            >
+              <span>Share a Note</span>
+            </button>
+          </div>
+        ) : (
+          <div id="posts-feed-container" className="scroll-mt-6 space-y-3 sm:space-y-4">
+            <div className="space-y-3 sm:space-y-4 mb-4">
+              {paginatedPosts.map((post) => renderPostCard(post))}
+            </div>
+
+            {/* ── Minimalist Pagination Controls ─────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white border-y sm:border border-[#e4e6eb] sm:rounded-xl p-3 sm:p-3.5 shadow-xs">
+              <span className="text-xs font-medium text-[#65676b] text-center sm:text-left">
+                Showing <span className="font-bold text-[#050505]">{((currentPage - 1) * NOTES_PER_PAGE) + 1}</span> - <span className="font-bold text-[#050505]">{Math.min(currentPage * NOTES_PER_PAGE, filteredPosts.length)}</span> of <span className="font-bold text-[#050505]">{filteredPosts.length}</span> notes
+              </span>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5">
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  className="w-8 h-8 rounded-lg border border-[#e4e6eb] font-bold text-xs flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-[#f0f2f5] text-[#050505] active:scale-95 shadow-2xs shrink-0 cursor-pointer"
+                  title="Previous Page (<)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {visiblePageNumbers.map((pageNum) => {
+                    const isDisabled = pageNum > totalPages;
+                    const isCurrent = pageNum === currentPage;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => !isDisabled && handlePageChange(pageNum)}
+                        disabled={isDisabled}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border flex items-center justify-center cursor-pointer ${
+                          isCurrent
+                            ? 'bg-[#1877f2] text-white border-[#1877f2] shadow-xs'
+                            : isDisabled
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-40'
+                            : 'bg-white text-[#050505] border-[#e4e6eb] hover:bg-[#f0f2f5] active:scale-95'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  className="w-8 h-8 rounded-lg border border-[#e4e6eb] font-bold text-xs flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-[#f0f2f5] text-[#050505] active:scale-95 shadow-2xs shrink-0 cursor-pointer"
+                  title="Next Page (>)"
+                >
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           </div>
+        )}
+      </main>
 
-          {/* ── Main Content Layout ── 1200px max-width grid */}
-          <div className="flex-1 max-w-[1200px] w-full mx-auto flex flex-col md:flex-row bg-[#f4f4f0] overflow-hidden">
-
-            {/* LEFT COLUMN — Original Note Preview & Details (360px on desktop) */}
-            <div className="md:w-[360px] lg:w-[380px] flex flex-col p-4 sm:p-5 overflow-y-auto shrink-0 bg-[#f4f4f0] space-y-3">
-
-              {/* Note Card — Paper White surface, 16px radius, Borderless */}
-              <div className="bg-white rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xs">
-                {/* Color Marker Swatch stripe */}
-                <div
-                  className="absolute top-0 left-0 right-0 h-1.5"
-                  style={{ background: selectedPostForComments.color || '#ffc900' }}
-                />
-
-                {/* Meta Header */}
-                <div className="flex items-center justify-between gap-2 mb-3 pt-1">
-                  <span className="px-2 py-0.5 bg-[#000000] text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
-                    {selectedPostForComments.department.replace('College of ', '')}
-                  </span>
-                  <span className="text-[11px] font-medium text-[#242423]">
-                    {new Date(selectedPostForComments.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                    {' · '}
-                    {new Date(selectedPostForComments.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-
-                {/* Post Message */}
-                <p
-                  className="text-[16px] font-bold text-[#000000] leading-snug whitespace-pre-wrap mb-3 break-words [overflow-wrap:anywhere] max-w-full overflow-hidden"
-                  style={{ letterSpacing: '-0.108px' }}
-                >
-                  &ldquo;{selectedPostForComments.message}&rdquo;
-                </p>
-
-                {/* Dedicated Song preview if present */}
-                {selectedPostForComments.song_title && (
-                  <div className="mb-3 p-2.5 bg-[#f4f4f0] rounded-xl flex items-center gap-2.5">
-                    {selectedPostForComments.song_image_url && (
-                      <img
-                        src={selectedPostForComments.song_image_url}
-                        alt="Song Cover"
-                        className="w-8 h-8 rounded-lg object-cover"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-bold text-[#000000] truncate">{selectedPostForComments.song_title}</p>
-                      <p className="text-[10px] font-medium text-[#242423] truncate">{selectedPostForComments.song_artist}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Poll options preview if present */}
-                {selectedPostForComments.poll_question && selectedPostForComments.poll_options && (
-                  <div className="mb-3 p-3 bg-[#f4f4f0] rounded-md space-y-1.5">
-                    <p className="text-[12px] font-bold text-[#000000]">{selectedPostForComments.poll_question}</p>
-                    <div className="space-y-1">
-                      {selectedPostForComments.poll_options.map((opt) => (
-                        <div key={opt.id} className="bg-white rounded-lg p-1.5 text-[11px] font-medium text-[#242423] flex justify-between shadow-2xs">
-                          <span>{opt.text}</span>
-                          <span className="font-bold text-[#000000]">{opt.votes_count} votes</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Attached Image / Animated GIF Media in Comments Modal */}
-                {selectedPostForComments.image_url && (
-                  <div className="mb-3 rounded-xl border-2 border-black overflow-hidden bg-black/5 relative group/media shadow-xs">
-                    <img
-                      src={selectedPostForComments.image_url}
-                      alt="Note attachment"
-                      className="w-full max-h-60 object-cover object-center rounded-lg cursor-pointer"
-                      onClick={() => setZoomedImage(selectedPostForComments?.image_url || null)}
-                    />
-                  </div>
-                )}
-
-                {/* Footer Signature */}
-                <div className="flex items-center justify-between pt-3 border-t border-black/5">
-                  <button
-                    type="button"
-                    onClick={() => setViewingProfile({
-                      username: selectedPostForComments.author_alias || 'Anon Student',
-                      department: selectedPostForComments.department || 'General',
-                      avatar_url: selectedPostForComments.author_avatar || getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon'),
-                      bio: selectedPostForComments.author_bio,
-                      is_admin: selectedPostForComments.is_admin,
-                      author_id: selectedPostForComments.author_id,
-                    })}
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity text-left cursor-pointer group/author"
-                    title="Click to view author profile"
-                  >
-                    <img
-                      src={selectedPostForComments.author_avatar || getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon')}
-                      alt={selectedPostForComments.author_alias}
-                      className="w-5.5 h-5.5 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/author:scale-105 transition-transform"
-                      onError={(e) => {
-                        (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon'));
-                      }}
-                    />
-                    <span className="text-[12px] font-bold text-[#242423] italic group-hover/author:underline">
-                      ~ {selectedPostForComments.author_alias}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN — Comments Feed & Input (Paper White container) */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-
-              {/* Thread Header Strip */}
-              <div className="px-4 sm:px-6 py-2.5 shrink-0 flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-sm bg-[#f1f333]" />
-                  <h3 className="text-[11px] font-bold text-[#000000] uppercase tracking-widest">
-                    THREADS
-                  </h3>
-                </div>
-                <span className="text-[11px] font-medium text-[#242423]">
-                  Replies as @{currentUser?.username || 'Anonymous Student'}
+      {/* ── Threaded Comments Sheet / Modal (Minimalist Facebook-Style) ──────── */}
+      {selectedPostForComments && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-2xs flex flex-col sm:items-center sm:justify-center animate-in fade-in duration-200"
+          onClick={() => setSelectedPostForComments(null)}
+        >
+          <div
+            className="bg-white sm:rounded-2xl border-t sm:border border-[#e4e6eb] w-full max-w-2xl h-[100dvh] sm:h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-4 py-3 border-b border-[#e4e6eb] flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2.5">
+                <h3 className="font-bold text-base text-[#050505]">
+                  {selectedPostForComments.author_alias}'s Note
+                </h3>
+                <span className="px-2.5 py-0.5 bg-[#f0f2f5] text-[#65676b] text-xs font-semibold rounded-full">
+                  {commentsList.length} {commentsList.length === 1 ? 'comment' : 'comments'}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPostForComments(null)}
+                className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content (Original Note Snippet + Comments Thread) */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#f0f2f5]">
+              {/* Original Note Snippet */}
+              {(() => {
+                const isCmPostAdmin = selectedPostForComments.is_admin || selectedPostForComments.author_alias?.toLowerCase().includes('admin');
+                const cmNoteBg = selectedPostForComments.color || (isCmPostAdmin ? '#701a31' : '#ffffff');
+                const isCmNoteDark = isColorDark(cmNoteBg);
+
+                return (
+                  <div
+                    style={{ backgroundColor: cmNoteBg }}
+                    className={`rounded-xl p-3 sm:p-4 border shadow-2xs space-y-2 ${
+                      isCmNoteDark ? 'border-black/20 text-white' : 'border-[#e4e6eb] text-[#050505]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={selectedPostForComments.author_avatar || getAvatarForPseudonym(selectedPostForComments.author_alias || 'Anon')}
+                          alt={selectedPostForComments.author_alias}
+                          className={`w-8 h-8 rounded-full border object-cover ${
+                            isCmNoteDark ? 'border-white/40 bg-white/10' : 'border-[#e4e6eb] bg-[#f0f2f5]'
+                          }`}
+                        />
+                        <div>
+                          <p className={`font-bold text-xs ${isCmNoteDark ? 'text-white' : 'text-[#050505]'}`}>
+                            {selectedPostForComments.author_alias}
+                          </p>
+                          <p className={`text-[11px] ${isCmNoteDark ? 'text-white/80' : 'text-[#65676b]'}`}>
+                            {!isCmPostAdmin && selectedPostForComments.department && !selectedPostForComments.department.toLowerCase().includes('admin')
+                              ? `${selectedPostForComments.department.replace('College of ', '')} · `
+                              : ''}
+                            {formatRelativeTime(selectedPostForComments.created_at, now)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className={`text-[13.5px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+                      isCmNoteDark ? 'text-white' : 'text-[#050505]'
+                    }`}>
+                      {selectedPostForComments.message}
+                    </p>
+
+                    {selectedPostForComments.image_url && (
+                      <div className="rounded-lg overflow-hidden border border-[#e4e6eb] bg-[#1c1e21] max-h-48 mt-2">
+                        <img
+                          src={selectedPostForComments.image_url}
+                          alt="Attached media"
+                          className="w-full h-auto max-h-48 object-contain cursor-pointer"
+                          onClick={() => setZoomedImage(selectedPostForComments?.image_url || null)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Comments Feed List */}
-              <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-2 bg-[#f4f4f0] min-w-0">
+              <div className="space-y-2">
                 {isFetchingComments ? (
-                  <div className="flex flex-col items-center justify-center h-full gap-2 py-10 text-[#242423]">
-                    <div className="w-6 h-6 rounded-full border-2 border-black/20 border-t-[#000000] animate-spin" />
-                    <p className="text-[13px] font-medium">Loading replies…</p>
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-[#65676b]">
+                    <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-[#1877f2] animate-spin" />
+                    <p className="text-xs font-medium">Loading comments...</p>
                   </div>
                 ) : commentsList.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-10">
-                    {/* Sketchbook Empty Card */}
-                    <div className="bg-white rounded-2xl p-6 text-center max-w-xs mx-auto space-y-2 shadow-xs">
-                      <div className="w-10 h-10 rounded-full bg-[#ff90e8] flex items-center justify-center font-extrabold text-base text-black mx-auto shadow-xs">
-                        C
-                      </div>
-                      <p className="text-[15px] font-bold text-[#000000]">No comments yet</p>
-                      <p className="text-[13px] font-medium text-[#242423] leading-relaxed">
-                        Be the first student to reply on this note!
-                      </p>
-                    </div>
+                  <div className="text-center py-10 bg-white rounded-xl border border-[#e4e6eb] p-6 shadow-2xs">
+                    <p className="font-bold text-sm text-[#050505]">No comments yet</p>
+                    <p className="text-xs text-[#65676b] mt-1">
+                      Be the first to share your thoughts on this note!
+                    </p>
                   </div>
                 ) : (
                   (() => {
@@ -1513,126 +1714,99 @@ export const FreedomWall: React.FC = () => {
                       const isReply = depth > 0;
                       const isExpanded = !!expandedReplyCommentIds[cm.id];
 
-                      const calcTotalThreadReactions = (comment: FreedomComment): number => {
-                        const selfLikes = comment.likes_count || 0;
-                        const children = commentsList.filter((c) => c.reply_to_comment_id === comment.id);
-                        return selfLikes + children.reduce((sum, child) => sum + calcTotalThreadReactions(child), 0);
-                      };
-                      const totalThreadReactions = calcTotalThreadReactions(cm);
+                      const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+                      const likedUsers = cm.liked_by_users || [];
+                      const hasLiked = likedUsers.includes(currentUid);
+                      const likesCount = cm.likes_count || 0;
 
                       return (
                         <div key={cm.id} className="space-y-1.5">
-                          {/* Individual Comment Tile Card — Borderless */}
-                          <div
-                            className={`rounded-xl p-2.5 sm:p-3 transition-colors space-y-1.5 animate-in slide-in-from-bottom-1 duration-150 min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] shadow-xs ${
-                              isReply ? 'ml-3 sm:ml-4 border-l-4 border-l-[#ffc900]' : ''
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-1.5 min-w-0">
+                          <div className={`flex items-start gap-2 ${isReply ? 'ml-6 sm:ml-8' : ''}`}>
+                            <button
+                              type="button"
+                              onClick={() => setViewingProfile({
+                                username: cm.author_alias,
+                                department: cm.department || 'General',
+                                avatar_url: cm.author_avatar || getAvatarForPseudonym(cm.author_alias),
+                                bio: cm.author_bio,
+                                author_id: cm.author_id,
+                              })}
+                              className="shrink-0 cursor-pointer mt-0.5"
+                            >
+                              <img
+                                src={cm.author_avatar || getAvatarForPseudonym(cm.author_alias)}
+                                alt={cm.author_alias}
+                                className="w-8 h-8 rounded-full border border-[#e4e6eb] object-cover bg-white"
+                              />
+                            </button>
+
+                            <div className="flex-1 min-w-0">
+                              {/* Bubble */}
+                              <div className="bg-white rounded-2xl p-2.5 sm:p-3 border border-[#e4e6eb] shadow-2xs space-y-1 inline-block max-w-full">
+                                <div className="flex items-center gap-1.5 flex-wrap leading-none">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingProfile({
+                                      username: cm.author_alias,
+                                      department: cm.department || 'General',
+                                      avatar_url: cm.author_avatar || getAvatarForPseudonym(cm.author_alias),
+                                      bio: cm.author_bio,
+                                      author_id: cm.author_id,
+                                    })}
+                                    className="font-bold text-[13px] text-[#050505] hover:underline cursor-pointer truncate"
+                                  >
+                                    @{cm.author_alias}
+                                  </button>
+                                  {cm.department && (
+                                    <span className="text-[10px] text-[#65676b] font-medium">
+                                      · {cm.department.replace('College of ', '')}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-[13.5px] text-[#050505] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                  {cm.message}
+                                </p>
+                              </div>
+
+                              {/* Footer action links */}
+                              <div className="flex items-center gap-3 px-2 pt-1 text-[11px] text-[#65676b] font-semibold">
+                                <span>{formatRelativeTime(cm.created_at, now)}</span>
                                 <button
                                   type="button"
-                                  onClick={() => setViewingProfile({
-                                    username: cm.author_alias,
-                                    department: cm.department || 'General',
-                                    avatar_url: cm.author_avatar || getAvatarForPseudonym(cm.author_alias),
-                                    bio: cm.author_bio,
-                                    author_id: cm.author_id,
-                                  })}
-                                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-left cursor-pointer group/cmter min-w-0"
-                                  title="Click to view commenter profile"
+                                  onClick={() => toggleLikeComment(cm)}
+                                  className={`hover:underline cursor-pointer flex items-center gap-1 ${
+                                    hasLiked ? 'text-[#f33e5b] font-bold' : ''
+                                  }`}
                                 >
-                                  <img
-                                    src={cm.author_avatar || getAvatarForPseudonym(cm.author_alias)}
-                                    alt={cm.author_alias}
-                                    className="w-5 h-5 rounded-full border border-black object-cover bg-amber-100 shrink-0 group-hover/cmter:scale-105 transition-transform"
-                                    onError={(e) => {
-                                      (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(cm.author_alias));
-                                    }}
-                                  />
-                                  <span className="text-[13px] font-bold text-[#000000] truncate group-hover/cmter:underline">
-                                    @{cm.author_alias}
-                                  </span>
+                                  <span>{hasLiked ? 'Liked' : 'Like'}</span>
+                                  {likesCount > 0 && <span>({likesCount})</span>}
                                 </button>
-                                {cm.department && (
-                                  <span className="text-[10px] font-medium text-[#242423] px-1.5 py-0.2 bg-[#f4f4f0] rounded-full shrink-0">
-                                    {cm.department.replace('College of ', '')}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[11px] font-medium text-[#242423] shrink-0">
-                                {new Date(cm.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-
-                            <p
-                              className="text-[13px] sm:text-[14px] font-medium text-[#242423] whitespace-pre-wrap leading-snug pl-2.5 border-l-2 border-black/10 break-words [overflow-wrap:anywhere] max-w-full overflow-hidden"
-                              style={{ letterSpacing: '-0.064px' }}
-                            >
-                              {cm.message}
-                            </p>
-
-                            {/* Comment Action Footer: Heart & Reply buttons below message */}
-                            <div className="flex items-center justify-between pt-1.5 gap-2 flex-wrap border-t border-black/5 mt-1">
-                              <div className="flex items-center gap-1.5 ml-auto">
-                                {/* Heart Button */}
-                                {(() => {
-                                  const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
-                                  const likedUsers = cm.liked_by_users || [];
-                                  const hasLiked = likedUsers.includes(currentUid);
-                                  const likesCount = cm.likes_count || 0;
-
-                                  return (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleLikeComment(cm)}
-                                      className={`text-[10px] font-extrabold flex items-center gap-1 px-2.5 py-0.5 rounded-full transition-all border shadow-2xs ${
-                                        hasLiked
-                                          ? 'bg-rose-500 text-white border-black scale-105'
-                                          : 'bg-[#f4f4f0] text-[#242423] border-black/20 hover:bg-rose-50 hover:border-black hover:text-rose-600'
-                                      }`}
-                                      title={hasLiked ? "Unlike comment" : "Like comment"}
-                                    >
-                                      <Heart className={`w-3 h-3 ${hasLiked ? 'fill-white text-white animate-pulse' : ''}`} />
-                                      <span>{likesCount}</span>
-                                    </button>
-                                  );
-                                })()}
-
-                                {/* Reply Button */}
                                 <button
                                   type="button"
                                   onClick={() => handleStartReply(cm)}
-                                  className="text-[10px] font-extrabold text-[#000000] hover:bg-[#ffc900] flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-black/20 hover:border-black transition-colors shrink-0"
-                                  title={directReplies.length > 0 ? `Reply (${directReplies.length} replies)` : "Reply to comment"}
+                                  className="hover:underline cursor-pointer"
                                 >
-                                  <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#701a31]" />
-                                  {directReplies.length === 0 && <span>Reply</span>}
-                                  {directReplies.length > 0 && (
-                                    <span className="text-black text-[9px] font-black rounded-full" title={`${directReplies.length} active replies`}>
-                                      {directReplies.length}
-                                    </span>
-                                  )}
+                                  Reply
                                 </button>
                               </div>
                             </div>
                           </div>
 
-                          {/* Nested Child Replies — Collapsed by default */}
+                          {/* Nested Replies Collapsible */}
                           {directReplies.length > 0 && (
-                            <div className="pl-1.5 sm:pl-2 ml-1.5 sm:ml-2 space-y-1.5 pt-0.5">
+                            <div className="pl-8 sm:pl-10 space-y-1.5 pt-0.5">
                               <button
                                 type="button"
                                 onClick={() => toggleExpandReplies(cm.id)}
-                                className="text-[11px] font-extrabold text-[#701a31] hover:text-black flex items-center gap-1.5 py-1 px-3 rounded-full transition-all shadow-2xs group/expand cursor-pointer"
-                                title={isExpanded ? "Hide replies" : "Show replies"}
+                                className="text-[11px] font-bold text-[#1877f2] hover:underline flex items-center gap-1 cursor-pointer"
                               >
                                 <span>
                                   {isExpanded
                                     ? `Hide ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`
-                                    : `Show ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`}
+                                    : `View ${directReplies.length} ${directReplies.length === 1 ? 'reply' : 'replies'}`}
                                 </span>
-                                <span className="text-[9px] font-black">{isExpanded ? '▲' : '▼'}</span>
+                                <span>{isExpanded ? '▲' : '▼'}</span>
                               </button>
 
                               {isExpanded && (
@@ -1650,55 +1824,57 @@ export const FreedomWall: React.FC = () => {
                   })()
                 )}
               </div>
+            </div>
 
-              {/* ── Comment Input Footer ── Borderless */}
-              <div className="p-3 sm:p-4 bg-white shrink-0">
-                {/* Replying Banner */}
-                {replyingTo && (
-                  <div className="mb-1.5 p-1.5 px-2.5 bg-[#ffc900]/20 rounded text-[11px] font-bold text-[#000000] flex items-center justify-between animate-in fade-in slide-in-from-bottom-1">
-                    <div className="flex items-center gap-1.5">
-                      <Reply className="w-3 h-3 text-[#000000]" />
-                      <span>Replying to <span className="underline">@{replyingTo.alias}</span></span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setReplyingTo(null)}
-                      className="p-0.5 hover:bg-black/10 rounded transition-colors"
-                      title="Cancel reply"
-                    >
-                      <X className="w-3 h-3 text-black" />
-                    </button>
+            {/* Modal Input Footer */}
+            <div className="p-3 bg-white border-t border-[#e4e6eb] shrink-0">
+              {replyingTo && (
+                <div className="mb-2 px-3 py-1.5 bg-[#f0f2f5] rounded-lg text-xs font-medium text-[#050505] flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-1.5">
+                    <Reply className="w-3.5 h-3.5 text-[#1877f2]" />
+                    <span>Replying to <span className="font-bold">@{replyingTo.alias}</span></span>
                   </div>
-                )}
-
-                <form onSubmit={handleAddComment} className="flex items-end gap-3">
-                  <textarea
-                    ref={commentInputRef}
-                    value={newCommentText}
-                    onChange={(e) => setNewCommentText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleAddComment(e);
-                      }
-                    }}
-                    placeholder={replyingTo ? `Reply to @${replyingTo.alias}…` : "Write comment here…"}
-                    rows={1}
-                    maxLength={2000}
-                    className="flex-1 bg-[#f4f4f0] border-none rounded-xl px-4 py-[10px] text-[14px] leading-[22px] text-[#000000] placeholder-[#242423]/50 font-medium outline-none focus:bg-[#e9e9e4] transition-colors resize-none break-words [overflow-wrap:anywhere] min-h-[44px] max-h-32 overflow-y-auto"
-                    required
-                    style={{ letterSpacing: '-0.028px' }}
-                  />
-                  {/* Primary Action Button — Solid Ink Black #000000 fill */}
                   <button
-                    type="submit"
-                    className="flex items-center justify-center gap-2 px-5 h-[44px] bg-[#000000] text-white text-[14px] font-medium rounded-xl shrink-0 hover:bg-[#242423] transition-colors active:scale-95 self-end shadow-xs"
+                    type="button"
+                    onClick={() => setReplyingTo(null)}
+                    className="p-0.5 hover:bg-gray-200 rounded text-[#65676b] hover:text-[#050505] cursor-pointer"
+                    title="Cancel reply"
                   >
-                    <Send className="w-4 h-4 text-white" />
-                    <span className="hidden sm:inline">Post Reply</span>
+                    <X className="w-3.5 h-3.5" />
                   </button>
-                </form>
-              </div>
+                </div>
+              )}
+
+              <form onSubmit={handleAddComment} className="flex items-center gap-2">
+                <img
+                  src={currentUser?.avatar_url || getAvatarForPseudonym(commentAlias)}
+                  alt="My avatar"
+                  className="w-8 h-8 rounded-full border border-[#e4e6eb] object-cover bg-[#f0f2f5] shrink-0 hidden xs:block"
+                />
+                <textarea
+                  ref={commentInputRef}
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAddComment(e);
+                    }
+                  }}
+                  placeholder={replyingTo ? `Reply to @${replyingTo.alias}...` : "Write a comment..."}
+                  rows={1}
+                  maxLength={2000}
+                  className="flex-1 bg-[#f0f2f5] border border-[#e4e6eb] rounded-2xl px-3.5 py-2 text-[13.5px] text-[#050505] placeholder-[#65676b] outline-none focus:bg-white focus:border-[#1877f2] transition-colors resize-none max-h-28 overflow-y-auto leading-relaxed"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={!newCommentText.trim()}
+                  className="w-9 h-9 rounded-full bg-[#1877f2] hover:bg-[#166fe5] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shrink-0 active:scale-95 shadow-xs cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -1722,148 +1898,74 @@ export const FreedomWall: React.FC = () => {
           onClose={() => setSelectedPostForDelete(null)}
         />
       )}
-      {/* Reactors Overlay — who liked this note */}
+
+      {/* Reactors Overlay — Who reacted to this note */}
       {reactorsPost && (
         <div
-          className="fixed inset-0 z-[110] flex flex-col sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
           onClick={() => setReactorsPost(null)}
         >
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-          {/* Mobile: full-screen slide-up panel */}
           <div
-            className="relative z-10 w-full sm:hidden mt-auto bg-[#f4f4f0] rounded-t-3xl border-t-4 border-x-4 border-black shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300"
+            className="bg-white rounded-2xl border border-[#e4e6eb] w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Handle bar */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-black/30" />
-            </div>
-
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b-2 border-black/10 shrink-0">
+            <div className="px-4 py-3.5 border-b border-[#e4e6eb] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-rose-500 rounded-full border-2 border-black">
-                  <Heart className="w-4 h-4 text-white fill-white" />
+                <div className="w-6 h-6 rounded-full bg-[#f33e5b] flex items-center justify-center shadow-2xs">
+                  <Heart className="w-3.5 h-3.5 text-white fill-white" />
                 </div>
-                <div>
-                  <h3 className="text-base font-black text-black">Loved by</h3>
-                  <p className="text-[10px] font-bold text-gray-500">{reactorsPost.likes_count} {reactorsPost.likes_count === 1 ? 'person' : 'people'} reacted</p>
-                </div>
+                <h3 className="font-bold text-base text-[#050505]">Reactions</h3>
+                <span className="text-xs text-[#65676b]">({reactorsPost.likes_count})</span>
               </div>
-              <button type="button" onClick={() => setReactorsPost(null)} className="p-1.5 rounded-full bg-black/10 hover:bg-black/20 transition-colors">
-                <X className="w-4 h-4 text-black" />
-              </button>
-            </div>
-
-            {/* Note snippet */}
-            <div className="mx-5 mt-3 mb-2 p-3 rounded-2xl border-2 border-black shrink-0" style={{ backgroundColor: reactorsPost.color || '#ffc900' }}>
-              <p className="text-xs font-extrabold text-black line-clamp-2">"{reactorsPost.message}"</p>
-              <span className="text-[10px] font-bold text-black/70 italic block mt-1">~ {reactorsPost.author_alias}</span>
-            </div>
-
-            {/* Reactors list */}
-            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
-              {(reactorsPost.liked_by_users || []).length === 0 ? (
-                <div className="text-center py-10 text-sm font-bold text-gray-500">
-                  <Heart className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  No reactions yet. Be the first! 💖
-                </div>
-              ) : (
-                (reactorsPost.liked_by_users || []).map((uid, i) => {
-                  const profile = reactorsPost.liked_by_profiles?.[uid];
-                  const displayName = profile?.username || (currentUser && currentUser.id === uid ? currentUser.username : `Student #${uid.slice(-4)}`);
-                  const displayDept = profile?.department?.replace('College of ', '') || (currentUser && currentUser.id === uid ? currentUser.department.replace('College of ', '') : 'Campus');
-                  const initial = displayName.startsWith('Student #') ? '🎓' : displayName.charAt(0).toUpperCase();
-                  return (
-                  <div key={uid} className="flex items-center gap-3 p-3 bg-white rounded-2xl border-2 border-black shadow-xs">
-                    <div className="w-9 h-9 rounded-full bg-rose-500 border-2 border-black flex items-center justify-center text-white font-black text-sm shrink-0">
-                      {initial}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-black text-black block truncate">{displayName}</span>
-                      <span className="text-[10px] font-bold text-gray-400">{displayDept} · ❤️ Reacted</span>
-                    </div>
-                    <Heart className="w-4 h-4 text-rose-500 fill-rose-500 shrink-0" />
-                  </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="px-5 pb-6 pt-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setReactorsPost(null)}
-                className="w-full py-3 rounded-2xl border-2 border-black bg-black text-white font-black text-sm active:scale-95 transition-all"
+                className="p-1 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
               >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {/* Desktop: centered modal */}
-          <div
-            className="relative z-10 hidden sm:flex flex-col w-full max-w-md bg-[#f4f4f0] rounded-3xl border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-h-[80vh] animate-in zoom-in-95 fade-in duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b-2 border-black shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-rose-500 rounded-2xl border-2 border-black">
-                  <Heart className="w-5 h-5 text-white fill-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-black">Loved by</h3>
-                  <p className="text-xs font-bold text-gray-500">{reactorsPost.likes_count} {reactorsPost.likes_count === 1 ? 'person' : 'people'} reacted to this note</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setReactorsPost(null)} className="p-2 rounded-full hover:bg-black/10 transition-colors">
-                <X className="w-5 h-5 text-black" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Note snippet */}
-            <div className="mx-6 mt-4 mb-2 p-4 rounded-2xl border-2 border-black shrink-0" style={{ backgroundColor: reactorsPost.color || '#ffc900' }}>
-              <p className="text-sm font-extrabold text-black line-clamp-2">"{reactorsPost.message}"</p>
-              <span className="text-xs font-bold text-black/70 italic block mt-1">~ {reactorsPost.author_alias}</span>
-            </div>
-
-            {/* Reactors list */}
-            <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2">
+            {/* Reactors List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {(reactorsPost.liked_by_users || []).length === 0 ? (
-                <div className="text-center py-12 text-sm font-bold text-gray-500">
-                  <Heart className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                  No reactions yet. Be the first! 💖
+                <div className="text-center py-10 text-xs text-[#65676b]">
+                  <Heart className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  No reactions recorded yet.
                 </div>
               ) : (
-                (reactorsPost.liked_by_users || []).map((uid, i) => {
+                (reactorsPost.liked_by_users || []).map((uid) => {
                   const profile = reactorsPost.liked_by_profiles?.[uid];
                   const displayName = profile?.username || (currentUser && currentUser.id === uid ? currentUser.username : `Student #${uid.slice(-4)}`);
                   const displayDept = profile?.department?.replace('College of ', '') || (currentUser && currentUser.id === uid ? currentUser.department.replace('College of ', '') : 'Campus');
-                  const initial = displayName.startsWith('Student #') ? '🎓' : displayName.charAt(0).toUpperCase();
+                  const avatarUrl = (profile as any)?.avatar_url || getAvatarForPseudonym(displayName);
+
                   return (
-                  <div key={uid} className="flex items-center gap-3 p-3.5 bg-white rounded-2xl border-2 border-black shadow-xs">
-                    <div className="w-10 h-10 rounded-full bg-rose-500 border-2 border-black flex items-center justify-center text-white font-black text-base shrink-0">
-                      {initial}
+                    <div key={uid} className="flex items-center gap-3 p-2.5 bg-[#f0f2f5]/60 hover:bg-[#f0f2f5] rounded-xl border border-[#e4e6eb] transition-colors">
+                      <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        className="w-9 h-9 rounded-full border border-[#e4e6eb] object-cover bg-white shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-[13px] text-[#050505] truncate">{displayName}</p>
+                        <p className="text-[11px] text-[#65676b] truncate">{displayDept}</p>
+                      </div>
+                      <div className="w-6 h-6 rounded-full bg-[#f33e5b] flex items-center justify-center shrink-0">
+                        <Heart className="w-3 h-3 text-white fill-white" />
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-black text-black block truncate">{displayName}</span>
-                      <span className="text-xs font-bold text-gray-400">{displayDept} · ❤️ Reacted</span>
-                    </div>
-                    <Heart className="w-4 h-4 text-rose-500 fill-rose-500 shrink-0" />
-                  </div>
                   );
                 })
               )}
             </div>
 
-            <div className="px-6 pb-6 pt-3 shrink-0">
+            <div className="p-3 border-t border-[#e4e6eb] shrink-0 bg-white">
               <button
                 type="button"
                 onClick={() => setReactorsPost(null)}
-                className="w-full py-3 rounded-2xl border-2 border-black bg-black text-white font-black text-sm hover:bg-[#701a31] transition-colors"
+                className="w-full py-2 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] font-bold text-xs rounded-xl transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -1871,79 +1973,74 @@ export const FreedomWall: React.FC = () => {
           </div>
         </div>
       )}
+
       {/* Interactive User Profile Modal */}
       {viewingProfile && (
         <div
-          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setViewingProfile(null)}
         >
           <div
-            className="bg-white border-4 border-black p-6 rounded-3xl max-w-sm w-full text-center shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative animate-in zoom-in-95 duration-200"
+            className="bg-white border border-[#e4e6eb] p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
             <button
               type="button"
               onClick={() => setViewingProfile(null)}
-              className="absolute top-4 right-4 p-1.5 hover:bg-black/10 rounded-full transition-colors text-black"
+              className="absolute top-3.5 right-3.5 p-1 hover:bg-[#f0f2f5] rounded-full transition-colors text-[#65676b] hover:text-[#050505] cursor-pointer"
               title="Close profile"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
-            {/* Avatar with status indicator */}
-            <div className="relative w-24 h-24 mx-auto mb-4">
+            <div className="relative w-20 h-20 mx-auto mb-3">
               <img
                 src={viewingProfile.avatar_url || getAvatarForPseudonym(viewingProfile.username)}
                 alt={viewingProfile.username}
-                className="w-24 h-24 rounded-full border-4 border-black object-cover shadow-md bg-amber-100"
+                className="w-20 h-20 rounded-full border-2 border-[#e4e6eb] object-cover shadow-sm bg-[#f0f2f5]"
                 onError={(e) => {
                   (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(viewingProfile.username));
                 }}
               />
               {viewingProfile.is_admin ? (
-                <span className="absolute bottom-0 right-0 bg-[#701a31] text-white border-2 border-black rounded-full p-1 text-xs" title="Official Platform Admin">
+                <span className="absolute bottom-0 right-0 bg-[#701a31] text-white border-2 border-white rounded-full p-1 text-[10px]" title="Official Platform Admin">
                   👑
                 </span>
               ) : (
-                <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-black rounded-full" title="Active Campus Student" />
+                <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" title="Active Student" />
               )}
             </div>
 
-            {/* Username */}
-            <h3 className="text-xl font-black text-black flex items-center justify-center gap-1.5">
+            <h3 className="text-base font-bold text-[#050505] flex items-center justify-center gap-1.5">
               @{viewingProfile.username}
               {viewingProfile.is_admin && (
-                <span className="text-[10px] font-black px-2 py-0.5 bg-[#701a31] text-white rounded-full uppercase border border-black">
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-[#701a31]/10 text-[#701a31] rounded-full uppercase">
                   ADMIN
                 </span>
               )}
             </h3>
 
-            {/* Department badge */}
-            <div className="mt-2 inline-block px-3 py-1 bg-black text-white rounded-full text-xs font-extrabold uppercase tracking-wider shadow-xs">
+            <div className="mt-1.5 inline-block px-2.5 py-0.5 bg-[#f0f2f5] text-[#65676b] rounded-full text-xs font-semibold">
               {viewingProfile.department.replace('College of ', '')}
             </div>
 
-            {/* Campus Bio */}
-            <div className="mt-4 p-3.5 bg-[#f4f4f0] border-2 border-black rounded-2xl text-left shadow-xs">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Campus Profile Bio</p>
-              <p className="text-xs font-semibold text-black italic leading-relaxed">
-                {viewingProfile.bio?.trim() ? `"${viewingProfile.bio}"` : "No custom bio added yet. Active student at Capitol University."}
+            <div className="mt-3.5 p-3 bg-[#f0f2f5] rounded-xl text-left border border-[#e4e6eb]">
+              <p className="text-[10px] font-bold text-[#65676b] uppercase tracking-wider mb-0.5">Bio</p>
+              <p className="text-xs text-[#050505] leading-relaxed">
+                {viewingProfile.bio?.trim() ? viewingProfile.bio : "Active student at CU."}
               </p>
             </div>
 
-            {/* Action buttons */}
-            <div className="mt-5 flex items-center gap-2">
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={() => {
                   setViewingProfile(null);
                   startSearch();
                 }}
-                className="btn-gumroad-primary text-xs w-full py-3 flex items-center justify-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] bg-[#ffc900] hover:bg-[#ffc900]/80"
+                className="w-full py-2.5 bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-3.5 h-3.5" />
                 <span>Chat on Campus</span>
               </button>
             </div>
@@ -1951,36 +2048,31 @@ export const FreedomWall: React.FC = () => {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          FULLSCREEN IMAGE / GIF LIGHTBOX MODAL
-         ═══════════════════════════════════════════════════════════════════ */}
+      {/* Fullscreen Image / GIF Lightbox Modal */}
       {zoomedImage && (
         <div
-          className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
           onClick={() => setZoomedImage(null)}
         >
           <button
             type="button"
             onClick={() => setZoomedImage(null)}
-            className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white text-white hover:text-black rounded-full border-2 border-white transition-all cursor-pointer shadow-lg"
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white text-white hover:text-black rounded-full transition-colors cursor-pointer"
             title="Close image preview"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
 
           <div
-            className="max-w-4xl max-h-[85vh] p-1.5 sm:p-2 bg-white rounded-3xl border-3 sm:border-4 border-black shadow-[8px_8px_0px_0px_rgba(255,201,0,1)] animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col items-center justify-center"
+            className="max-w-4xl max-h-[85vh] p-1 bg-white rounded-2xl overflow-hidden flex flex-col items-center justify-center shadow-2xl animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <img
               src={zoomedImage}
               alt="Campus Note Attachment Preview"
-              className="max-w-full max-h-[78vh] object-contain rounded-2xl"
+              className="max-w-full max-h-[80vh] object-contain rounded-xl"
             />
           </div>
-          <p className="text-white/70 text-xs font-bold mt-3">
-            Click outside or tap ✕ to close preview
-          </p>
         </div>
       )}
     </div>

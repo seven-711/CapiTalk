@@ -21,7 +21,30 @@ import {
   AlertCircle,
   BarChart2,
   Sparkles,
+  Globe,
+  Heart,
+  MoreHorizontal,
 } from 'lucide-react';
+
+const isColorDark = (hexColor?: string | null): boolean => {
+  if (!hexColor) return false;
+  const hex = hexColor.replace('#', '');
+  if (hex.length !== 6 && hex.length !== 3) return false;
+  const fullHex = hex.length === 3
+    ? hex.split('').map((c) => c + c).join('')
+    : hex;
+  const r = parseInt(fullHex.substring(0, 2), 16);
+  const g = parseInt(fullHex.substring(2, 4), 16);
+  const b = parseInt(fullHex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.55;
+};
+
+const FbCommentSvg = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M4.5 3.75A2.25 2.25 0 002.25 6v10.5A2.25 2.25 0 004.5 18.75h2.25v3.19c0 .67.8 1.02 1.3.57l3.76-3.76h7.69A2.25 2.25 0 0021.75 16.5V6a2.25 2.25 0 00-2.25-2.25H4.5zM6 8.25a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 8.25zm0 3.75a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5H6.75A.75.75 0 016 12z" clipRule="evenodd" />
+  </svg>
+);
 
 interface CampusGifItem {
   title: string;
@@ -312,7 +335,7 @@ export const PostNotePage: React.FC = () => {
         : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
 
       const authorDepartment = postAsAdmin
-        ? 'University Administration'
+        ? ''
         : (currentUser ? currentUser.department : (department || 'General'));
 
       const authorAvatar = postAsAdmin
@@ -364,7 +387,7 @@ export const PostNotePage: React.FC = () => {
     : (currentUser ? currentUser.username : (alias.trim() || 'Anon Student'));
 
   const currentAuthorDept = postAsAdmin
-    ? 'University Administration'
+    ? 'Admin'
     : (currentUser ? currentUser.department : (department || 'General'));
 
   const previewAvatar = postAsAdmin
@@ -644,98 +667,228 @@ export const PostNotePage: React.FC = () => {
             </span>
           </div>
 
-          {/* Note Card Simulation */}
-          <div
-            style={{ backgroundColor: postAsAdmin ? '#701a31' : selectedColor }}
-            className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all flex flex-col justify-between relative overflow-hidden shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
-              postAsAdmin ? 'border-4 border-[#ffc900] text-white' : 'border-black text-black'
-            }`}
-          >
-            <div>
-              {/* Top Header inside preview */}
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex items-center gap-1.5">
-                  <span className={`px-2.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold rounded-full uppercase tracking-wider shrink-0 ${
-                    postAsAdmin ? 'bg-[#ffc900] text-black border border-black' : 'bg-black text-white'
-                  }`}>
-                    {postAsAdmin ? 'ADMIN NOTE' : currentAuthorDept.replace('College of ', '')}
-                  </span>
-                  <span className="px-2 py-0.5 bg-[#701a31] text-white text-[9px] font-black rounded-full uppercase tracking-wider shrink-0 border border-black shadow-xs">
-                    YOU
-                  </span>
+          {/* Note Card Simulation matching FreedomWall */}
+          {(() => {
+            const cardBgColor = postAsAdmin ? '#701a31' : selectedColor;
+            const isDark = isColorDark(cardBgColor);
+
+            return (
+              <article
+                style={{ backgroundColor: cardBgColor }}
+                className={`sm:rounded-xl shadow-xs border-y sm:border overflow-visible relative transition-all duration-200 ${
+                  isDark
+                    ? 'border-black/20 text-white shadow-md'
+                    : 'border-[#e4e6eb] text-[#050505]'
+                }`}
+              >
+                {/* Post Header */}
+                <div className="p-3.5 pb-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Profile Avatar */}
+                    <div className="relative shrink-0">
+                      <img
+                        src={previewAvatar}
+                        alt={currentAuthorAlias}
+                        className={`w-10 h-10 rounded-full border object-cover ${
+                          isDark ? 'border-white/40 bg-white/10' : 'border-[#e4e6eb] bg-[#f0f2f5]'
+                        }`}
+                      />
+                      {postAsAdmin && (
+                        <div
+                          className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1877f2] border-2 border-white flex items-center justify-center text-[9px] text-white font-bold"
+                          title="Official Admin"
+                        >
+                          ✓
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`font-bold text-[14.5px] truncate max-w-[170px] sm:max-w-[240px] text-left leading-tight ${
+                            isDark ? 'text-white' : 'text-[#050505]'
+                          }`}
+                        >
+                          {currentAuthorAlias}
+                        </span>
+
+                        {/* Status Pills */}
+                        {postAsAdmin ? (
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0 border ${
+                              isDark ? 'bg-white/20 text-white border-white/30' : 'bg-[#701a31]/10 text-[#701a31] border-[#701a31]/30'
+                            }`}
+                          >
+                            Official
+                          </span>
+                        ) : (
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0 border ${
+                              isDark ? 'bg-white/20 text-white border-white/30' : 'bg-black/5 text-[#050505] border-black/10'
+                            }`}
+                          >
+                            You
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1 text-[12px] leading-tight mt-0.5 ${
+                          isDark ? 'text-white/80' : 'text-[#65676b]'
+                        }`}
+                      >
+                        {!postAsAdmin && currentAuthorDept && !currentAuthorDept.toLowerCase().includes('admin') && (
+                          <>
+                            <span className="font-normal truncate max-w-[130px] sm:max-w-[180px]">
+                              {currentAuthorDept.replace('College of ', '')}
+                            </span>
+                            <span>·</span>
+                          </>
+                        )}
+                        <span>Just now</span>
+                        <span>·</span>
+                        <Globe className={`w-3 h-3 shrink-0 ${isDark ? 'text-white/80' : 'text-[#65676b]'}`} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3-Dots More Options Menu */}
+                  <div className="shrink-0">
+                    <button
+                      type="button"
+                      disabled
+                      className={`p-1.5 rounded-full ${
+                        isDark ? 'text-white/80' : 'text-[#65676b]'
+                      }`}
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <span className={`text-[10px] font-bold ${postAsAdmin ? 'text-[#ffc900]' : 'text-black/70'}`}>
-                  Just now
-                </span>
-              </div>
 
-              {/* Note Message */}
-              <p className={`text-xs sm:text-sm font-extrabold leading-relaxed whitespace-pre-wrap break-words mb-3 ${
-                postAsAdmin ? 'text-white' : 'text-black'
-              }`}>
-                {message.trim() ? `"${message.trim()}"` : '"Your note message will appear here..."'}
-              </p>
-
-              {/* Attached Media Preview */}
-              {attachedMedia && (
-                <div className="mb-3 rounded-2xl border-2 border-black overflow-hidden bg-black/5 relative shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                  <img
-                    src={attachedMedia.url}
-                    alt="Attachment Preview"
-                    className="w-full max-h-52 object-cover object-center rounded-xl"
-                  />
-                  {attachedMedia.type === 'gif' && (
-                    <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/85 text-[#ffc900] text-[9px] font-black uppercase rounded-md border border-black shadow-xs pointer-events-none">
-                      GIF
-                    </span>
+                {/* Post Message Body */}
+                <div
+                  className={`px-3.5 sm:px-4 pb-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+                    isDark ? 'text-white' : 'text-[#050505]'
+                  }`}
+                >
+                  {message.trim() || (
+                    <span className="opacity-60 italic">Your note confession or vibe will appear here...</span>
                   )}
                 </div>
-              )}
 
-              {/* Poll Preview */}
-              {showPollForm && (
-                <div className="my-2.5 p-2.5 sm:p-3 rounded-xl border-2 border-black bg-white/95 text-black shadow-xs">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-black flex items-center gap-1.5 truncate">
-                      <BarChart2 className="w-3.5 h-3.5 text-[#701a31] shrink-0" />
-                      <span className="truncate">{pollQuestion.trim() || 'Campus Poll'}</span>
-                    </span>
-                    <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-black text-white rounded-full shrink-0">
-                      Tap to vote
+                {/* Attached Image / Animated GIF Media */}
+                {attachedMedia && (
+                  <div
+                    className={`relative w-full bg-[#1c1e21] overflow-hidden select-none border-y ${
+                      isDark ? 'border-white/20' : 'border-[#e4e6eb]'
+                    }`}
+                  >
+                    <img
+                      src={attachedMedia.url}
+                      alt="Attachment Preview"
+                      className="w-full h-auto object-contain max-h-[540px] mx-auto block"
+                    />
+                    {attachedMedia.type === 'gif' && (
+                      <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/80 text-white text-[10px] font-bold rounded-md uppercase tracking-wider pointer-events-none backdrop-blur-xs">
+                        GIF
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Campus Poll Preview */}
+                {showPollForm && (
+                  <div
+                    className={`mx-3.5 sm:mx-4 my-2.5 p-3 rounded-xl border ${
+                      isDark
+                        ? 'bg-white/10 border-white/20 text-white'
+                        : 'bg-[#f0f2f5]/60 border-[#e4e6eb] text-[#050505]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span
+                        className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 truncate ${
+                          isDark ? 'text-white/90' : 'text-[#65676b]'
+                        }`}
+                      >
+                        <BarChart2 className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-white' : 'text-[#1877f2]'}`} />
+                        <span className="truncate">{pollQuestion.trim() || 'Campus Poll'}</span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 border ${
+                          isDark ? 'bg-white/20 text-white border-white/30' : 'bg-white text-[#65676b] border-[#e4e6eb]'
+                        }`}
+                      >
+                        Tap option to vote
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {pollOptions.map((opt, idx) => (
+                        <div
+                          key={idx}
+                          className={`w-full text-left p-2 rounded-lg border text-xs font-semibold truncate ${
+                            isDark
+                              ? 'bg-white/15 border-white/20 text-white'
+                              : 'bg-white border-[#e4e6eb] text-[#050505]'
+                          }`}
+                        >
+                          {opt.trim() || `Option ${idx + 1}`}
+                        </div>
+                      ))}
+                    </div>
+                    <p className={`text-[10px] text-center mt-1.5 italic ${isDark ? 'text-white/80' : 'text-[#65676b]'}`}>
+                      Vote to reveal results
+                    </p>
+                  </div>
+                )}
+
+                {/* Post Metrics Bar */}
+                <div
+                  className={`px-3.5 py-2 flex items-center justify-between text-[13px] border-t ${
+                    isDark ? 'border-white/15 text-white/80' : 'border-black/10 text-[#65676b]'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-medium text-[13px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}>
+                      Be the first to react
                     </span>
                   </div>
 
-                  <div className="space-y-1.5">
-                    {pollOptions.map((opt, idx) => (
-                      <div
-                        key={idx}
-                        className="w-full text-left p-1.5 sm:p-2 rounded-lg border-2 border-black bg-gray-50 text-xs font-bold truncate"
-                      >
-                        {opt.trim() || `Option ${idx + 1}`}
-                      </div>
-                    ))}
+                  <span className={`font-medium text-[13px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}>
+                    0 comments
+                  </span>
+                </div>
+
+                {/* Action Buttons Bar */}
+                <div
+                  className={`px-2 py-1 flex items-center justify-between border-t ${
+                    isDark ? 'border-white/15' : 'border-black/10'
+                  }`}
+                >
+                  <div
+                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-[13.5px] font-bold ${
+                      isDark ? 'text-white/80' : 'text-[#65676b]'
+                    }`}
+                  >
+                    <Heart className="w-4 h-4" />
+                    <span>Like</span>
+                  </div>
+
+                  <div
+                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-[13.5px] font-bold ${
+                      isDark ? 'text-white/80' : 'text-[#65676b]'
+                    }`}
+                  >
+                    <FbCommentSvg className="w-4 h-4" />
+                    <span>Comment</span>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Bottom Note Footer */}
-            <div className="pt-3 border-t border-black/15 flex items-center justify-between gap-2 mt-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <img
-                  src={previewAvatar}
-                  alt={currentAuthorAlias}
-                  className="w-6 h-6 rounded-full border border-black/30 object-cover bg-amber-50 shrink-0"
-                />
-                <span className={`text-xs font-black truncate ${postAsAdmin ? 'text-white' : 'text-black'}`}>
-                  @{currentAuthorAlias}
-                </span>
-              </div>
-              <span className={`text-[10px] font-bold ${postAsAdmin ? 'text-white/80' : 'text-black/70'}`}>
-                0 likes · 0 comments
-              </span>
-            </div>
-          </div>
+              </article>
+            );
+          })()}
         </div>
       </main>
 
