@@ -470,8 +470,7 @@ export default function Home() {
                       onClick={() => setViewState('register')}
                       className="w-full sm:w-auto px-8 py-3.5 bg-black hover:bg-zinc-800 text-white font-black text-sm sm:text-base rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <Sparkles className="w-4 h-4 text-[#ffc900]" />
-                      <span>Join CapiTalk &mdash; It&apos;s Free</span>
+                      <span>Start Matching</span>
                     </button>
                   )}
                 </div>
