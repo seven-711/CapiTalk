@@ -16,8 +16,14 @@ export const DeleteNoteModal: React.FC<DeleteNoteModalProps> = ({
   onClose,
 }) => {
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white border border-[#d1d5dc] rounded-2xl max-w-sm w-full p-5 sm:p-6 relative shadow-2xl animate-in zoom-in-95 duration-150 text-neutral-900">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white border border-[#d1d5dc] rounded-2xl max-w-sm w-full p-5 sm:p-6 relative shadow-2xl animate-in zoom-in-95 duration-150 text-neutral-900"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           onClick={onClose}

@@ -1002,8 +1002,14 @@ export const MusicWall: React.FC = () => {
         const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId) || (cleanPostAlias && allMyAliases.includes(cleanPostAlias));
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-            <div className="bg-white border border-[#d1d5dc] rounded-2xl w-full max-w-md shadow-2xl relative my-auto max-h-[90vh] flex flex-col text-neutral-900 animate-in zoom-in-95 duration-150 overflow-hidden">
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+            onClick={() => setSelectedPostForDetail(null)}
+          >
+            <div
+              className="bg-white border border-[#d1d5dc] rounded-2xl w-full max-w-md shadow-2xl relative my-auto max-h-[90vh] flex flex-col text-neutral-900 animate-in zoom-in-95 duration-150 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Header Bar */}
               <div className="p-3.5 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
                 <div className="flex items-center gap-2 truncate">
@@ -1216,8 +1222,14 @@ export const MusicWall: React.FC = () => {
 
       {/* Comments Modal */}
       {selectedPostForComments && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl relative flex flex-col max-h-[85vh] text-neutral-900 animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+          onClick={() => setSelectedPostForComments(null)}
+        >
+          <div
+            className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl relative flex flex-col max-h-[85vh] text-neutral-900 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-neutral-100 shrink-0">
               <div className="flex items-center gap-2">
@@ -1364,8 +1376,14 @@ export const MusicWall: React.FC = () => {
       {reactorsPost && (() => {
         const post = freedomPosts.find((p) => p.id === reactorsPost.id) || reactorsPost;
         return (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-            <div className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-2xl relative text-neutral-900 animate-in zoom-in-95 duration-150">
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+            onClick={() => setReactorsPost(null)}
+          >
+            <div
+              className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-2xl relative text-neutral-900 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm sm:text-base font-bold text-neutral-900">Likes</h3>
