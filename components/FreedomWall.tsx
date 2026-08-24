@@ -143,11 +143,6 @@ const renderStackedReactionBadges = (hasLiked: boolean, likesCount: number) => {
       <div className="w-5 h-5 rounded-full bg-[#f33e5b] flex items-center justify-center border-2 border-white shadow-2xs z-20">
         <Heart className="w-2.5 h-2.5 text-white fill-white" />
       </div>
-      {likesCount > 1 && (
-        <div className="w-5 h-5 rounded-full bg-[#1877f2] flex items-center justify-center border-2 border-white shadow-2xs z-10">
-          <FbLikeSvg filled color="#ffffff" className="w-2.5 h-2.5" />
-        </div>
-      )}
     </div>
   );
 };
@@ -258,6 +253,12 @@ export const FreedomWall: React.FC = () => {
   }, [currentUser]);
 
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
+  const [commentAsAdmin, setCommentAsAdmin] = useState(isAdminUser);
+
+  useEffect(() => {
+    setPostAsAdmin(isAdminUser);
+    setCommentAsAdmin(isAdminUser);
+  }, [isAdminUser]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPostForReport, setSelectedPostForReport] = useState<FreedomPost | null>(null);
@@ -407,16 +408,16 @@ export const FreedomWall: React.FC = () => {
   };
 
   const toggleLikeComment = async (comment: FreedomComment) => {
-    const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+    const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
 
     setCommentsList((prevList) =>
       prevList.map((c) => {
         if (c.id !== comment.id) return c;
         const likedUsers = c.liked_by_users || [];
-        const hasLiked = likedUsers.includes(currentUserId);
+        const hasLiked = likedUsers.includes(currentUid);
         const updatedUsers = hasLiked
-          ? likedUsers.filter((id) => id !== currentUserId)
-          : [...likedUsers, currentUserId];
+          ? likedUsers.filter((id) => id !== currentUid)
+          : [...likedUsers, currentUid];
         const updatedCount = Math.max(0, (c.likes_count || 0) + (hasLiked ? -1 : 1));
         return {
           ...c,
@@ -525,18 +526,30 @@ export const FreedomWall: React.FC = () => {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedPostForComments) return;
 
-    const authorAliasVal = commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student');
-    const authorAvatarVal = currentUser?.avatar_url || getAvatarForPseudonym(authorAliasVal);
-    const authorBioVal = currentUser?.bio || '';
+    const isCommentAdmin = Boolean(isAdminUser && commentAsAdmin);
+
+    const authorAliasVal = isCommentAdmin
+      ? 'Admin'
+      : (commentAlias.trim() || (currentUser ? currentUser.username : 'Anon Student'));
+    const authorDeptVal = isCommentAdmin
+      ? 'Admin'
+      : (currentUser ? currentUser.department : 'General');
+    const authorAvatarVal = isCommentAdmin
+      ? '/avatars/coin-left.jpg'
+      : (currentUser?.avatar_url || getAvatarForPseudonym(authorAliasVal));
+    const authorBioVal = isCommentAdmin
+      ? 'Official CapiTalk Campus Administrator'
+      : (currentUser?.bio || '');
 
     const newComment: FreedomComment = {
       id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       post_id: selectedPostForComments.id,
       author_id: currentUser?.id,
       author_alias: authorAliasVal,
-      department: currentUser ? currentUser.department : 'General',
+      department: authorDeptVal,
       author_avatar: authorAvatarVal,
       author_bio: authorBioVal,
+      is_admin: isCommentAdmin,
       message: replyingTo ? `@${replyingTo.alias} ${newCommentText.trim()}` : newCommentText.trim(),
       reply_to_comment_id: replyingTo?.id,
       reply_to_alias: replyingTo?.alias,
@@ -559,8 +572,8 @@ export const FreedomWall: React.FC = () => {
     setNewCommentText('');
     setReplyingTo(null);
 
-    const actorUsername = currentUser?.username || (newComment.author_alias?.startsWith('@') ? newComment.author_alias.slice(1) : newComment.author_alias);
-    const actorAvatar = currentUser?.avatar_url || newComment.author_avatar || getAvatarForPseudonym(actorUsername);
+    const actorUsername = isCommentAdmin ? 'Admin' : (currentUser?.username || (newComment.author_alias?.startsWith('@') ? newComment.author_alias.slice(1) : newComment.author_alias));
+    const actorAvatar = isCommentAdmin ? '/avatars/coin-left.jpg' : (currentUser?.avatar_url || newComment.author_avatar || getAvatarForPseudonym(actorUsername));
 
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
@@ -575,6 +588,7 @@ export const FreedomWall: React.FC = () => {
           messageSnippet: selectedPostForComments.message.slice(0, 60),
           commentText: newComment.message.slice(0, 60),
           commenterId: currentUser ? currentUser.id : 'guest',
+          is_admin: isCommentAdmin,
           targetAuthorId: selectedPostForComments.author_id,
           targetAuthorAlias: selectedPostForComments.author_alias,
         });
@@ -602,12 +616,14 @@ export const FreedomWall: React.FC = () => {
         if (newComment.author_id) insertPayload.author_id = newComment.author_id;
         if (newComment.author_avatar) insertPayload.author_avatar = newComment.author_avatar;
         if (newComment.author_bio) insertPayload.author_bio = newComment.author_bio;
+        if (newComment.is_admin) insertPayload.is_admin = newComment.is_admin;
 
         let { error: commentError } = await supabase.from('freedom_comments').insert(insertPayload);
-        if (commentError && (commentError.message?.includes('author_id') || commentError.message?.includes('author_avatar') || commentError.message?.includes('author_bio'))) {
+        if (commentError && (commentError.message?.includes('author_id') || commentError.message?.includes('author_avatar') || commentError.message?.includes('author_bio') || commentError.message?.includes('is_admin'))) {
           delete insertPayload.author_id;
           delete insertPayload.author_avatar;
           delete insertPayload.author_bio;
+          delete insertPayload.is_admin;
           await supabase.from('freedom_comments').insert(insertPayload);
         }
 
@@ -849,7 +865,7 @@ export const FreedomWall: React.FC = () => {
   };
 
   const renderPostCard = (post: FreedomPost) => {
-    const hasLiked = currentUser ? post.liked_by_users?.includes(currentUser.id) : false;
+    const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
     const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
     const isPinned = isPinnedActive(post);
     const isMyPost = checkIsMyPost(post);
@@ -1726,10 +1742,16 @@ export const FreedomWall: React.FC = () => {
                       const isReply = depth > 0;
                       const isExpanded = !!expandedReplyCommentIds[cm.id];
 
-                      const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
+                      const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
                       const likedUsers = cm.liked_by_users || [];
                       const hasLiked = likedUsers.includes(currentUid);
                       const likesCount = cm.likes_count || 0;
+                      const isCmAdmin = Boolean(
+                        cm.is_admin ||
+                        cm.author_alias?.toLowerCase() === 'admin' ||
+                        cm.author_alias?.toLowerCase().includes('admin') ||
+                        cm.department?.toLowerCase().includes('admin')
+                      );
 
                       return (
                         <div key={cm.id} className="space-y-0.5">
@@ -1738,45 +1760,72 @@ export const FreedomWall: React.FC = () => {
                               type="button"
                               onClick={() => setViewingProfile({
                                 username: cm.author_alias,
-                                department: cm.department || 'General',
-                                avatar_url: cm.author_avatar || getAvatarForPseudonym(cm.author_alias),
+                                department: cm.department || (isCmAdmin ? 'Admin' : 'General'),
+                                avatar_url: cm.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(cm.author_alias)),
                                 bio: cm.author_bio,
                                 author_id: cm.author_id,
+                                is_admin: isCmAdmin,
                               })}
-                              className="shrink-0 cursor-pointer mt-0.5"
+                              className="shrink-0 cursor-pointer mt-0.5 relative group/avatar"
+                              title={isCmAdmin ? "Official Admin" : `@${cm.author_alias}`}
                             >
                               <img
-                                src={cm.author_avatar || getAvatarForPseudonym(cm.author_alias)}
+                                src={cm.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(cm.author_alias))}
                                 alt={cm.author_alias}
-                                className={`${isReply ? 'w-6 h-6' : 'w-7 h-7 sm:w-7.5 sm:h-7.5'} rounded-full border border-[#e4e6eb] object-cover bg-white`}
+                                className={`${isReply ? 'w-6 h-6' : 'w-7 h-7 sm:w-7.5 sm:h-7.5'} rounded-full object-cover bg-white ${
+                                  isCmAdmin ? 'border-2 border-[#701a31] shadow-xs' : 'border border-[#e4e6eb]'
+                                }`}
                               />
+                              {isCmAdmin && (
+                                <div
+                                  className={`absolute -bottom-0.5 -right-0.5 ${isReply ? 'w-3 h-3 text-[7px]' : 'w-3.5 h-3.5 text-[8px]'} rounded-full bg-[#1877f2] border-2 border-white flex items-center justify-center text-white font-bold shadow-2xs`}
+                                  title="Official Admin"
+                                >
+                                  ✓
+                                </div>
+                              )}
                             </button>
 
                             <div className="flex-1 min-w-0">
                               {/* Thin Compact Bubble */}
-                              <div className="bg-white rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 border border-[#e4e6eb] shadow-2xs space-y-0.5 inline-block max-w-[92%] sm:max-w-[85%]">
+                              <div className={`rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-2xs space-y-0.5 inline-block max-w-[92%] sm:max-w-[85%] transition-all ${
+                                isCmAdmin
+                                  ? 'bg-gradient-to-br from-[#701a31]/10 via-[#fff8f9] to-[#701a31]/5 border border-[#701a31]/35 ring-1 ring-[#701a31]/20 shadow-xs'
+                                  : 'bg-white border border-[#e4e6eb]'
+                              }`}>
                                 <div className="flex items-center gap-1 leading-tight flex-wrap">
                                   <button
                                     type="button"
                                     onClick={() => setViewingProfile({
                                       username: cm.author_alias,
-                                      department: cm.department || 'General',
-                                      avatar_url: cm.author_avatar || getAvatarForPseudonym(cm.author_alias),
+                                      department: cm.department || (isCmAdmin ? 'Admin' : 'General'),
+                                      avatar_url: cm.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(cm.author_alias)),
                                       bio: cm.author_bio,
                                       author_id: cm.author_id,
+                                      is_admin: isCmAdmin,
                                     })}
-                                    className="font-bold text-[12px] sm:text-[12.5px] text-[#050505] hover:underline cursor-pointer truncate"
+                                    className={`font-bold text-[12px] sm:text-[12.5px] hover:underline cursor-pointer truncate ${
+                                      isCmAdmin ? 'text-[#701a31] font-black' : 'text-[#050505]'
+                                    }`}
                                   >
                                     @{cm.author_alias}
                                   </button>
-                                  {cm.department && (
-                                    <span className="text-[10px] text-[#65676b] font-normal">
-                                      · {cm.department.replace('College of ', '')}
+                                  {isCmAdmin ? (
+                                    <span className="px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider rounded-full bg-[#701a31] text-white flex items-center gap-0.5 shadow-2xs shrink-0">
+                                      <span>Official</span>
                                     </span>
+                                  ) : (
+                                    cm.department && (
+                                      <span className="text-[10px] text-[#65676b] font-normal">
+                                        · {cm.department.replace('College of ', '')}
+                                      </span>
+                                    )
                                   )}
                                 </div>
 
-                                <p className="text-[12.5px] sm:text-[13px] text-[#050505] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                <p className={`text-[12.5px] sm:text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+                                  isCmAdmin ? 'text-[#1a050b] font-medium' : 'text-[#050505]'
+                                }`}>
                                   {cm.message}
                                 </p>
                               </div>
@@ -1850,6 +1899,29 @@ export const FreedomWall: React.FC = () => {
 
             {/* Modal Input Footer */}
             <div className="p-2 sm:p-2.5 bg-white border-t border-[#e4e6eb] shrink-0">
+              {isAdminUser && (
+                <div className="flex items-center justify-between px-1 mb-1.5 pb-1.5 border-b border-[#e4e6eb]">
+                  <button
+                    type="button"
+                    onClick={() => setCommentAsAdmin(!commentAsAdmin)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                      commentAsAdmin
+                        ? 'bg-[#701a31] text-white border border-[#701a31]'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                    }`}
+                  >
+                    <span>{commentAsAdmin ? 'Replying as Admin (Official)' : 'Reply as Admin'}</span>
+                    <span className={`w-2 h-2 rounded-full ${commentAsAdmin ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
+                  </button>
+                  {commentAsAdmin && (
+                    <span className="text-[10px] font-bold text-[#701a31] uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#701a31]" />
+                      Admin Badge Active
+                    </span>
+                  )}
+                </div>
+              )}
+
               {replyingTo && (
                 <div className="mb-1.5 px-2.5 py-1 bg-[#f0f2f5] rounded-md text-[11px] font-medium text-[#050505] flex items-center justify-between animate-in fade-in">
                   <div className="flex items-center gap-1.5">
@@ -1868,11 +1940,20 @@ export const FreedomWall: React.FC = () => {
               )}
 
               <form onSubmit={handleAddComment} className="flex items-center gap-1.5 sm:gap-2">
-                <img
-                  src={currentUser?.avatar_url || getAvatarForPseudonym(commentAlias)}
-                  alt="My avatar"
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-[#e4e6eb] object-cover bg-[#f0f2f5] shrink-0 hidden xs:block"
-                />
+                <div className="relative shrink-0 hidden xs:block">
+                  <img
+                    src={commentAsAdmin ? '/avatars/coin-left.jpg' : (currentUser?.avatar_url || getAvatarForPseudonym(commentAlias))}
+                    alt="My avatar"
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover bg-[#f0f2f5] ${
+                      commentAsAdmin ? 'border-2 border-[#701a31]' : 'border border-[#e4e6eb]'
+                    }`}
+                  />
+                  {commentAsAdmin && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#1877f2] border-2 border-white flex items-center justify-center text-[7px] text-white font-bold">
+                      ✓
+                    </div>
+                  )}
+                </div>
                 <textarea
                   ref={commentInputRef}
                   value={newCommentText}
@@ -1883,16 +1964,28 @@ export const FreedomWall: React.FC = () => {
                       handleAddComment(e);
                     }
                   }}
-                  placeholder={replyingTo ? `Reply to @${replyingTo.alias}...` : "Write a comment..."}
+                  placeholder={
+                    replyingTo
+                      ? `Reply as ${commentAsAdmin ? 'Admin' : `@${commentAlias}`} to @${replyingTo.alias}...`
+                      : `Write a comment as ${commentAsAdmin ? 'Admin' : `@${commentAlias}`}...`
+                  }
                   rows={1}
                   maxLength={2000}
-                  className="flex-1 bg-[#f0f2f5] border border-[#e4e6eb] rounded-2xl px-3 py-1.5 sm:py-2 text-[13px] text-[#050505] placeholder-[#65676b] outline-none focus:bg-white focus:border-[#1877f2] transition-colors resize-none max-h-24 overflow-y-auto leading-snug"
+                  className={`flex-1 border rounded-2xl px-3 py-1.5 sm:py-2 text-[13px] text-[#050505] placeholder-[#65676b] outline-none transition-colors resize-none max-h-24 overflow-y-auto leading-snug ${
+                    commentAsAdmin
+                      ? 'bg-[#fff8f9] border-[#701a31]/30 focus:border-[#701a31] focus:bg-white'
+                      : 'bg-[#f0f2f5] border-[#e4e6eb] focus:bg-white focus:border-[#1877f2]'
+                  }`}
                   required
                 />
                 <button
                   type="submit"
                   disabled={!newCommentText.trim()}
-                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-[#1877f2] hover:bg-[#166fe5] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shrink-0 active:scale-95 shadow-xs cursor-pointer"
+                  className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shrink-0 active:scale-95 shadow-xs cursor-pointer ${
+                    commentAsAdmin
+                      ? 'bg-[#701a31] hover:bg-[#5a1527]'
+                      : 'bg-[#1877f2] hover:bg-[#166fe5]'
+                  }`}
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>

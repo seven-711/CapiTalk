@@ -35,6 +35,20 @@ import { DeleteNoteModal } from './DeleteNoteModal';
 import { CustomAudioPlayer } from './CustomAudioPlayer';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
 
+const isColorDark = (hexColor?: string | null): boolean => {
+  if (!hexColor) return false;
+  const hex = hexColor.replace('#', '');
+  if (hex.length !== 6 && hex.length !== 3) return false;
+  const fullHex = hex.length === 3
+    ? hex.split('').map((c) => c + c).join('')
+    : hex;
+  const r = parseInt(fullHex.substring(0, 2), 16);
+  const g = parseInt(fullHex.substring(2, 4), 16);
+  const b = parseInt(fullHex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.55;
+};
+
 const MUSIC_POST_COLORS = [
   { name: 'Soft Rose', hex: '#fff1f3' },
   { name: 'Gold', hex: '#ffc900' },
@@ -62,6 +76,12 @@ export const MusicWall: React.FC = () => {
 
   const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
+  const [commentAsAdmin, setCommentAsAdmin] = useState(isAdminUser);
+
+  useEffect(() => {
+    setPostAsAdmin(isAdminUser);
+    setCommentAsAdmin(isAdminUser);
+  }, [isAdminUser]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPostForReport, setSelectedPostForReport] = useState<FreedomPost | null>(null);
@@ -213,15 +233,18 @@ export const MusicWall: React.FC = () => {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedPostForComments) return;
 
-    const authorAlias = currentUser ? currentUser.username : 'Anon Student';
-    const authorAvatar = currentUser?.avatar_url || getAvatarForPseudonym(authorAlias);
+    const isCommentAdmin = Boolean(isAdminUser && commentAsAdmin);
+    const authorAlias = isCommentAdmin ? 'Admin' : (currentUser ? currentUser.username : 'Anon Student');
+    const authorAvatar = isCommentAdmin ? '/avatars/coin-left.jpg' : (currentUser?.avatar_url || getAvatarForPseudonym(authorAlias));
+    const authorDept = isCommentAdmin ? 'Admin' : (currentUser ? currentUser.department : 'General');
 
     const newComment = {
       id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       post_id: selectedPostForComments.id,
       author_alias: authorAlias,
       author_avatar: authorAvatar,
-      department: currentUser ? currentUser.department : 'General',
+      department: authorDept,
+      is_admin: isCommentAdmin,
       message: newCommentText.trim(),
       created_at: new Date().toISOString(),
     };
@@ -248,6 +271,7 @@ export const MusicWall: React.FC = () => {
           author_alias: newComment.author_alias,
           author_avatar: newComment.author_avatar,
           department: newComment.department,
+          is_admin: newComment.is_admin,
           message: newComment.message,
           created_at: newComment.created_at,
         });
@@ -537,12 +561,21 @@ export const MusicWall: React.FC = () => {
     const isThisPlaying = playingPostId === post.id;
     const isThisLoading = audioLoadingPostId === post.id;
 
+    // Follow the user's chosen color (matching preview in DedicateSongPage)
+    const cardBgColor = post.color || (isPostAdmin ? '#701a31' : '#fff1f3');
+    const isDark = isColorDark(cardBgColor);
+
     return (
       <div
         key={post.id}
         id={`post-${post.id}`}
         onClick={() => setSelectedPostForDetail(post)}
-        className="p-2.5 sm:p-3 rounded-2xl transition-all flex flex-col items-center justify-between group relative cursor-pointer select-none text-center bg-white/90 hover:bg-white hover:shadow-lg hover:-translate-y-1 duration-300"
+        style={{ backgroundColor: cardBgColor }}
+        className={`p-2.5 sm:p-3 rounded-2xl transition-all flex flex-col items-center justify-between group relative cursor-pointer select-none text-center hover:shadow-lg hover:-translate-y-1 duration-300 border ${
+          isDark
+            ? 'border-black/20 text-white shadow-md'
+            : 'border-[#d1d5dc]/80 text-neutral-900 shadow-xs'
+        }`}
       >
         {/* Top Dedicated To Badge */}
         <div className="w-full flex items-center justify-center min-h-[22px] px-1 mb-1">
@@ -555,13 +588,15 @@ export const MusicWall: React.FC = () => {
               📌
             </span>
           ) : post.dedicated_to ? (
-            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[8.5px] sm:text-[10px] font-black rounded-full truncate max-w-full flex items-center gap-1">
+            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[8.5px] sm:text-[10px] font-black rounded-full truncate max-w-full flex items-center gap-1 border border-rose-200/60 shadow-2xs">
               <span className="shrink-0">For:</span>
               <span className="truncate">{post.dedicated_to}</span>
             </span>
           ) : (
-            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[8px] sm:text-[9px] font-bold rounded-full truncate">
-              {post.department.replace('College of ', '')}
+            <span className={`px-2 py-0.5 text-[8px] sm:text-[9px] font-bold rounded-full truncate ${
+              isDark ? 'bg-white/20 text-white' : 'bg-black/5 text-gray-600'
+            }`}>
+              {post.department ? post.department.replace('College of ', '') : 'Music'}
             </span>
           )}
         </div>
@@ -629,10 +664,14 @@ export const MusicWall: React.FC = () => {
 
         {/* Music Title and Artist */}
         <div className="w-full flex flex-col items-center mt-1">
-          <h3 className="text-[10.5px] xs:text-xs sm:text-sm font-extrabold truncate w-full tracking-tight leading-tight text-neutral-900">
+          <h3 className={`text-[10.5px] xs:text-xs sm:text-sm font-extrabold truncate w-full tracking-tight leading-tight ${
+            isDark ? 'text-white' : 'text-neutral-900'
+          }`}>
             {post.song_title || 'Untitled Track'}
           </h3>
-          <p className="text-[8.5px] xs:text-[9.5px] sm:text-xs font-semibold truncate w-full mt-0.5 text-neutral-500">
+          <p className={`text-[8.5px] xs:text-[9.5px] sm:text-xs font-semibold truncate w-full mt-0.5 ${
+            isDark ? 'text-white/80' : 'text-neutral-500'
+          }`}>
             {post.song_artist || 'Unknown Artist'}
           </p>
 
@@ -653,7 +692,9 @@ export const MusicWall: React.FC = () => {
           )}
 
           {/* Bottom Indicators (Like & Comment) */}
-          <div className="mt-1 flex items-center justify-center gap-1.5 text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-bold text-gray-500">
+          <div className={`mt-1 flex items-center justify-center gap-1.5 text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-bold ${
+            isDark ? 'text-white/80' : 'text-gray-500'
+          }`}>
             <button
               type="button"
               onClick={(e) => {
@@ -661,15 +702,23 @@ export const MusicWall: React.FC = () => {
                 likeFreedomPost(post.id);
               }}
               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full transition-colors cursor-pointer ${
-                hasLiked ? 'text-rose-600 bg-rose-50 font-black' : 'hover:text-black hover:bg-gray-100'
+                hasLiked
+                  ? isDark
+                    ? 'text-rose-300 bg-white/20 font-black'
+                    : 'text-rose-600 bg-rose-50 font-black'
+                  : isDark
+                  ? 'hover:text-white hover:bg-white/10'
+                  : 'hover:text-black hover:bg-black/5'
               }`}
               title={hasLiked ? "Unlike song dedication" : "Like song dedication"}
             >
-              <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+              <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? (isDark ? 'fill-rose-300 text-rose-300' : 'fill-rose-500 text-rose-500') : ''}`} />
               <span>{post.likes_count || 0}</span>
             </button>
             {(commentsCountMap[post.id] || 0) > 0 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-gray-400">
+              <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 ${
+                isDark ? 'text-white/70' : 'text-gray-400'
+              }`}>
                 <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 <span>{commentsCountMap[post.id]}</span>
               </span>
@@ -1158,26 +1207,66 @@ export const MusicWall: React.FC = () => {
                 </div>
               ) : (
                 commentsList.map((c) => {
-                  const avatarUrl = c.author_avatar || getAvatarForPseudonym(c.author_alias || 'Anon Student');
+                  const isCmAdmin = Boolean(
+                    c.is_admin ||
+                    c.author_alias?.toLowerCase() === 'admin' ||
+                    c.author_alias?.toLowerCase().includes('admin') ||
+                    c.department?.toLowerCase().includes('admin')
+                  );
+                  const avatarUrl = c.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(c.author_alias || 'Anon Student'));
                   return (
-                    <div key={c.id} className="p-3 bg-neutral-50 border border-neutral-200/70 rounded-xl space-y-1">
+                    <div
+                      key={c.id}
+                      className={`p-3 rounded-xl space-y-1 transition-all ${
+                        isCmAdmin
+                          ? 'bg-gradient-to-br from-[#701a31]/10 via-[#fff8f9] to-[#701a31]/5 border border-[#701a31]/35 ring-1 ring-[#701a31]/20 shadow-xs'
+                          : 'bg-neutral-50 border border-neutral-200/70'
+                      }`}
+                    >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <img
-                            src={avatarUrl}
-                            alt={c.author_alias}
-                            className="w-6 h-6 rounded-full border border-neutral-200 object-cover bg-white shrink-0"
-                            onError={(e) => {
-                              (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(c.author_alias || 'Anon Student'));
-                            }}
-                          />
-                          <span className="font-bold text-xs text-neutral-900 truncate">@{c.author_alias}</span>
+                          <div className="relative shrink-0">
+                            <img
+                              src={avatarUrl}
+                              alt={c.author_alias}
+                              className={`w-6 h-6 rounded-full object-cover bg-white shrink-0 ${
+                                isCmAdmin ? 'border-2 border-[#701a31] shadow-xs' : 'border border-neutral-200'
+                              }`}
+                              onError={(e) => {
+                                (e.target as HTMLElement).setAttribute('src', isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(c.author_alias || 'Anon Student'));
+                              }}
+                            />
+                            {isCmAdmin && (
+                              <div
+                                className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#1877f2] border-2 border-white flex items-center justify-center text-[7px] text-white font-bold shadow-2xs"
+                                title="Official Admin"
+                              >
+                                ✓
+                              </div>
+                            )}
+                          </div>
+                          <span className={`font-bold text-xs truncate ${
+                            isCmAdmin ? 'text-[#701a31] font-black' : 'text-neutral-900'
+                          }`}>
+                            @{c.author_alias}
+                          </span>
+                          {isCmAdmin && (
+                            <span className="px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider rounded-full bg-[#701a31] text-white flex items-center gap-0.5 shadow-2xs shrink-0">
+                              <span>Official</span>
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[10px] font-medium text-neutral-400 shrink-0">
-                          {c.department?.replace('College of ', '')}
-                        </span>
+                        {!isCmAdmin && c.department && (
+                          <span className="text-[10px] font-medium text-neutral-400 shrink-0">
+                            {c.department?.replace('College of ', '')}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-neutral-700 font-normal leading-relaxed break-words pl-8">{c.message}</p>
+                      <p className={`text-xs leading-relaxed break-words pl-8 ${
+                        isCmAdmin ? 'text-[#1a050b] font-medium' : 'text-neutral-700'
+                      }`}>
+                        {c.message}
+                      </p>
                     </div>
                   );
                 })
@@ -1185,24 +1274,53 @@ export const MusicWall: React.FC = () => {
             </div>
 
             {/* Add Comment Form */}
-            <form onSubmit={handleAddComment} className="pt-3 border-t border-neutral-100 shrink-0">
-              <div className="flex gap-2">
+            <div className="pt-3 border-t border-neutral-100 shrink-0">
+              {isAdminUser && (
+                <div className="flex items-center justify-between px-1 mb-2 pb-1.5 border-b border-neutral-100">
+                  <button
+                    type="button"
+                    onClick={() => setCommentAsAdmin(!commentAsAdmin)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                      commentAsAdmin
+                        ? 'bg-[#701a31] text-white border border-[#701a31]'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                    }`}
+                  >
+                    <span>{commentAsAdmin ? 'Replying as Admin (Official)' : 'Reply as Admin'}</span>
+                    <span className={`w-2 h-2 rounded-full ${commentAsAdmin ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
+                  </button>
+                  {commentAsAdmin && (
+                    <span className="text-[10px] font-bold text-[#701a31] uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#701a31]" />
+                      Admin Active
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleAddComment} className="flex gap-2">
                 <input
                   type="text"
                   required
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
-                  placeholder="Write a comment..."
-                  className="w-full bg-[#f4f4f0] border border-[#d1d5dc] focus:border-black focus:bg-white rounded-xl px-3.5 py-2 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none transition-all font-medium"
+                  placeholder={commentAsAdmin ? "Write a comment as Admin..." : "Write a comment..."}
+                  className={`w-full border rounded-xl px-3.5 py-2 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none transition-all font-medium ${
+                    commentAsAdmin
+                      ? 'bg-[#fff8f9] border-[#701a31]/30 focus:border-[#701a31] focus:bg-white'
+                      : 'bg-[#f4f4f0] border-[#d1d5dc] focus:border-black focus:bg-white'
+                  }`}
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-black hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
+                  className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0 ${
+                    commentAsAdmin ? 'bg-[#701a31] hover:bg-[#5a1527]' : 'bg-black hover:bg-neutral-800'
+                  }`}
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
