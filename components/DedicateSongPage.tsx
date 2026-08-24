@@ -47,6 +47,12 @@ const MUSIC_POST_COLORS = [
   { name: 'Crimson', hex: '#c41e3a' },
 ];
 
+import {
+  getAdminToken,
+  verifyAdminSession,
+  purgeLegacyAdminKeys,
+} from '../lib/auth/adminAuth';
+
 export const DedicateSongPage: React.FC = () => {
   const {
     currentUser,
@@ -56,8 +62,47 @@ export const DedicateSongPage: React.FC = () => {
     setTargetPostId,
   } = useChatStore();
 
-  const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
+  const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(currentUser?.is_admin || getAdminToken());
+  });
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
+
+  useEffect(() => {
+    purgeLegacyAdminKeys();
+    let isMounted = true;
+
+    const checkAdmin = async () => {
+      const token = getAdminToken();
+      if (token) {
+        const isValid = await verifyAdminSession();
+        if (isMounted) {
+          setIsAdminUser(isValid);
+          if (isValid) {
+            const { currentUser: cur } = useChatStore.getState();
+            if (cur && !cur.is_admin) {
+              useChatStore.setState({ currentUser: { ...cur, is_admin: true } });
+            }
+          }
+        }
+      } else {
+        if (isMounted) {
+          setIsAdminUser(Boolean(currentUser?.is_admin));
+        }
+      }
+    };
+
+    checkAdmin();
+    window.addEventListener('storage', checkAdmin);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', checkAdmin);
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    setPostAsAdmin(isAdminUser);
+  }, [isAdminUser]);
 
   // Form State
   const [dedicatedTo, setDedicatedTo] = useState('');

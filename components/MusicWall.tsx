@@ -34,6 +34,11 @@ import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
 import { CustomAudioPlayer } from './CustomAudioPlayer';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
+import {
+  getAdminToken,
+  verifyAdminSession,
+  purgeLegacyAdminKeys,
+} from '../lib/auth/adminAuth';
 
 const isColorDark = (hexColor?: string | null): boolean => {
   if (!hexColor) return false;
@@ -74,9 +79,44 @@ export const MusicWall: React.FC = () => {
     setViewState,
   } = useChatStore();
 
-  const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
+  const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(currentUser?.is_admin || getAdminToken());
+  });
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
   const [commentAsAdmin, setCommentAsAdmin] = useState(isAdminUser);
+
+  useEffect(() => {
+    purgeLegacyAdminKeys();
+    let isMounted = true;
+
+    const checkAdmin = async () => {
+      const token = getAdminToken();
+      if (token) {
+        const isValid = await verifyAdminSession();
+        if (isMounted) {
+          setIsAdminUser(isValid);
+          if (isValid) {
+            const { currentUser: cur } = useChatStore.getState();
+            if (cur && !cur.is_admin) {
+              useChatStore.setState({ currentUser: { ...cur, is_admin: true } });
+            }
+          }
+        }
+      } else {
+        if (isMounted) {
+          setIsAdminUser(Boolean(currentUser?.is_admin));
+        }
+      }
+    };
+
+    checkAdmin();
+    window.addEventListener('storage', checkAdmin);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', checkAdmin);
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     setPostAsAdmin(isAdminUser);
@@ -556,7 +596,7 @@ export const MusicWall: React.FC = () => {
       ? currentUser.id
       : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
     const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
-    const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
+    const isPostAdmin = Boolean(post.is_admin);
     const isPinned = isPinnedActive(post);
     const isThisPlaying = playingPostId === post.id;
     const isThisLoading = audioLoadingPostId === post.id;
@@ -952,7 +992,7 @@ export const MusicWall: React.FC = () => {
           ? currentUser.id
           : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
         const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
-        const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
+        const isPostAdmin = Boolean(post.is_admin);
         const isPinned = isPinnedActive(post);
         const allMyAliases = Array.from(new Set([
           ...(myPseudonyms || []),
@@ -1207,12 +1247,7 @@ export const MusicWall: React.FC = () => {
                 </div>
               ) : (
                 commentsList.map((c) => {
-                  const isCmAdmin = Boolean(
-                    c.is_admin ||
-                    c.author_alias?.toLowerCase() === 'admin' ||
-                    c.author_alias?.toLowerCase().includes('admin') ||
-                    c.department?.toLowerCase().includes('admin')
-                  );
+                  const isCmAdmin = Boolean(c.is_admin);
                   const avatarUrl = c.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(c.author_alias || 'Anon Student'));
                   return (
                     <div

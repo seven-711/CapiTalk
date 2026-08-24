@@ -5,6 +5,11 @@ import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomComment, FreedomPost, FreedomPollOption } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import {
+  getAdminToken,
+  verifyAdminSession,
+  purgeLegacyAdminKeys,
+} from '../lib/auth/adminAuth';
+import {
   MessageSquare,
   Plus,
   Heart,
@@ -234,22 +239,42 @@ export const FreedomWall: React.FC = () => {
     setTargetPostId,
   } = useChatStore();
 
-  // Admin Privilege Detection (Reactive & Multi-Source)
+  // Admin Privilege Detection (Reactive & Cryptographically Verified)
   const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem('capitalk_admin_auth_v1') === 'true' ||
-           Boolean(currentUser?.is_admin || currentUser?.department?.toLowerCase().includes('admin'));
+    return Boolean(currentUser?.is_admin || getAdminToken());
   });
 
   useEffect(() => {
-    const checkAdmin = () => {
-      const isAuthAdmin = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
-      const isUserAdmin = Boolean(currentUser?.is_admin || currentUser?.department?.toLowerCase().includes('admin'));
-      setIsAdminUser(Boolean(isAuthAdmin || isUserAdmin));
+    purgeLegacyAdminKeys();
+    let isMounted = true;
+
+    const checkAdmin = async () => {
+      const token = getAdminToken();
+      if (token) {
+        const isValid = await verifyAdminSession();
+        if (isMounted) {
+          setIsAdminUser(isValid);
+          if (isValid) {
+            const { currentUser: cur } = useChatStore.getState();
+            if (cur && !cur.is_admin) {
+              useChatStore.setState({ currentUser: { ...cur, is_admin: true } });
+            }
+          }
+        }
+      } else {
+        if (isMounted) {
+          setIsAdminUser(Boolean(currentUser?.is_admin));
+        }
+      }
     };
+
     checkAdmin();
     window.addEventListener('storage', checkAdmin);
-    return () => window.removeEventListener('storage', checkAdmin);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', checkAdmin);
+    };
   }, [currentUser]);
 
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
@@ -866,7 +891,7 @@ export const FreedomWall: React.FC = () => {
 
   const renderPostCard = (post: FreedomPost) => {
     const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
-    const isPostAdmin = post.is_admin || post.author_alias?.toLowerCase().includes('admin');
+    const isPostAdmin = Boolean(post.is_admin);
     const isPinned = isPinnedActive(post);
     const isMyPost = checkIsMyPost(post);
     const commentsCount = commentsCountMap[post.id] || 0;
@@ -991,7 +1016,7 @@ export const FreedomWall: React.FC = () => {
               <div className={`flex items-center gap-1 text-[12px] leading-tight mt-0.5 ${
                 isDark ? 'text-white/80' : 'text-[#65676b]'
               }`}>
-                {!isPostAdmin && post.department && !post.department.toLowerCase().includes('admin') && (
+                {!isPostAdmin && post.department && (
                   <>
                     <span className="font-normal truncate max-w-[130px] sm:max-w-[180px]">
                       {post.department.replace('College of ', '')}
@@ -1654,7 +1679,7 @@ export const FreedomWall: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 bg-[#f0f2f5]">
               {/* Original Note Snippet */}
               {(() => {
-                const isCmPostAdmin = selectedPostForComments.is_admin || selectedPostForComments.author_alias?.toLowerCase().includes('admin');
+                const isCmPostAdmin = Boolean(selectedPostForComments.is_admin);
                 const cmNoteBg = selectedPostForComments.color || (isCmPostAdmin ? '#701a31' : '#ffffff');
                 const isCmNoteDark = isColorDark(cmNoteBg);
 
@@ -1679,9 +1704,9 @@ export const FreedomWall: React.FC = () => {
                             {selectedPostForComments.author_alias}
                           </p>
                           <p className={`text-[10.5px] sm:text-[11px] ${isCmNoteDark ? 'text-white/80' : 'text-[#65676b]'}`}>
-                            {!isCmPostAdmin && selectedPostForComments.department && !selectedPostForComments.department.toLowerCase().includes('admin')
-                              ? `${selectedPostForComments.department.replace('College of ', '')} · `
-                              : ''}
+                            {!isCmPostAdmin && selectedPostForComments.department && (
+                              `${selectedPostForComments.department.replace('College of ', '')} · `
+                            )}
                             {formatRelativeTime(selectedPostForComments.created_at, now)}
                           </p>
                         </div>
@@ -1746,12 +1771,7 @@ export const FreedomWall: React.FC = () => {
                       const likedUsers = cm.liked_by_users || [];
                       const hasLiked = likedUsers.includes(currentUid);
                       const likesCount = cm.likes_count || 0;
-                      const isCmAdmin = Boolean(
-                        cm.is_admin ||
-                        cm.author_alias?.toLowerCase() === 'admin' ||
-                        cm.author_alias?.toLowerCase().includes('admin') ||
-                        cm.department?.toLowerCase().includes('admin')
-                      );
+                      const isCmAdmin = Boolean(cm.is_admin);
 
                       return (
                         <div key={cm.id} className="space-y-0.5">

@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useChatStore } from '../lib/store/useChatStore';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
 import {
@@ -21,10 +19,19 @@ import {
   FileText,
   Send,
   Pin,
+  Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { DeleteNoteModal } from './DeleteNoteModal';
 import { FreedomPost } from '../lib/types';
+import {
+  loginAdmin,
+  verifyAdminSession,
+  clearAdminToken,
+  getAdminToken,
+  purgeLegacyAdminKeys,
+} from '../lib/auth/adminAuth';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -41,13 +48,11 @@ export const AdminDashboard: React.FC = () => {
 
   const onlineCount = useOnlineCount();
   const [passcode, setPasscode] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('capitalk_admin_auth_v1') === 'true';
-    }
-    return false;
-  });
-  const [authError, setAuthError] = useState(false);
+  const [isVerifying, setIsVerifying] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
 
   const [activeTab, setActiveTab] = useState<'reports' | 'wall_notes' | 'users' | 'announcements' | 'feedback'>('reports');
   const [selectedReportForRemark, setSelectedReportForRemark] = useState<{
@@ -66,27 +71,77 @@ export const AdminDashboard: React.FC = () => {
 
   const [manualBanInput, setManualBanInput] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passcode.trim() === 'capitalk2026' || passcode.trim() === 'admin') {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('capitalk_admin_auth_v1', 'true');
+  // Check existing session token on mount
+  useEffect(() => {
+    let isMounted = true;
+    purgeLegacyAdminKeys();
+
+    async function checkSession() {
+      const token = getAdminToken();
+      if (!token) {
+        if (isMounted) {
+          setIsAuthenticated(false);
+          setIsVerifying(false);
+        }
+        return;
       }
+
+      const isValid = await verifyAdminSession();
+      if (isMounted) {
+        setIsAuthenticated(isValid);
+        if (isValid) {
+          const { currentUser } = useChatStore.getState();
+          if (currentUser && !currentUser.is_admin) {
+            useChatStore.setState({ currentUser: { ...currentUser, is_admin: true } });
+          }
+        }
+        setIsVerifying(false);
+      }
+    }
+
+    checkSession();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Lockout countdown timer
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSeconds]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passcode.trim() || isSubmitting || lockoutSeconds > 0) return;
+
+    setIsSubmitting(true);
+    setAuthError(null);
+
+    const result = await loginAdmin(passcode.trim());
+    setIsSubmitting(false);
+
+    if (result.success) {
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setPasscode('');
       const { currentUser } = useChatStore.getState();
       if (currentUser) {
         useChatStore.setState({ currentUser: { ...currentUser, is_admin: true } });
       }
-      setIsAuthenticated(true);
-      setAuthError(false);
     } else {
-      setAuthError(true);
+      setAuthError(result.error || 'Authentication failed. Please check your passcode.');
+      if (result.lockoutSeconds) {
+        setLockoutSeconds(result.lockoutSeconds);
+      }
     }
   };
 
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('capitalk_admin_auth_v1');
-    }
+    clearAdminToken();
     const { currentUser } = useChatStore.getState();
     if (currentUser) {
       useChatStore.setState({ currentUser: { ...currentUser, is_admin: false } });
@@ -94,8 +149,6 @@ export const AdminDashboard: React.FC = () => {
     setIsAuthenticated(false);
     useChatStore.getState().goBack();
   };
-
-
 
   const handleManualBan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +162,15 @@ export const AdminDashboard: React.FC = () => {
     return r.status === reportFilter;
   });
 
+  if (isVerifying) {
+    return (
+      <div className="w-full max-w-md mx-auto py-24 px-4 flex flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="w-8 h-8 animate-spin text-black" />
+        <p className="text-sm font-bold text-neutral-600">Verifying secure admin gateway session...</p>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="w-full max-w-md mx-auto py-16 px-4">
@@ -116,28 +178,52 @@ export const AdminDashboard: React.FC = () => {
           <div className="w-12 h-12 rounded-full bg-[#ff90e8] border-2 border-black flex items-center justify-center mx-auto mb-4">
             <Lock className="w-6 h-6 text-black" />
           </div>
-          <h2 className="text-2xl font-extrabold text-black">Admin Console Access</h2>
+          <h2 className="text-2xl font-extrabold text-black">Admin Console Gateway</h2>
           <p className="text-xs text-[#242423] mt-1 mb-6">
-            Enter administrator secret key to view live reports and manage users.
+            Enter administrator master key to verify your session and access the moderation console.
           </p>
 
           {authError && (
-            <div className="mb-4 p-2.5 bg-[#dc341e]/10 border border-[#dc341e] text-xs font-bold text-[#dc341e] rounded text-center">
-              ⚠️ Invalid Passcode. Access Denied.
+            <div className="mb-4 p-3 bg-[#dc341e]/10 border border-[#dc341e] text-xs font-bold text-[#dc341e] rounded-xl text-left flex items-start gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{authError}</span>
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Enter admin key..."
-              className="gumroad-input w-full text-center py-2.5"
-              autoFocus
-            />
-            <button type="submit" className="btn-gumroad-primary w-full py-3">
-              Authenticate Admin
+            <div className="relative">
+              <input
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                disabled={isSubmitting || lockoutSeconds > 0}
+                placeholder={lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : "Enter master admin key..."}
+                className="gumroad-input w-full text-center py-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                autoFocus
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={!passcode.trim() || isSubmitting || lockoutSeconds > 0}
+              className="btn-gumroad-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying Key...</span>
+                </>
+              ) : lockoutSeconds > 0 ? (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>Locked for {lockoutSeconds}s</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Authenticate Admin</span>
+                </>
+              )}
             </button>
           </form>
         </div>

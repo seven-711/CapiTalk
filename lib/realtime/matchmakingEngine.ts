@@ -4,6 +4,7 @@ import { UserProfile, QueueFilter } from '../types';
 import { BOT_PARTNERS } from '../constants';
 import { roomManager } from './roomManager';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
+import { getAdminToken, purgeLegacyAdminKeys } from '../auth/adminAuth';
 
 export interface MatchPayload {
   roomId: string;
@@ -233,8 +234,9 @@ class MatchmakingEngine {
   }
 
   public joinQueue(user: UserProfile, filter: QueueFilter) {
+    purgeLegacyAdminKeys();
     const isAdmin = Boolean(
-      (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
+      Boolean(getAdminToken()) ||
       user.is_admin === true
     );
     const sanitizedUser: UserProfile = { ...user, is_admin: isAdmin };

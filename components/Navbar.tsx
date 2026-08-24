@@ -224,6 +224,7 @@ export const Navbar: React.FC = () => {
           >
             <div className="w-10 h-5 flex items-center justify-center shrink-0 pointer-events-none">
               <DotLottieReact
+                key={`streak-desktop-${isStreakTriggeredToday ? 'triggered' : 'untriggered'}-${streakCount}`}
                 src={isStreakTriggeredToday ? '/animated-assets/triggeredStreak.lottie' : '/animated-assets/untriggeredStreak.lottie'}
                 loop
                 autoplay
@@ -382,8 +383,9 @@ export const Navbar: React.FC = () => {
               className="flex md:hidden items-center mr-2 hover:bg-[#fff8e6] text-black rounded-xl transition-all active:scale-95 shrink-0 select-none cursor-pointer"
               title={`Daily Streak: ${streakCount} ${streakCount === 1 ? 'day' : 'days'}`}
             >
-              <div className="w-9 h-5 flex  items-center justify-center shrink-0 pointer-events-none">
+              <div className="w-9 h-5 flex items-center justify-center shrink-0 pointer-events-none">
                 <DotLottieReact
+                  key={`streak-mobile-${isStreakTriggeredToday ? 'triggered' : 'untriggered'}-${streakCount}`}
                   src={isStreakTriggeredToday ? '/animated-assets/triggeredStreak.lottie' : '/animated-assets/untriggeredStreak.lottie'}
                   loop
                   autoplay

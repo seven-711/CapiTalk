@@ -9,6 +9,7 @@ import { roomManager } from '../realtime/roomManager';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { checkProfanity } from '../utils/profanityFilter';
 import { getOrCreatePersistentUUID } from '../utils/uuid';
+import { getAdminToken, purgeLegacyAdminKeys } from '../auth/adminAuth';
 
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -2546,9 +2547,9 @@ export const useChatStore = create<ChatStoreState>()(
           return;
         }
 
+        purgeLegacyAdminKeys();
         const isAdmin = Boolean(
-          (typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true') ||
-          get().viewState === 'admin' ||
+          Boolean(getAdminToken()) ||
           currentUser.is_admin === true
         );
 
@@ -3402,11 +3403,13 @@ export const useChatStore = create<ChatStoreState>()(
         };
 
         try {
+          const adminToken = getAdminToken();
           const res = await fetch('/api/freedom-wall/post', {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              'x-device-id': deviceId || 'unknown'
+              'x-device-id': deviceId || 'unknown',
+              ...(adminToken ? { 'x-admin-token': adminToken } : {}),
             },
             body: JSON.stringify({ honeypot, postData: newPost })
           });

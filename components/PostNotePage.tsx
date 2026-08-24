@@ -100,6 +100,12 @@ const POST_COLORS = [
   { name: 'Crimson', hex: '#c41e3a' },
 ];
 
+import {
+  getAdminToken,
+  verifyAdminSession,
+  purgeLegacyAdminKeys,
+} from '../lib/auth/adminAuth';
+
 export const PostNotePage: React.FC = () => {
   const {
     currentUser,
@@ -110,8 +116,47 @@ export const PostNotePage: React.FC = () => {
     setTargetPostId,
   } = useChatStore();
 
-  const isAdminUser = typeof window !== 'undefined' && localStorage.getItem('capitalk_admin_auth_v1') === 'true';
+  const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(currentUser?.is_admin || getAdminToken());
+  });
   const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
+
+  useEffect(() => {
+    purgeLegacyAdminKeys();
+    let isMounted = true;
+
+    const checkAdmin = async () => {
+      const token = getAdminToken();
+      if (token) {
+        const isValid = await verifyAdminSession();
+        if (isMounted) {
+          setIsAdminUser(isValid);
+          if (isValid) {
+            const { currentUser: cur } = useChatStore.getState();
+            if (cur && !cur.is_admin) {
+              useChatStore.setState({ currentUser: { ...cur, is_admin: true } });
+            }
+          }
+        }
+      } else {
+        if (isMounted) {
+          setIsAdminUser(Boolean(currentUser?.is_admin));
+        }
+      }
+    };
+
+    checkAdmin();
+    window.addEventListener('storage', checkAdmin);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', checkAdmin);
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    setPostAsAdmin(isAdminUser);
+  }, [isAdminUser]);
 
   const [alias, setAlias] = useState(currentUser ? currentUser.username : 'Anon Student');
   const [department, setDepartment] = useState<string>(currentUser ? currentUser.department : 'General');
@@ -763,7 +808,7 @@ export const PostNotePage: React.FC = () => {
                           isDark ? 'text-white/80' : 'text-[#65676b]'
                         }`}
                       >
-                        {!postAsAdmin && currentAuthorDept && !currentAuthorDept.toLowerCase().includes('admin') && (
+                        {!postAsAdmin && currentAuthorDept && (
                           <>
                             <span className="font-normal truncate max-w-[130px] sm:max-w-[180px]">
                               {currentAuthorDept.replace('College of ', '')}

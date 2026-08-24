@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdminToken } from '@/lib/auth/adminCrypto';
 
 // Simple in-memory rate limiter for Vercel/Next.js edge cases
 // (In a true distributed environment, use Redis/Upstash)
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
   try {
     const ip = req.headers.get('x-forwarded-for') || 'unknown';
     const deviceId = req.headers.get('x-device-id') || 'unknown';
+    const adminToken = req.headers.get('x-admin-token') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     
     // LAYER 1: Basic Rate Limiting
     const now = Date.now();
@@ -28,11 +30,20 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { honeypot, postData } = body;
 
+    // Verify Admin Status via Cryptographic Server Token
+    let isVerifiedAdmin = false;
+    if (adminToken) {
+      const verification = verifyAdminToken(adminToken);
+      if (verification.valid) {
+        isVerifiedAdmin = true;
+      }
+    }
+
     // LAYER 8: Strict 60-second Server Cooldown Check per Device / IP
     const cooldownKey = `cooldown_${ip}_${deviceId}`;
     const lastPostTime = rateLimitStore.get(cooldownKey)?.resetAt || 0;
     const secondsSinceLast = (now - lastPostTime) / 1000;
-    const isAdminMode = postData?.is_admin === true && postData?.author_alias?.includes('Admin');
+    const isAdminMode = isVerifiedAdmin && postData?.is_admin === true;
 
     if (!isAdminMode && lastPostTime > 0 && secondsSinceLast < 60) {
       const waitSec = Math.ceil(60 - secondsSinceLast);
@@ -230,10 +241,20 @@ export async function POST(req: Request) {
       }
     }
 
+    const safeAuthorAlias = isVerifiedAdmin && postData.is_admin === true
+      ? (postData.author_alias || 'Admin')
+      : (postData.author_alias === 'Admin' || postData.author_alias?.toLowerCase().startsWith('admin')
+          ? 'Student'
+          : (postData.author_alias || 'Anon Student'));
+
+    const safeDepartment = isVerifiedAdmin && postData.is_admin === true
+      ? 'Admin'
+      : (postData.department?.toLowerCase() === 'admin' ? 'General' : (postData.department || 'General'));
+
     const insertPayload: any = {
       id: postData.id,
-      author_alias: postData.author_alias || 'Anon Student',
-      department: postData.department || 'General',
+      author_alias: safeAuthorAlias,
+      department: safeDepartment,
       message: message,
       color: encodedColor,
       likes_count: 0, // Never trust client
@@ -241,12 +262,20 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
     
+    if (isVerifiedAdmin && postData.is_admin === true) {
+      insertPayload.is_admin = true;
+      insertPayload.status = 'approved';
+      if (postData.is_pinned) insertPayload.is_pinned = true;
+    } else {
+      insertPayload.is_admin = false;
+      insertPayload.status = finalStatus;
+    }
+
     if (postData.author_id) insertPayload.author_id = postData.author_id;
     if (postData.author_avatar) insertPayload.author_avatar = postData.author_avatar;
     if (postData.author_bio) insertPayload.author_bio = postData.author_bio;
     if (finalImageUrl) insertPayload.image_url = finalImageUrl;
     if (postData.image_type) insertPayload.image_type = postData.image_type;
-    insertPayload.status = finalStatus;
     if (postData.dedicated_to) insertPayload.dedicated_to = postData.dedicated_to;
     if (postData.poll_question) insertPayload.poll_question = postData.poll_question;
     if (postData.poll_options && postData.poll_options.length > 0) insertPayload.poll_options = postData.poll_options;
