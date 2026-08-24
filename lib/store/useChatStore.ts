@@ -237,12 +237,22 @@ export const useChatStore = create<ChatStoreState>()(
       currentUser: typeof window !== 'undefined'
         ? (() => {
             try {
+              purgeLegacyAdminKeys();
+              const hasAdminToken = Boolean(getAdminToken());
               const standalone = localStorage.getItem('capitalk_current_user_profile_v1');
-              if (standalone) return JSON.parse(standalone);
+              if (standalone) {
+                const user = JSON.parse(standalone);
+                if (user && !hasAdminToken && user.is_admin) user.is_admin = false;
+                return user;
+              }
               const zustandRaw = localStorage.getItem('capitalk-storage');
               if (zustandRaw) {
                 const parsed = JSON.parse(zustandRaw);
-                if (parsed.state?.currentUser) return parsed.state.currentUser;
+                if (parsed.state?.currentUser) {
+                  const user = parsed.state.currentUser;
+                  if (user && !hasAdminToken && user.is_admin) user.is_admin = false;
+                  return user;
+                }
               }
             } catch (e) {}
             return null;
@@ -3435,13 +3445,26 @@ export const useChatStore = create<ChatStoreState>()(
             return false;
           }
 
+          let serverImageUrl: string | undefined = undefined;
+          try {
+            const resJson = await res.json();
+            if (resJson && resJson.imageUrl) {
+              serverImageUrl = resJson.imageUrl;
+            }
+          } catch (e) {}
+
+          const finalizedPost = {
+            ...newPost,
+            ...(serverImageUrl ? { image_url: serverImageUrl } : {}),
+          };
+
           // ONLY update local state and broadcast after server approves the post
           const currentList = get().freedomPosts;
-          const updated = [newPost, ...currentList];
-          const updatedMyPostIds = [newPost.id, ...get().myPostIds];
+          const updated = [finalizedPost, ...currentList];
+          const updatedMyPostIds = [finalizedPost.id, ...get().myPostIds];
 
-          if (newPost.author_alias) {
-            get().addPseudonym(newPost.author_alias);
+          if (finalizedPost.author_alias) {
+            get().addPseudonym(finalizedPost.author_alias);
           }
 
           if (typeof window !== 'undefined') {

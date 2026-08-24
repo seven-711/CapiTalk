@@ -118,9 +118,9 @@ export const PostNotePage: React.FC = () => {
 
   const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return Boolean(currentUser?.is_admin || getAdminToken());
+    return Boolean(getAdminToken());
   });
-  const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
+  const [postAsAdmin, setPostAsAdmin] = useState(false);
 
   useEffect(() => {
     purgeLegacyAdminKeys();
@@ -137,11 +137,22 @@ export const PostNotePage: React.FC = () => {
             if (cur && !cur.is_admin) {
               useChatStore.setState({ currentUser: { ...cur, is_admin: true } });
             }
+          } else {
+            setPostAsAdmin(false);
+            const { currentUser: cur } = useChatStore.getState();
+            if (cur?.is_admin) {
+              useChatStore.setState({ currentUser: { ...cur, is_admin: false } });
+            }
           }
         }
       } else {
         if (isMounted) {
-          setIsAdminUser(Boolean(currentUser?.is_admin));
+          setIsAdminUser(false);
+          setPostAsAdmin(false);
+          const { currentUser: cur } = useChatStore.getState();
+          if (cur?.is_admin) {
+            useChatStore.setState({ currentUser: { ...cur, is_admin: false } });
+          }
         }
       }
     };
@@ -152,10 +163,12 @@ export const PostNotePage: React.FC = () => {
       isMounted = false;
       window.removeEventListener('storage', checkAdmin);
     };
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
-    setPostAsAdmin(isAdminUser);
+    if (!isAdminUser) {
+      setPostAsAdmin(false);
+    }
   }, [isAdminUser]);
 
   const [alias, setAlias] = useState(currentUser ? currentUser.username : 'Anon Student');
@@ -257,47 +270,47 @@ export const PostNotePage: React.FC = () => {
 
     try {
       if (file.type === 'image/gif') {
-        if (file.size > 3 * 1024 * 1024) {
-          throw new Error('GIF exceeds 3MB limit.');
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error('GIF exceeds 5MB limit.');
         }
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const dataUrl = ev.target?.result as string;
-          setAttachedMedia({ url: dataUrl, type: 'gif', name: file.name });
-          setIsProcessingMedia(false);
-        };
-        reader.onerror = () => {
-          setMediaError('Failed to read GIF.');
-          setIsProcessingMedia(false);
-        };
-        reader.readAsDataURL(file);
-      } else if (['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
-        const processed = await processUploadedImage(file, 900, 240, 0.72);
-        let finalMediaUrl = processed.fullDataUrl;
+        const formData = new FormData();
+        formData.append('file', file, file.name);
 
-        try {
-          const blobRes = await fetch(processed.fullDataUrl);
-          const blob = await blobRes.blob();
-          const formData = new FormData();
-          formData.append('file', blob, processed.fileName);
+        const uploadReq = await fetch('/api/freedom-wall/upload', {
+          method: 'POST',
+          body: formData,
+        });
 
-          const uploadReq = await fetch('/api/freedom-wall/upload', {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (uploadReq.ok) {
-            const uploadJson = await uploadReq.json();
-            if (uploadJson.success && uploadJson.url) {
-              finalMediaUrl = uploadJson.url;
-            }
+        if (uploadReq.ok) {
+          const uploadJson = await uploadReq.json();
+          if (uploadJson.success && uploadJson.url) {
+            setAttachedMedia({ url: uploadJson.url, type: 'gif', name: file.name });
+            setIsProcessingMedia(false);
+            return;
           }
-        } catch (uploadErr) {
-          console.warn('API upload fallback to webp data URL:', uploadErr);
         }
+        throw new Error('Failed to upload GIF. Please try again.');
+      } else if (['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+        const processed = await processUploadedImage(file, 900, 240, 0.75);
+        const blobRes = await fetch(processed.fullDataUrl);
+        const blob = await blobRes.blob();
+        const formData = new FormData();
+        formData.append('file', blob, processed.fileName);
 
-        setAttachedMedia({ url: finalMediaUrl, type: 'image', name: processed.fileName });
-        setIsProcessingMedia(false);
+        const uploadReq = await fetch('/api/freedom-wall/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (uploadReq.ok) {
+          const uploadJson = await uploadReq.json();
+          if (uploadJson.success && uploadJson.url) {
+            setAttachedMedia({ url: uploadJson.url, type: 'image', name: processed.fileName });
+            setIsProcessingMedia(false);
+            return;
+          }
+        }
+        throw new Error('Failed to upload image. Please check your connection.');
       } else {
         throw new Error('Please upload JPG, PNG, WEBP, or GIF.');
       }

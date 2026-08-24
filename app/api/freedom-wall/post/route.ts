@@ -75,8 +75,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Message cannot exceed 300 characters.' }, { status: 400 });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xkmytopgtrizoxyphnmk.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_vbexy_paqhng1G_GbH7TEg_0OWWLV2-';
 
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ success: false, error: 'Supabase configuration error.' }, { status: 500 });
@@ -310,15 +310,16 @@ export async function POST(req: Request) {
         'song_link',
       ];
 
-      // Strip columns mentioned in error or if value is too long for schema
+      // Strip only columns explicitly missing or faulty according to error message
       for (let attempt = 0; attempt < 3; attempt++) {
         if (!error) break;
         let modified = false;
+        const errLower = (error.message || '').toLowerCase();
 
         for (const col of OPTIONAL_COLUMNS) {
           if (insertPayload[col] !== undefined) {
-            const errLower = (error.message || '').toLowerCase();
-            if (errLower.includes(col.toLowerCase()) || errLower.includes('column') || errLower.includes('varying') || errLower.includes('too long')) {
+            // Only strip column if DB error specifically names this column as missing
+            if (errLower.includes(`"${col.toLowerCase()}"`) || errLower.includes(`column ${col.toLowerCase()}`)) {
               delete insertPayload[col];
               modified = true;
             }
@@ -326,9 +327,11 @@ export async function POST(req: Request) {
         }
 
         // Also ensure color is simplified to 7-character hex if length was an issue
-        if (insertPayload.color !== finalColor) {
-          insertPayload.color = finalColor;
-          modified = true;
+        if (errLower.includes('varying') || errLower.includes('value too long') || errLower.includes('character varying')) {
+          if (insertPayload.color !== finalColor) {
+            insertPayload.color = finalColor;
+            modified = true;
+          }
         }
 
         if (modified) {
@@ -369,7 +372,12 @@ export async function POST(req: Request) {
       rateLimitStore.set(cooldownKey, { count: 1, resetAt: now });
     }
 
-    return NextResponse.json({ success: true, message: 'Post created successfully.' }, { status: 200 });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Post created successfully.',
+      post: insertPayload,
+      imageUrl: finalImageUrl || null,
+    }, { status: 200 });
 
   } catch (error: any) {
     console.error('Error in freedom-wall/post:', error);

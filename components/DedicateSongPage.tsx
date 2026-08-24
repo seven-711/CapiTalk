@@ -64,9 +64,9 @@ export const DedicateSongPage: React.FC = () => {
 
   const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return Boolean(currentUser?.is_admin || getAdminToken());
+    return Boolean(getAdminToken());
   });
-  const [postAsAdmin, setPostAsAdmin] = useState(isAdminUser);
+  const [postAsAdmin, setPostAsAdmin] = useState(false);
 
   useEffect(() => {
     purgeLegacyAdminKeys();
@@ -83,11 +83,22 @@ export const DedicateSongPage: React.FC = () => {
             if (cur && !cur.is_admin) {
               useChatStore.setState({ currentUser: { ...cur, is_admin: true } });
             }
+          } else {
+            setPostAsAdmin(false);
+            const { currentUser: cur } = useChatStore.getState();
+            if (cur?.is_admin) {
+              useChatStore.setState({ currentUser: { ...cur, is_admin: false } });
+            }
           }
         }
       } else {
         if (isMounted) {
-          setIsAdminUser(Boolean(currentUser?.is_admin));
+          setIsAdminUser(false);
+          setPostAsAdmin(false);
+          const { currentUser: cur } = useChatStore.getState();
+          if (cur?.is_admin) {
+            useChatStore.setState({ currentUser: { ...cur, is_admin: false } });
+          }
         }
       }
     };
@@ -98,10 +109,12 @@ export const DedicateSongPage: React.FC = () => {
       isMounted = false;
       window.removeEventListener('storage', checkAdmin);
     };
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
-    setPostAsAdmin(isAdminUser);
+    if (!isAdminUser) {
+      setPostAsAdmin(false);
+    }
   }, [isAdminUser]);
 
   // Form State

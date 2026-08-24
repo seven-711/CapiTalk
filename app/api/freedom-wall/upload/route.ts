@@ -21,8 +21,8 @@ export async function POST(req: Request) {
     const ext = file.name.split('.').pop() || 'webp';
     const fileName = `posts/note_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xkmytopgtrizoxyphnmk.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_vbexy_paqhng1G_GbH7TEg_0OWWLV2-';
 
     if (supabaseUrl && supabaseKey) {
       try {
@@ -49,10 +49,12 @@ export async function POST(req: Request) {
             });
           }
         } else if (uploadErr) {
-          console.warn('[STORAGE_UPLOAD_WARN] Supabase storage upload:', uploadErr.message);
+          console.error('[STORAGE_UPLOAD_ERROR] Supabase storage upload failed:', uploadErr.message);
+          return NextResponse.json({ success: false, error: `Upload error: ${uploadErr.message}` }, { status: 500 });
         }
       } catch (err: any) {
-        console.warn('[STORAGE_UPLOAD_EXCEPTION]', err?.message);
+        console.error('[STORAGE_UPLOAD_EXCEPTION]', err?.message);
+        return NextResponse.json({ success: false, error: err?.message || 'Storage error' }, { status: 500 });
       }
     }
 
