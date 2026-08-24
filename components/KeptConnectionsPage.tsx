@@ -126,7 +126,7 @@ const SwipeableDmRow: React.FC<SwipeableDmRowProps> = ({
   const translateXVal = isMe ? -dragOffset : dragOffset;
 
   return (
-    <div className="relative w-full overflow-visible touch-pan-y select-none">
+    <div className="relative w-full overflow-visible touch-pan-y">
       {/* Swipe Reply Icon Indicator */}
       <div
         className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all pointer-events-none z-0 ${
@@ -160,15 +160,7 @@ const SwipeableDmRow: React.FC<SwipeableDmRowProps> = ({
         onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
         onTouchEnd={handleEnd}
         onTouchCancel={handleEnd}
-        onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
-        onMouseMove={(e) => {
-          if (touchStartRef.current) {
-            handleMove(e.clientX, e.clientY);
-          }
-        }}
-        onMouseUp={handleEnd}
-        onMouseLeave={handleEnd}
-        className="relative z-10 select-none touch-pan-y"
+        className="relative z-10 touch-pan-y"
         style={{
           transform: `translateX(${translateXVal}px)`,
           transition: isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
@@ -730,12 +722,12 @@ export const KeptConnectionsPage: React.FC = () => {
     };
   }, [keptConnection, currentUser, pairKey, storageKey, persistMessages, sendReadReceipt, sendPresencePing, sendPresencePong, markPartnerOnline, markPartnerOffline, handlePartnerTyping, setHasNewConnectionNotif]);
 
-  // Scroll to bottom on new message or typing state change when chat is open
+  // Scroll to bottom on new message, typing, or reply bar change when chat is open
   useEffect(() => {
     if (activeChatOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, partnerTyping, activeChatOpen]);
+  }, [messages, partnerTyping, activeChatOpen, replyTo]);
 
   // Handle typing signal broadcast
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -890,14 +882,14 @@ export const KeptConnectionsPage: React.FC = () => {
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] bg-[#121214] text-white font-sans flex flex-col max-w-2xl mx-auto w-full border-x border-zinc-800/80 overflow-hidden select-none">
+    <div className="h-[100dvh] max-h-[100dvh] bg-[#121214] text-white font-sans flex flex-col max-w-2xl mx-auto w-full border-x border-zinc-800/80 overflow-hidden">
       {activeChatOpen && keptConnection ? (
         /* ═══════════════════════════════════════════════════════════════════════
            VIEW A: ACTIVE DIRECT MESSAGE CHATROOM
            ═══════════════════════════════════════════════════════════════════════ */
         <>
           {/* Header */}
-            <header className="bg-[#18181b] border-b border-zinc-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-10">
+            <header className="bg-[#18181b] border-b border-zinc-800 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-10 select-none">
               <div className="flex items-center gap-2.5 min-w-0">
                 <button
                   type="button"
@@ -990,10 +982,10 @@ export const KeptConnectionsPage: React.FC = () => {
             {/* Messages Scroll Area */}
             <div
               onClick={() => activePickerMsgId && setActivePickerMsgId(null)}
-              className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#121214]"
+              className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 bg-[#121214] min-w-0"
             >
               {/* Profile Intro Banner */}
-              <div className="text-center py-4 space-y-1">
+              <div className="text-center py-4 space-y-1 select-none">
                 <img
                   src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
                   alt={keptConnection.username}
@@ -1009,7 +1001,7 @@ export const KeptConnectionsPage: React.FC = () => {
 
               {/* Empty Chat State Notice */}
               {messages.length === 0 && (
-                <div className="text-center py-6 text-xs text-zinc-400 space-y-1">
+                <div className="text-center py-6 text-xs text-zinc-400 space-y-1 select-none">
                   <p className="font-bold text-zinc-200">No messages yet 👋</p>
                   <p>Say hi to @{keptConnection.username} to start the conversation!</p>
                 </div>
@@ -1026,9 +1018,9 @@ export const KeptConnectionsPage: React.FC = () => {
                     inputRef.current?.focus();
                   }}
                 >
-                  <div
+                    <div
                     id={`msg-${msg.id}`}
-                    className={`flex flex-col group relative ${msg.isMe ? 'items-end' : 'items-start'}`}
+                    className={`flex flex-col group relative max-w-full min-w-0 ${msg.isMe ? 'items-end' : 'items-start'}`}
                   >
                     {/* Floating Reaction Picker Popover */}
                     {activePickerMsgId === msg.id && (
@@ -1045,7 +1037,7 @@ export const KeptConnectionsPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%]">
+                    <div className={`flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%] min-w-0 ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                       <div
                         onTouchStart={(e) => handleBubbleTouchStart(msg.id, e)}
                         onTouchMove={handleBubbleTouchMove}
@@ -1055,12 +1047,12 @@ export const KeptConnectionsPage: React.FC = () => {
                           e.preventDefault();
                           setActivePickerMsgId(msg.id);
                         }}
-                        className={`relative px-3.5 py-2 text-[13.5px] leading-relaxed break-words shadow-sm transition-all select-none cursor-pointer ${
+                        className={`relative px-3.5 py-2 text-[13.5px] leading-relaxed break-words [word-break:break-word] [overflow-wrap:anywhere] min-w-0 max-w-full shadow-sm transition-all select-text cursor-pointer ${
                           activePickerMsgId === msg.id ? 'ring-2 ring-amber-400/80 shadow-2xl' : ''
                         } ${
                           msg.isMe
-                            ? 'bg-[#701a31] text-white rounded-2xl rounded-br-xs border border-[#8b233e]/50'
-                            : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-xs'
+                            ? 'bg-[#701a31] text-white rounded-2xl rounded-br-sm border border-[#8b233e]/50'
+                            : 'bg-[#27272a] text-zinc-100 border border-zinc-700/60 rounded-2xl rounded-bl-sm'
                         }`}
                       >
                         {/* Reply Quote Banner inside bubble */}
@@ -1071,27 +1063,29 @@ export const KeptConnectionsPage: React.FC = () => {
                               const el = document.getElementById(`msg-${msg.reply_to?.id}`);
                               if (el) {
                                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                el.classList.add('ring-2', 'ring-[#ffc900]');
-                                setTimeout(() => el.classList.remove('ring-2', 'ring-[#ffc900]'), 1500);
+                                el.classList.add('ring-2', 'ring-[#ffc900]', 'transition-all', 'duration-300');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-[#ffc900]'), 1800);
                               }
                             }}
-                            className={`mb-1.5 p-2 rounded-xl text-xs cursor-pointer border-l-3 transition-opacity hover:opacity-90 ${
+                            className={`mb-1.5 p-2 rounded-xl text-xs cursor-pointer border-l-[3px] transition-opacity hover:opacity-90 min-w-0 max-w-full ${
                               msg.isMe
-                                ? 'bg-black/25 border-[#ffc900] text-zinc-200'
+                                ? 'bg-black/30 border-[#ffc900] text-zinc-200'
                                 : 'bg-black/40 border-[#ff90e8] text-zinc-300'
                             }`}
                           >
                             <p className={`font-bold text-[10.5px] truncate ${msg.isMe ? 'text-[#ffc900]' : 'text-[#ff90e8]'}`}>
                               {msg.reply_to.senderName === currentUser?.username ? 'You' : `@${msg.reply_to.senderName}`}
                             </p>
-                            <p className="text-[11px] text-zinc-300 line-clamp-1 truncate">{msg.reply_to.text}</p>
+                            <p className="text-[11px] text-zinc-300 line-clamp-2 truncate break-words [word-break:break-word] [overflow-wrap:anywhere]">{msg.reply_to.text}</p>
                           </div>
                         )}
 
-                        <p className="leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.text}</p>
+                        <p className="leading-relaxed whitespace-pre-wrap break-words [word-break:break-word] [overflow-wrap:anywhere] min-w-0">{msg.text}</p>
 
                         {/* Quick Action Toolbar on Hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3.5 right-2 border rounded-full px-2 py-0.5 flex items-center gap-1 shadow-lg z-20 bg-[#1e1e24] border-zinc-700 text-white">
+                        <div className={`opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3.5 ${
+                          msg.isMe ? 'right-2' : 'left-2'
+                        } border rounded-full px-2 py-0.5 flex items-center gap-1 shadow-lg z-20 bg-[#1e1e24] border-zinc-700 text-white select-none`}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1140,7 +1134,7 @@ export const KeptConnectionsPage: React.FC = () => {
                           setReplyTo(msg);
                           inputRef.current?.focus();
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 active:scale-95 rounded-full transition-all text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shrink-0 cursor-pointer hidden sm:flex items-center justify-center"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 active:scale-95 rounded-full transition-all text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shrink-0 cursor-pointer hidden sm:flex items-center justify-center select-none"
                         title="Reply to message"
                       >
                         <CornerUpLeft className="w-3.5 h-3.5" />
@@ -1163,7 +1157,7 @@ export const KeptConnectionsPage: React.FC = () => {
                     )}
 
                     {/* Message Timestamp & Read Status */}
-                    <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium">
+                    <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-zinc-400 font-medium select-none">
                       <span>{formatTime(msg.timestamp)}</span>
                       {msg.isMe && (
                         <span className="flex items-center ml-0.5" title={msg.read ? 'Read by partner' : 'Sent (Unread)'}>
@@ -1181,7 +1175,7 @@ export const KeptConnectionsPage: React.FC = () => {
 
               {/* Partner Live Typing indicator */}
               {partnerTyping && (
-                <div className="flex items-center gap-1.5 py-1.5 px-3 bg-[#27272a] border border-zinc-700/60 text-xs font-semibold rounded-2xl rounded-bl-xs w-fit text-zinc-300 animate-pulse">
+                <div className="flex items-center gap-1.5 py-1.5 px-3 bg-[#27272a] border border-zinc-700/60 text-xs font-semibold rounded-2xl rounded-bl-xs w-fit text-zinc-300 animate-pulse select-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.2s]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]" />
@@ -1192,52 +1186,55 @@ export const KeptConnectionsPage: React.FC = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Reply Preview Bar above input */}
-            {replyTo && (
-              <div className="bg-[#1e1e24] border-t border-x border-zinc-700/80 px-3.5 py-2 flex items-center justify-between gap-2 text-xs rounded-t-2xl animate-in slide-in-from-bottom-2 duration-150">
-                <div className="flex items-center gap-2 min-w-0 border-l-3 border-[#ffc900] pl-2.5">
-                  <CornerUpLeft className="w-3.5 h-3.5 text-[#ffc900] shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-extrabold text-[#ffc900] text-[11px] truncate leading-tight">
-                      Replying to {replyTo.senderName === currentUser?.username ? 'yourself' : `@${replyTo.senderName}`}
-                    </p>
-                    <p className="text-zinc-300 text-[11.5px] truncate leading-tight mt-0.5">{replyTo.text}</p>
+            {/* Unified Bottom Footer Bar (Reply Preview + Input Form) */}
+            <div className="bg-[#18181b] border-t border-zinc-800 shrink-0 z-20 transition-all duration-200">
+              {/* Integrated Reply Preview */}
+              {replyTo && (
+                <div className="px-3.5 sm:px-4 py-2 bg-[#1e1e24] border-b border-zinc-800 flex items-center justify-between gap-2.5 text-xs animate-in slide-in-from-bottom-2 duration-150">
+                  <div className="flex items-center gap-2.5 min-w-0 border-l-[3px] border-[#ffc900] pl-2.5">
+                    <CornerUpLeft className="w-4 h-4 text-[#ffc900] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-[#ffc900] text-[11px] truncate leading-tight">
+                        Replying to {replyTo.senderName === currentUser?.username ? 'yourself' : `@${replyTo.senderName}`}
+                      </p>
+                      <p className="text-zinc-300 text-[11.5px] truncate leading-tight mt-0.5">{replyTo.text}</p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo(null)}
+                    className="p-1 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                    title="Cancel Reply"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setReplyTo(null)}
-                  className="p-1 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-                  title="Cancel Reply"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+              )}
 
-            {/* Message Input Bar */}
-            <form
-              onSubmit={handleSendMessage}
-              className="bg-[#18181b] border-t border-zinc-800 p-2.5 sm:p-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-            >
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputText}
-                onChange={handleInputChange}
-                placeholder={`Message @${keptConnection.username}...`}
-                className="flex-1 bg-[#27272a] hover:bg-[#2f2f35] focus:bg-[#27272a] text-[13.5px] text-white placeholder-zinc-500 px-4 py-2 rounded-full border border-zinc-700 focus:border-zinc-500 focus:outline-none transition-all"
-              />
-
-              <button
-                type="submit"
-                disabled={!inputText.trim()}
-                className="w-9 h-9 rounded-full bg-[#ffc900] hover:bg-[#ffd633] disabled:opacity-20 disabled:hover:bg-[#ffc900] text-black flex items-center justify-center transition-all shrink-0 cursor-pointer active:scale-95 shadow-sm font-bold"
-                title="Send Message"
+              {/* Message Input Bar */}
+              <form
+                onSubmit={handleSendMessage}
+                className="p-2.5 sm:p-3 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
               >
-                <Send className="w-4 h-4 ml-0.5" />
-              </button>
-            </form>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputText}
+                  onChange={handleInputChange}
+                  placeholder={`Message @${keptConnection.username}...`}
+                  className="flex-1 bg-[#27272a] hover:bg-[#2f2f35] focus:bg-[#27272a] text-[13.5px] text-white placeholder-zinc-500 px-4 py-2 rounded-full border border-zinc-700 focus:border-zinc-500 focus:outline-none transition-all"
+                />
+
+                <button
+                  type="submit"
+                  disabled={!inputText.trim()}
+                  className="w-9 h-9 rounded-full bg-[#ffc900] hover:bg-[#ffd633] disabled:opacity-20 disabled:hover:bg-[#ffc900] text-black flex items-center justify-center transition-all shrink-0 cursor-pointer active:scale-95 shadow-sm font-bold"
+                  title="Send Message"
+                >
+                  <Send className="w-4 h-4 ml-0.5" />
+                </button>
+              </form>
+            </div>
           </>
         ) : (keptConnection || (pendingIncomingRequests && pendingIncomingRequests.length > 0) || pendingOutgoingConnection) ? (
           /* ═══════════════════════════════════════════════════════════════════════
