@@ -412,6 +412,7 @@ export const PostNotePage: React.FC = () => {
       const newPostId = 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
       const success = await addFreedomPost({
+        id: newPostId,
         author_alias: authorAlias,
         department: authorDepartment,
         author_avatar: authorAvatar,

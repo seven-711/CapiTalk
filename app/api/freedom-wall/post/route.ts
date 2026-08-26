@@ -204,8 +204,18 @@ export async function POST(req: Request) {
       avatar: postData.author_avatar || '',
       bio: postData.author_bio || '',
     });
-    // Keep encodedColor short (< 200 chars) to prevent PostgreSQL VARCHAR length overflows
-    const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}||${profileMeta}`;
+    const songMeta = postData.song_title
+      ? JSON.stringify({
+          title: postData.song_title,
+          artist: postData.song_artist || '',
+          image: postData.song_image_url || '',
+          preview: postData.song_preview_url || '',
+          link: postData.song_link || '',
+          dedicated_to: postData.dedicated_to || '',
+        })
+      : '';
+    // Encoded format: color||status||liked_profiles||pollMeta||profileMeta||songMeta
+    const encodedColor = `${finalColor}||${finalStatus}||{}||${pollMeta}||${profileMeta}||${songMeta}`;
 
     // Handle image upload: if base64, attempt to upload to Supabase storage 'freedom_media'
     let finalImageUrl = postData.image_url;

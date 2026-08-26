@@ -91,7 +91,7 @@ interface ChatStoreState {
   resolveReport: (reportId: string, action: 'dismiss' | 'ban' | 'delete_post', adminRemark?: string) => void;
   toggleBanUser: (userId: string) => void;
 
-  addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'>, honeypot?: string, deviceId?: string) => Promise<boolean>;
+  addFreedomPost: (post: Omit<FreedomPost, 'id' | 'likes_count' | 'liked_by_users' | 'created_at'> & { id?: string }, honeypot?: string, deviceId?: string) => Promise<boolean>;
   deleteFreedomPost: (postId: string) => void;
   approveFreedomPost: (postId: string) => void;
   likeFreedomPost: (postId: string) => void;
@@ -209,6 +209,111 @@ export function getPhilippineDateStr(date: Date = new Date()): string {
   } catch {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
+}
+
+export function encodePostColor(post: Partial<FreedomPost>): string {
+  const baseColor = post.color || '#ffc900';
+  const status = post.status || (post.is_admin ? 'approved' : 'pending');
+  const profilesMeta = JSON.stringify(post.liked_by_profiles || {});
+  const pollMeta = (post.poll_options && post.poll_options.length > 0)
+    ? JSON.stringify({ question: post.poll_question || '', options: post.poll_options })
+    : '';
+  const profileMeta = JSON.stringify({
+    avatar: post.author_avatar || '',
+    bio: post.author_bio || '',
+  });
+  const songMeta = post.song_title
+    ? JSON.stringify({
+        title: post.song_title,
+        artist: post.song_artist || '',
+        image: post.song_image_url || '',
+        preview: post.song_preview_url || '',
+        link: post.song_link || '',
+        dedicated_to: post.dedicated_to || '',
+      })
+    : '';
+
+  return `${baseColor}||${status}||${profilesMeta}||${pollMeta}||${profileMeta}||${songMeta}`;
+}
+
+export function mapDbRowToPost(row: any, existingLocal?: FreedomPost): FreedomPost {
+  const dbLikedBy: string[] = Array.isArray(row.liked_by_users) ? row.liked_by_users : [];
+  const localLikedBy: string[] = existingLocal?.liked_by_users || [];
+  const useLikedBy = localLikedBy.length !== dbLikedBy.length ? localLikedBy : dbLikedBy;
+
+  const rawColor = row.color || '#ffc900';
+  const parts = rawColor.split('||');
+  const dbColor = parts[0];
+  const dbStatus = row.status || parts[1] || (row.is_admin ? 'approved' : 'pending');
+  let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
+  try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
+
+  let dbPollOptions = existingLocal?.poll_options || row.poll_options;
+  let dbPollQuestion = existingLocal?.poll_question || row.poll_question;
+  try {
+    if (parts[3]) {
+      const parsedPoll = JSON.parse(parts[3]);
+      if (parsedPoll.options) dbPollOptions = parsedPoll.options;
+      if (parsedPoll.question) dbPollQuestion = parsedPoll.question;
+    }
+  } catch (e) {}
+
+  let extractedAvatar = existingLocal?.author_avatar || row.author_avatar;
+  let extractedBio = existingLocal?.author_bio || row.author_bio;
+  try {
+    if (parts[4]) {
+      const parsedProfile = JSON.parse(parts[4]);
+      if (parsedProfile.avatar) extractedAvatar = parsedProfile.avatar;
+      if (parsedProfile.bio) extractedBio = parsedProfile.bio;
+    }
+  } catch (e) {}
+
+  let songTitle = row.song_title || existingLocal?.song_title;
+  let songArtist = row.song_artist || existingLocal?.song_artist;
+  let songImageUrl = row.song_image_url || existingLocal?.song_image_url;
+  let songPreviewUrl = row.song_preview_url || existingLocal?.song_preview_url;
+  let songLink = row.song_link || existingLocal?.song_link;
+  let dedicatedTo = row.dedicated_to || existingLocal?.dedicated_to;
+  try {
+    if (parts[5]) {
+      const parsedSong = JSON.parse(parts[5]);
+      if (parsedSong.title && !songTitle) songTitle = parsedSong.title;
+      if (parsedSong.artist && !songArtist) songArtist = parsedSong.artist;
+      if (parsedSong.image && !songImageUrl) songImageUrl = parsedSong.image;
+      if (parsedSong.preview && !songPreviewUrl) songPreviewUrl = parsedSong.preview;
+      if (parsedSong.link && !songLink) songLink = parsedSong.link;
+      if (parsedSong.dedicated_to && !dedicatedTo) dedicatedTo = parsedSong.dedicated_to;
+    }
+  } catch (e) {}
+
+  return {
+    id: row.id,
+    author_id: row.author_id,
+    author_alias: row.author_alias || 'Anon Student',
+    department: row.department || 'General',
+    author_avatar: extractedAvatar || getAvatarForPseudonym(row.author_alias || 'Anon'),
+    author_bio: extractedBio || '',
+    message: row.message,
+    color: dbColor,
+    likes_count: useLikedBy.length,
+    liked_by_users: useLikedBy,
+    liked_by_profiles: { ...(existingLocal?.liked_by_profiles || {}), ...dbProfiles },
+    is_admin: !!row.is_admin,
+    is_pinned: !!row.is_pinned,
+    pinned_at: row.pinned_at || undefined,
+    status: dbStatus,
+    created_at: row.created_at,
+    image_url: row.image_url || existingLocal?.image_url,
+    image_type: row.image_type || existingLocal?.image_type,
+    song_title: songTitle,
+    song_artist: songArtist,
+    song_image_url: songImageUrl,
+    song_preview_url: songPreviewUrl,
+    song_link: songLink,
+    dedicated_to: dedicatedTo,
+    poll_question: dbPollQuestion,
+    poll_options: dbPollOptions,
+  };
 }
 
 export const useChatStore = create<ChatStoreState>()(
@@ -1143,52 +1248,7 @@ export const useChatStore = create<ChatStoreState>()(
                   .then(({ data, error }) => {
                     if (data && data.length > 0 && !error) {
                       const localMap = new Map((get().freedomPosts || []).map((p) => [p.id, p]));
-                      const loadedFromDb: FreedomPost[] = data.map((row: any) => {
-                        const existingLocal = localMap.get(row.id);
-                        const rawColor = row.color || '#ffc900';
-                        const parts = rawColor.split('||');
-                        const dbColor = parts[0];
-                        const dbStatus = row.status || parts[1] || (row.is_admin ? 'approved' : 'pending');
-                        let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
-                        try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
-
-                        let dbPollOptions = existingLocal?.poll_options || row.poll_options;
-                        let dbPollQuestion = existingLocal?.poll_question || row.poll_question;
-                        try {
-                          if (parts[3]) {
-                            const parsedPoll = JSON.parse(parts[3]);
-                            if (parsedPoll.options) dbPollOptions = parsedPoll.options;
-                            if (parsedPoll.question) dbPollQuestion = parsedPoll.question;
-                          }
-                        } catch (e) {}
-
-                        return {
-                          id: row.id,
-                          author_id: row.author_id,
-                          author_alias: row.author_alias || 'Anon Student',
-                          department: row.department || 'General',
-                          message: row.message,
-                          color: dbColor,
-                          likes_count: row.likes_count || 0,
-                          liked_by_users: Array.isArray(row.liked_by_users) ? row.liked_by_users : [],
-                          liked_by_profiles: dbProfiles,
-                          is_admin: !!row.is_admin,
-                          is_pinned: !!row.is_pinned,
-                          pinned_at: row.pinned_at || undefined,
-                          status: dbStatus,
-                          created_at: row.created_at,
-                          image_url: row.image_url || existingLocal?.image_url,
-                          image_type: row.image_type || existingLocal?.image_type,
-                          song_title: row.song_title,
-                          song_artist: row.song_artist,
-                          song_image_url: row.song_image_url,
-                          song_preview_url: row.song_preview_url,
-                          song_link: row.song_link,
-                          dedicated_to: row.dedicated_to,
-                          poll_question: dbPollQuestion,
-                          poll_options: dbPollOptions,
-                        };
-                      });
+                      const loadedFromDb: FreedomPost[] = data.map((row: any) => mapDbRowToPost(row, localMap.get(row.id)));
                       set({ freedomPosts: loadedFromDb });
                       localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
                     }
@@ -2176,68 +2236,6 @@ export const useChatStore = create<ChatStoreState>()(
             // optimistic state (liked_by_users) so UI stays consistent.
             if (supabase && isSupabaseConfigured) {
               try {
-                const mapDbRowToPost = (row: any, existingLocal?: FreedomPost): FreedomPost => {
-                  const dbLikedBy: string[] = Array.isArray(row.liked_by_users) ? row.liked_by_users : [];
-                  const localLikedBy: string[] = existingLocal?.liked_by_users || [];
-                  const useLikedBy = localLikedBy.length !== dbLikedBy.length ? localLikedBy : dbLikedBy;
-
-                  const rawColor = row.color || '#ffc900';
-                  const parts = rawColor.split('||');
-                  const dbColor = parts[0];
-                  const dbStatus = row.status || parts[1] || (row.is_admin ? 'approved' : 'pending');
-                  let dbProfiles = typeof row.liked_by_profiles === 'object' && row.liked_by_profiles !== null ? row.liked_by_profiles : {};
-                  try { if (parts[2]) dbProfiles = JSON.parse(parts[2]); } catch (e) {}
-
-                  let dbPollOptions = existingLocal?.poll_options || row.poll_options;
-                  let dbPollQuestion = existingLocal?.poll_question || row.poll_question;
-                  try {
-                    if (parts[3]) {
-                      const parsedPoll = JSON.parse(parts[3]);
-                      if (parsedPoll.options) dbPollOptions = parsedPoll.options;
-                      if (parsedPoll.question) dbPollQuestion = parsedPoll.question;
-                    }
-                  } catch (e) {}
-
-                  let extractedAvatar = existingLocal?.author_avatar || row.author_avatar;
-                  let extractedBio = existingLocal?.author_bio || row.author_bio;
-                  try {
-                    if (parts[4]) {
-                      const parsedProfile = JSON.parse(parts[4]);
-                      if (parsedProfile.avatar) extractedAvatar = parsedProfile.avatar;
-                      if (parsedProfile.bio) extractedBio = parsedProfile.bio;
-                    }
-                  } catch (e) {}
-
-                  return {
-                    id: row.id,
-                    author_id: row.author_id,
-                    author_alias: row.author_alias || 'Anon Student',
-                    department: row.department || 'General',
-                    author_avatar: extractedAvatar || getAvatarForPseudonym(row.author_alias || 'Anon'),
-                    author_bio: extractedBio || '',
-                    message: row.message,
-                    color: dbColor,
-                    likes_count: useLikedBy.length,
-                    liked_by_users: useLikedBy,
-                    liked_by_profiles: { ...(existingLocal?.liked_by_profiles || {}), ...dbProfiles },
-                    is_admin: !!row.is_admin,
-                    is_pinned: !!row.is_pinned,
-                    pinned_at: row.pinned_at || undefined,
-                    status: dbStatus,
-                    created_at: row.created_at,
-                    image_url: row.image_url || existingLocal?.image_url,
-                    image_type: row.image_type || existingLocal?.image_type,
-                    song_title: row.song_title,
-                    song_artist: row.song_artist,
-                    song_image_url: row.song_image_url,
-                    song_preview_url: row.song_preview_url,
-                    song_link: row.song_link,
-                    dedicated_to: row.dedicated_to,
-                    poll_question: dbPollQuestion,
-                    poll_options: dbPollOptions,
-                  };
-                };
-
                 // ── 1. Initial one-time load of freedom_posts ──────────────────
                 supabase
                   .from('freedom_posts')
@@ -3490,7 +3488,7 @@ export const useChatStore = create<ChatStoreState>()(
         const { freedomPosts, currentUser } = get();
         const currentUserId = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || 'anon' : 'anon');
         const newPost: FreedomPost = {
-          id: 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          id: (postData as any).id || ('post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
           author_id: currentUserId,
           author_alias: postData.author_alias || (currentUser ? currentUser.username : 'Anon Student'),
           department: postData.department || (currentUser ? currentUser.department : 'General'),
@@ -3589,8 +3587,8 @@ export const useChatStore = create<ChatStoreState>()(
             actionToast: {
               type: 'announcement',
               message: postData.is_admin
-                ? '✨ Admin post published to Freedom Wall!'
-                : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.',
+                ? (postData.song_title ? '✨ Admin song dedication published!' : '✨ Admin post published to Freedom Wall!')
+                : (postData.song_title ? '🎵 Song Dedication Submitted! Pending review.' : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.'),
             },
           });
           return true;
@@ -3627,9 +3625,9 @@ export const useChatStore = create<ChatStoreState>()(
 
         if (supabase && isSupabaseConfigured) {
           try {
-            const post = freedomPosts.find(p => p.id === postId);
+            const post = updated.find(p => p.id === postId);
             if (post) {
-              const encodedColor = `${post.color}||approved||${JSON.stringify(post.liked_by_profiles || {})}`;
+              const encodedColor = encodePostColor(post);
               supabase.from('freedom_posts').update({ color: encodedColor, status: 'approved' }).eq('id', postId).then(() => {}, () => {});
             }
           } catch (e) {}
@@ -3795,18 +3793,15 @@ export const useChatStore = create<ChatStoreState>()(
 
         if (supabase && isSupabaseConfigured) {
           try {
-            const targetPost = updated.find((p) => p.id === postId);
-            if (targetPost) {
-              const pollMeta = (targetPost.poll_options && targetPost.poll_options.length > 0)
-                ? JSON.stringify({ question: targetPost.poll_question || '', options: targetPost.poll_options })
-                : '';
-              const encodedColor = `${targetPost.color}||${targetPost.status}||${JSON.stringify(targetPost.liked_by_profiles || {})}||${pollMeta}`;
+            const updatedPost = updated.find((p) => p.id === postId);
+            if (updatedPost) {
+              const encodedColor = encodePostColor(updatedPost);
               supabase
                 .from('freedom_posts')
                 .update({
-                  likes_count: targetPost.likes_count,
-                  liked_by_users: targetPost.liked_by_users,
-                  liked_by_profiles: targetPost.liked_by_profiles || {},
+                  likes_count: updatedPost.likes_count,
+                  liked_by_users: updatedPost.liked_by_users,
+                  liked_by_profiles: updatedPost.liked_by_profiles || {},
                   color: encodedColor,
                 })
                 .eq('id', postId)

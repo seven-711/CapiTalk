@@ -284,6 +284,7 @@ export const DedicateSongPage: React.FC = () => {
         (selectedSong.image?.[2]?.['#text'] && !selectedSong.image[2]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f') ? selectedSong.image[2]['#text'] : ''));
 
       const success = await addFreedomPost({
+        id: newPostId,
         author_alias: authorAlias,
         department: authorDepartment,
         author_avatar: authorAvatar,
