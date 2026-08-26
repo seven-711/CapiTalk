@@ -5,7 +5,8 @@ import { getWsUrl } from '../realtime/matchmakingEngine';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 
 /**
- * Hook that provides live online student count across WebSockets, Supabase Realtime, or Local Mesh
+ * Hook that provides live online student count across WebSockets, Supabase Realtime Presence,
+ * and multi-tab BroadcastChannel mesh.
  */
 export function useOnlineCount(): number {
   const [count, setCount] = useState<number>(1);
@@ -16,6 +17,53 @@ export function useOnlineCount(): number {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let unmounted = false;
     let channel: any = null;
+    let bc: BroadcastChannel | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+    const tabId = 'tab_' + Math.random().toString(36).substring(2, 9);
+    const activeTabs = new Map<string, number>();
+    activeTabs.set(tabId, Date.now());
+
+    // BroadcastChannel mesh for multi-tab synchronization
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('capitalk_lobby_presence');
+        bc.onmessage = (e) => {
+          if (e.data?.type === 'HEARTBEAT') {
+            activeTabs.set(e.data.tabId, Date.now());
+            pruneTabs();
+          } else if (e.data?.type === 'LEAVE') {
+            activeTabs.delete(e.data.tabId);
+            pruneTabs();
+          }
+        };
+
+        const sendHeartbeat = () => {
+          if (unmounted) return;
+          try {
+            bc?.postMessage({ type: 'HEARTBEAT', tabId, time: Date.now() });
+          } catch (e) {}
+        };
+
+        const pruneTabs = () => {
+          const now = Date.now();
+          for (const [id, ts] of activeTabs.entries()) {
+            if (now - ts > 6000) {
+              activeTabs.delete(id);
+            }
+          }
+          if (!url && (!isSupabaseConfigured || !supabase)) {
+            setCount(Math.max(1, activeTabs.size));
+          }
+        };
+
+        sendHeartbeat();
+        heartbeatTimer = setInterval(() => {
+          sendHeartbeat();
+          pruneTabs();
+        }, 2500);
+      } catch (e) {}
+    }
 
     // 1. If custom/local WebSocket URL is available
     if (url) {
@@ -26,7 +74,7 @@ export function useOnlineCount(): number {
             try {
               const data = JSON.parse(event.data);
               if (data.type === 'ONLINE_COUNT') {
-                setCount(data.count);
+                setCount(Math.max(1, data.count));
               }
             } catch (e) {}
           };
@@ -48,7 +96,7 @@ export function useOnlineCount(): number {
           .on('presence', { event: 'sync' }, () => {
             const state = channel.presenceState();
             const total = Object.keys(state).length;
-            setCount(total > 0 ? total : 1);
+            setCount(Math.max(1, total));
           })
           .subscribe(async (status: string) => {
             if (status === 'SUBSCRIBED') {
@@ -56,7 +104,7 @@ export function useOnlineCount(): number {
             }
           });
       } catch (e) {
-        setCount(1);
+        setCount(Math.max(1, activeTabs.size));
       }
     } 
     // 3. Local mesh fallback count
@@ -64,20 +112,27 @@ export function useOnlineCount(): number {
       try {
         const raw = localStorage.getItem('capitalk_shared_queue_v4');
         const queue: any[] = raw ? JSON.parse(raw) : [];
-        setCount(Math.max(1, queue.length));
+        setCount(Math.max(activeTabs.size, queue.length, 1));
       } catch (e) {
-        setCount(1);
+        setCount(Math.max(1, activeTabs.size));
       }
     }
 
     return () => {
       unmounted = true;
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (ws) ws.close();
       if (channel) {
         try {
           channel.untrack();
           channel.unsubscribe();
+        } catch (e) {}
+      }
+      if (bc) {
+        try {
+          bc.postMessage({ type: 'LEAVE', tabId });
+          bc.close();
         } catch (e) {}
       }
     };

@@ -1033,6 +1033,46 @@ export const useChatStore = create<ChatStoreState>()(
               });
               localStorage.setItem('capitalk_is_banned', 'true');
               return true;
+            } else {
+              // Account is NOT banned (or has been unbanned by admin)
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('capitalk_is_banned');
+              }
+
+              const currentViewState = get().viewState;
+              const myUserId = currentUser?.id?.toLowerCase();
+              const myUsername = currentUser?.username?.toLowerCase();
+              const myIp = data.ip || get().clientIp;
+
+              // Prune own identity from local bannedUserIds list
+              const currentBans = get().bannedUserIds || [];
+              const cleanedBans = currentBans.filter((id) => {
+                const lower = id.toLowerCase();
+                return lower !== myUserId && lower !== myUsername && id !== deviceId && id !== myIp;
+              });
+
+              const updates: Partial<ChatStoreState> = {
+                bannedUserIds: cleanedBans,
+                banReason: null,
+              };
+
+              // If currently stuck on the ceased / suspended screen, restore back to landing
+              if (currentViewState === 'ceased') {
+                updates.viewState = 'landing';
+                updates.actionToast = {
+                  type: 'announcement',
+                  message: '✅ Account access restored. Welcome back to CapiTalk!',
+                };
+              }
+
+              set(updates);
+
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(cleanedBans));
+                } catch (e) {}
+              }
+              return false;
             }
           }
         } catch (e) {}
@@ -1174,56 +1214,73 @@ export const useChatStore = create<ChatStoreState>()(
                 }
               } catch (e) {}
 
-              // Sync banned users list from Supabase Database
+              // Sync banned users list from Supabase Database (authoritative source of truth)
               try {
                 supabase
                   .from('banned_users')
                   .select('user_id, device_id, ip_address, username')
                   .then(({ data, error }) => {
-                    if (data && data.length > 0 && !error) {
+                    if (!error && Array.isArray(data)) {
                       const dbBans = data.flatMap((b: any) => [b.user_id, b.device_id, b.ip_address, b.username]).filter(Boolean);
-                      const currentBans = get().bannedUserIds;
-                      const mergedBans = [...new Set([...currentBans, ...dbBans])];
-                      set({ bannedUserIds: mergedBans });
+                      set({ bannedUserIds: dbBans });
                       if (typeof window !== 'undefined') {
-                        localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(mergedBans));
+                        localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(dbBans));
                       }
                     }
                   }, () => {});
 
-                // Supabase Realtime subscription to banned_users table for instant eviction
+                // Supabase Realtime subscription to banned_users table for instant eviction AND instant unban
                 const bannedChannel = supabase
                   .channel('public:banned_users')
-                  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'banned_users' }, (payload: any) => {
-                    const newBan = payload.new;
-                    if (newBan) {
-                      const store = get();
-                      const myUserId = store.currentUser?.id?.toLowerCase();
-                      const myUsername = store.currentUser?.username?.toLowerCase();
-                      const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('capitalk_anon_user_id') : null;
-                      const myIp = store.clientIp;
+                  .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_users' }, (payload: any) => {
+                    if (payload.eventType === 'INSERT') {
+                      const newBan = payload.new;
+                      if (newBan) {
+                        const store = get();
+                        const myUserId = store.currentUser?.id?.toLowerCase();
+                        const myUsername = store.currentUser?.username?.toLowerCase();
+                        const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('capitalk_anon_user_id') : null;
+                        const myIp = store.clientIp;
 
-                      const targetUser = newBan.user_id?.toLowerCase();
-                      const targetName = newBan.username?.toLowerCase();
-                      const targetDevice = newBan.device_id;
-                      const targetIp = newBan.ip_address;
+                        const targetUser = newBan.user_id?.toLowerCase();
+                        const targetName = newBan.username?.toLowerCase();
+                        const targetDevice = newBan.device_id;
+                        const targetIp = newBan.ip_address;
 
-                      const isBanned =
-                        (targetUser && (targetUser === myUserId || targetUser === myUsername)) ||
-                        (targetName && (targetName === myUsername || targetName === myUserId)) ||
-                        (targetDevice && targetDevice === myDeviceId) ||
-                        (targetIp && targetIp === myIp);
+                        const isBanned =
+                          (targetUser && (targetUser === myUserId || targetUser === myUsername)) ||
+                          (targetName && (targetName === myUsername || targetName === myUserId)) ||
+                          (targetDevice && targetDevice === myDeviceId) ||
+                          (targetIp && targetIp === myIp);
 
-                      if (isBanned) {
-                        try { get().cancelSearch(); } catch (e) {}
-                        try { roomManager.leaveRoom(); } catch (e) {}
-                        set({
-                          viewState: 'ceased',
-                          banReason: newBan.reason || 'Account or IP address restricted by CapiTalk Administrator.',
-                        });
-                        if (typeof window !== 'undefined') {
-                          localStorage.setItem('capitalk_is_banned', 'true');
+                        if (isBanned) {
+                          try { get().cancelSearch(); } catch (e) {}
+                          try { roomManager.leaveRoom(); } catch (e) {}
+                          set({
+                            viewState: 'ceased',
+                            banReason: newBan.reason || 'Account or IP address restricted by CapiTalk Administrator.',
+                          });
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('capitalk_is_banned', 'true');
+                          }
                         }
+                      }
+                    } else if (payload.eventType === 'DELETE') {
+                      // Realtime unban event from Supabase database
+                      get().checkBanStatus();
+                      if (supabase) {
+                        supabase
+                          .from('banned_users')
+                          .select('user_id, device_id, ip_address, username')
+                          .then(({ data, error }) => {
+                            if (!error && Array.isArray(data)) {
+                              const dbBans = data.flatMap((b: any) => [b.user_id, b.device_id, b.ip_address, b.username]).filter(Boolean);
+                              set({ bannedUserIds: dbBans });
+                              if (typeof window !== 'undefined') {
+                                localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(dbBans));
+                              }
+                            }
+                          }, () => {});
                       }
                     }
                   })
@@ -1332,6 +1389,33 @@ export const useChatStore = create<ChatStoreState>()(
                     });
                     if (typeof window !== 'undefined') {
                       localStorage.setItem('capitalk_is_banned', 'true');
+                    }
+                  }
+                } else if (event.data?.type === 'USER_UNBANNED') {
+                  const { unbannedTarget } = event.data;
+                  const store = get();
+                  const myUserId = store.currentUser?.id?.toLowerCase();
+                  const myUsername = store.currentUser?.username?.toLowerCase();
+                  const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('capitalk_anon_user_id') : null;
+                  const myIp = store.clientIp;
+
+                  const targetStr = (unbannedTarget || '').toLowerCase();
+                  const isMatch =
+                    targetStr === myUserId ||
+                    targetStr === myUsername ||
+                    unbannedTarget === myDeviceId ||
+                    (unbannedTarget && unbannedTarget === myIp);
+
+                  if (isMatch || store.viewState === 'ceased') {
+                    get().checkBanStatus();
+                  } else {
+                    const currentBans = store.bannedUserIds || [];
+                    const updated = currentBans.filter((b) => b !== unbannedTarget);
+                    set({ bannedUserIds: updated });
+                    if (typeof window !== 'undefined') {
+                      try {
+                        localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(updated));
+                      } catch (e) {}
                     }
                   }
                 } else if (event.data?.type === 'FREEDOM_WALL_LIKE') {
@@ -3334,14 +3418,21 @@ export const useChatStore = create<ChatStoreState>()(
         }
 
         // HTML5 BroadcastChannel multi-tab real-time notify
-        if (broadcastChannel && !isCurrentlyBanned) {
+        if (broadcastChannel) {
           try {
-            broadcastChannel.postMessage({
-              type: 'USER_BANNED',
-              bannedTarget: cleanTarget,
-              bannedIp: effectiveIp,
-              banReason,
-            });
+            if (isCurrentlyBanned) {
+              broadcastChannel.postMessage({
+                type: 'USER_UNBANNED',
+                unbannedTarget: cleanTarget,
+              });
+            } else {
+              broadcastChannel.postMessage({
+                type: 'USER_BANNED',
+                bannedTarget: cleanTarget,
+                bannedIp: effectiveIp,
+                banReason,
+              });
+            }
           } catch (e) {}
         }
 
@@ -3351,8 +3442,16 @@ export const useChatStore = create<ChatStoreState>()(
               supabase
                 .from('banned_users')
                 .delete()
-                .or(`user_id.eq.${cleanTarget},username.ilike.${cleanTarget},ip_address.eq.${cleanTarget}`)
+                .or(`user_id.eq.${cleanTarget},username.ilike.${cleanTarget},ip_address.eq.${cleanTarget},device_id.eq.${cleanTarget}`)
                 .then(() => {}, () => {});
+
+              try {
+                supabase
+                  .from('device_sessions')
+                  .update({ is_banned: false, risk_score: 0 })
+                  .or(`device_id.eq.${cleanTarget},ip_address.eq.${cleanTarget}`)
+                  .then(() => {}, () => {});
+              } catch (e) {}
             } else {
               const isIpFormat = cleanTarget.includes('.') || cleanTarget.includes(':');
               const payload: any = {
@@ -3381,6 +3480,10 @@ export const useChatStore = create<ChatStoreState>()(
               : `🚫 User/IP "${cleanTarget}" banned in real-time.`,
           },
         });
+
+        if (isCurrentlyBanned) {
+          get().checkBanStatus();
+        }
       },
 
       addFreedomPost: async (postData, honeypot, deviceId) => {

@@ -208,10 +208,19 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
 
-          {/* Peak Hours Indicator */}
-          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 text-black font-black text-[10px] sm:text-[11px] rounded-full tracking-wider uppercase shrink-0 select-none">
-            <span className="truncate">
-              Peak Hours: 9PM – 3AM
+          {/* Live Online Users / Visitors Indicator */}
+          <div 
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 bg-emerald-50 text-emerald-900 border border-emerald-300/80 font-black text-[10px] sm:text-[11px] rounded-full tracking-wider uppercase shrink-0 select-none shadow-[2px_2px_0px_0px_rgba(16,185,129,0.2)] hover:shadow-[3px_3px_0px_0px_rgba(16,185,129,0.3)] transition-all"
+            title={`${onlineCount} active ${onlineCount === 1 ? 'student / visitor' : 'students / visitors'} online right now`}
+          >
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="truncate flex items-center gap-1">
+              <span>{onlineCount}</span>
+              <span className="hidden sm:inline">{onlineCount === 1 ? 'Student' : 'Students'}</span>
+              <span>Online</span>
             </span>
           </div>
 

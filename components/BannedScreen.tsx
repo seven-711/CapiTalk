@@ -1,15 +1,41 @@
 'use client';
 
 import React from 'react';
-import { ShieldAlert, Lock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ShieldAlert, Lock, AlertTriangle, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
 import { useChatStore } from '../lib/store/useChatStore';
 
 export const BannedScreen: React.FC = () => {
-  const { currentUser, clientIp, banReason } = useChatStore();
+  const { currentUser, clientIp, banReason, checkBanStatus, setViewState } = useChatStore();
+  const [isChecking, setIsChecking] = React.useState(false);
+  const [feedback, setFeedback] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleRefresh = () => {
-    if (typeof window !== 'undefined') {
-      window.location.reload();
+  const handleRefresh = async () => {
+    if (isChecking) return;
+    setIsChecking(true);
+    setFeedback(null);
+
+    try {
+      const isStillBanned = await checkBanStatus();
+      if (!isStillBanned) {
+        setFeedback({
+          type: 'success',
+          message: 'Access restored! Redirecting you back to CapiTalk...',
+        });
+        setTimeout(() => {
+          setViewState('landing');
+        }, 800);
+      } else {
+        setFeedback({
+          type: 'error',
+          message: 'Account restriction is still active on platform servers.',
+        });
+      }
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    } finally {
+      setIsChecking(false);
     }
   };
 
@@ -33,10 +59,10 @@ export const BannedScreen: React.FC = () => {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Account &amp; Network Suspended
+            Account Suspended
           </h1>
           <p className="text-xs text-gray-400 mt-1 max-w-sm">
-            Your account or IP address has been restricted from accessing CapiTalk services due to platform policy enforcement.
+            Your account has been restricted from accessing CapiTalk services due to platform policy enforcement.
           </p>
         </div>
 
@@ -46,13 +72,6 @@ export const BannedScreen: React.FC = () => {
             <span className="text-gray-400">User Identity:</span>
             <span className="font-bold text-red-400 truncate max-w-[200px]">
               {currentUser?.username || currentUser?.id || 'Anonymous Student'}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center pb-2 border-b border-gray-800">
-            <span className="text-gray-400">Restricted IP:</span>
-            <span className="font-bold text-yellow-400">
-              {clientIp || '127.0.0.1'}
             </span>
           </div>
 
@@ -68,24 +87,52 @@ export const BannedScreen: React.FC = () => {
         <div className="p-3.5 bg-red-950/40 border border-red-800/60 rounded-xl flex items-start gap-3 text-xs text-red-200 mb-6">
           <AlertTriangle className="w-5 h-5 text-[#dc341e] shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            All matchmaking, chat interactions, freedom wall postings, and admin controls are locked for this device and network IP address.
+            All matchmaking, chat interactions, freedom wall postings, and admin controls are locked for this device and network address.
           </p>
         </div>
+
+        {/* Feedback Alert if present */}
+        {feedback && (
+          <div
+            className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-bold mb-4 animate-in fade-in duration-200 ${
+              feedback.type === 'success'
+                ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300'
+                : 'bg-red-950/60 border-red-500 text-red-300'
+            }`}
+          >
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleRefresh}
-            className="flex-1 py-3 px-4 bg-[#dc341e] hover:bg-[#b82a17] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+            disabled={isChecking}
+            className="flex-1 py-3 px-4 bg-[#dc341e] hover:bg-[#b82a17] disabled:opacity-75 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
           >
-            <RefreshCw className="w-4 h-4" />
-            <span>Re-Check Status</span>
+            {isChecking ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Checking Database...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                <span>Re-Check Status</span>
+              </>
+            )}
           </button>
         </div>
 
         {/* Footer Note */}
         <p className="text-[11px] text-gray-500 text-center mt-6">
-          CapiTalk Campus Moderation System &bull; Capitol University
+          CapiTalk Campus Moderation System
         </p>
       </div>
     </div>
