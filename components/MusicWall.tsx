@@ -859,8 +859,7 @@ export const MusicWall: React.FC = () => {
                 onClick={() => setViewState('dedicate_song')}
                 className="inline-flex items-center gap-2 bg-[#ffc900] text-black font-black text-sm px-6 py-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all cursor-pointer"
               >
-                <Send className="w-4 h-4" />
-                Share Your First Song
+                Share a Song
               </button>
               <a
                 href="#recent-songs"
@@ -958,7 +957,7 @@ export const MusicWall: React.FC = () => {
 
       <div id="recent-songs" className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-8 space-y-4">
         {/* Prominent "Dedicate a Song" Composer Card */}
-        <div className="bg-white border-y sm:border border-[#e4e6eb] sm:rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all flex items-center gap-3">
+        <div className="sm:rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all flex items-center gap-3">
           <button
             type="button"
             onClick={() => setViewState('register')}
@@ -978,7 +977,6 @@ export const MusicWall: React.FC = () => {
             className="flex-1 bg-[#f0f2f5] hover:bg-[#e4e6eb] border border-[#e4e6eb] hover:border-[#ccd0d5] transition-all rounded-full px-4 py-2.5 text-left text-[#65676b] hover:text-black text-[14px] sm:text-[15px] font-medium truncate cursor-pointer flex items-center justify-between gap-2 shadow-2xs group"
           >
             <span className="truncate flex items-center gap-2">
-              <Music className="w-4 h-4 text-[#dc341e]" />
               <span>Dedicate a song, {currentUser?.username || 'Capitolian'}...</span>
             </span>
             <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
