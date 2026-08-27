@@ -346,8 +346,8 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowNotifPopover(!showNotifPopover)}
-                className={`hidden md:inline-flex p-1.5 sm:p-2 rounded-full border border-black/30 transition-all cursor-pointer relative ${
-                  showNotifPopover ? 'bg-black text-white' : 'bg-white hover:bg-[#fff1f3] text-black'
+                className={`hidden md:inline-flex p-1.5 sm:p-2 rounded-full  transition-all cursor-pointer relative ${
+                  showNotifPopover ? 'text-white' : 'hover:bg-[#fff1f3] text-black'
                 }`}
                 title="Notifications"
                 aria-label="Notifications"
