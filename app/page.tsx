@@ -649,13 +649,13 @@ export default function Home() {
                       type="button"
                       onClick={() => setIsReactedUsersModalOpen(true)}
                       className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group"
-                      title="View who reacted"
+                      title="View total reactions"
                     >
                       <span className="w-5 h-5 flex items-center justify-center text-xs text-white group-hover:scale-110 transition-transform">
                         ❤️
                       </span>
                       <span className="font-semibold text-zinc-700 text-xs sm:text-[13px] group-hover:underline">
-                        {reactedUsersList.length.toLocaleString()}
+                        {reactedUsersList.length.toLocaleString()} {reactedUsersList.length === 1 ? 'reaction' : 'reactions'}
                       </span>
                     </button>
                     <button
@@ -1071,27 +1071,41 @@ export default function Home() {
                 setIsReactedModalDragging(false);
                 reactedDragStartYRef.current = null;
               }}
-              className="pt-2.5 pb-1 flex flex-col items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none bg-white border-b border-zinc-100 shrink-0"
+              className="pt-2.5 pb-2 flex flex-col items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none bg-white border-b border-zinc-100 shrink-0"
               title="Drag down to close"
             >
               <div className="w-12 h-1.5 bg-zinc-300 rounded-full mb-2" />
-              <div className="w-full px-4 pb-2 flex items-center justify-between">
+              <div className="w-full px-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-black text-sm sm:text-base text-[#050505] tracking-tight">
-                    People who reacted
-                  </h3>
-                  <span className="px-2 py-0.5 bg-[#f0f2f5] text-zinc-600 text-[11px] font-bold rounded-full">
-                    {reactedUsersList.length}
+                  <span className="w-5 h-5 flex items-center justify-center text-xs text-white">
+                    ❤️
                   </span>
-                </div>
+                  <div>
+                    <h3 className="font-black text-sm sm:text-base text-[#050505] tracking-tight leading-snug">
+                      Reactions
+                    </h3>
+                  </div>
+                </div>  
                 <button
                   type="button"
                   onClick={() => setIsReactedUsersModalOpen(false)}
-                  className="p-1 rounded-full text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-full text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Reaction Filter / Summary Pill Tabs */}
+              <div className="w-full px-4 pt-2.5 flex items-center gap-2">
+                <div className="px-3 py-1 bg-zinc-100 text-zinc-800 text-xs font-bold rounded-full flex items-center gap-1.5 shadow-2xs">
+                  <span>All</span>
+                  <span className="text-zinc-500 font-normal">({reactedUsersList.length})</span>
+                </div>
+                <div className="px-3 py-1 bg-rose-50 text-[#f33e5b] text-xs font-bold rounded-full flex items-center gap-1.5 shadow-2xs border border-rose-100">
+                  <span>❤️</span>
+                  <span>{reactedUsersList.length}</span>
+                </div>
               </div>
             </div>
 
