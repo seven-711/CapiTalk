@@ -314,6 +314,15 @@ export const ChatRoom: React.FC = () => {
       return;
     }
 
+    const isBotPartner = Boolean(
+      partner?.id?.startsWith('bot_') ||
+      activeRoom?.id?.startsWith('bot_')
+    );
+
+    if (isBotPartner) {
+      setPartnerStatus('online');
+    }
+
     // Immediately announce presence as online upon joining room
     myStatusRef.current = 'online';
     lastPartnerHeartbeatRef.current = Date.now();
@@ -326,15 +335,15 @@ export const ChatRoom: React.FC = () => {
       }
     }, 4000);
 
-    // Watchdog: If partner has not sent any signal for > 10s, consider them offline
+    // Watchdog: If real partner has not sent any signal for > 15s, consider them offline
     const watchdogInterval = setInterval(() => {
-      if (!partnerLeft) {
+      if (!partnerLeft && !isBotPartner) {
         const timeSinceLastHeartbeat = Date.now() - lastPartnerHeartbeatRef.current;
-        if (timeSinceLastHeartbeat > 10000 && partnerStatus !== 'offline') {
+        if (timeSinceLastHeartbeat > 15000 && partnerStatus !== 'offline') {
           setPartnerStatus('offline');
         }
       }
-    }, 2000);
+    }, 2500);
 
     const resetIdleTimer = () => {
       if (hiddenTimerRef.current) {

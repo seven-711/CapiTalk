@@ -177,13 +177,21 @@ export default function Home() {
           .order('updated_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
-          const list: ReactedUser[] = data.map((row: any) => ({
-            id: row.user_id,
-            username: row.user_name || 'Capitolian',
-            department: 'CU Student',
-            avatarUrl: getAvatarForPseudonym(row.user_name || 'Anon'),
-            reactedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
-          }));
+          const seen = new Set<string>();
+          const list: ReactedUser[] = [];
+          data.forEach((row: any, idx: number) => {
+            const uid = row.user_id || row.user_name || `anon_${idx}`;
+            if (!seen.has(uid)) {
+              seen.add(uid);
+              list.push({
+                id: uid,
+                username: row.user_name || 'Capitolian',
+                department: 'CU Student',
+                avatarUrl: getAvatarForPseudonym(row.user_name || 'Anon'),
+                reactedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+              });
+            }
+          });
           setReactedUsersList(list);
           try {
             localStorage.setItem('higalaay_banner_reacted_users_v1', JSON.stringify(list));
@@ -198,10 +206,22 @@ export default function Home() {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.users)) {
-          setReactedUsersList(json.users);
+          const seen = new Set<string>();
+          const list: ReactedUser[] = [];
+          json.users.forEach((u: any, idx: number) => {
+            const uid = u.id || u.username || `user_${idx}`;
+            if (!seen.has(uid)) {
+              seen.add(uid);
+              list.push({
+                ...u,
+                id: uid,
+              });
+            }
+          });
+          setReactedUsersList(list);
           try {
-            localStorage.setItem('higalaay_banner_reacted_users_v1', JSON.stringify(json.users));
-            localStorage.setItem('higalaay_banner_heart_count', String(json.users.length));
+            localStorage.setItem('higalaay_banner_reacted_users_v1', JSON.stringify(list));
+            localStorage.setItem('higalaay_banner_heart_count', String(list.length));
           } catch (e) {}
         }
       }
@@ -1276,8 +1296,8 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="divide-y divide-zinc-100">
-                  {reactedUsersList.map((user) => (
-                    <div key={user.id} className="py-2.5 flex items-center justify-between gap-3">
+                  {reactedUsersList.map((user, idx) => (
+                    <div key={`reacted-user-${user.id || user.username || 'user'}-${idx}`} className="py-2.5 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Avatar with Love Badge Overlay */}
                         <div className="relative shrink-0">
@@ -1387,8 +1407,8 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {commentsList.map((c) => (
-                    <div key={c.id} className="flex items-start gap-2.5">
+                  {commentsList.map((c, cIdx) => (
+                    <div key={`banner-cm-${c.id || c.author || 'comment'}-${cIdx}`} className="flex items-start gap-2.5">
                       <img
                         src={c.avatarUrl || (c.author ? getAvatarForPseudonym(c.author) : '/avatars/coin-left.jpg')}
                         alt={c.author}

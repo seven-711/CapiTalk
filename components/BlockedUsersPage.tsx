@@ -108,9 +108,9 @@ export const BlockedUsersPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-2">
-          {allBlockedList.map((user) => (
+          {allBlockedList.map((user, idx) => (
             <div
-              key={user.id}
+              key={`blocked-page-user-${user.id}-${idx}`}
               className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-gray-300 transition-all"
             >
               <div className="flex items-center gap-3 min-w-0">

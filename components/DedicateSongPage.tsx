@@ -352,7 +352,7 @@ export const DedicateSongPage: React.FC = () => {
         )}
 
         {/* Composer Card with Modern Hairline Styling */}
-        <div className="space-y-4 shadow-xs">
+        <div className="space-y-4">
           {/* Author Badge Info */}
           <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100">
             <div className="flex items-center gap-2.5 min-w-0">

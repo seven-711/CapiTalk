@@ -2352,8 +2352,15 @@ export const FreedomWall: React.FC = () => {
       {selectedCommentForReactors && (() => {
         const cm = selectedCommentForReactors;
         const profiles = cm.liked_by_profiles || {};
-        const likedUserIds = cm.liked_by_users || Object.keys(profiles);
-        const reactorsList = likedUserIds.map((uid) => {
+        const rawLikedUserIds = cm.liked_by_users || Object.keys(profiles);
+        const seen = new Set<string>();
+        const uniqueUserIds = rawLikedUserIds.filter((uid) => {
+          if (!uid || seen.has(uid)) return false;
+          seen.add(uid);
+          return true;
+        });
+
+        const reactorsList = uniqueUserIds.map((uid) => {
           const prof = profiles[uid];
           return {
             id: uid,
@@ -2410,8 +2417,8 @@ export const FreedomWall: React.FC = () => {
                     No reactions yet.
                   </div>
                 ) : (
-                  reactorsList.map((user) => (
-                    <div key={user.id} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
+                  reactorsList.map((user, idx) => (
+                    <div key={`cm-reactor-${user.id || user.username || 'reactor'}-${idx}`} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="relative shrink-0">
                           <img

@@ -53,6 +53,16 @@ function tryMatchInQueue() {
       const a = entries[i];
       const b = entries[j];
 
+      // Validate both websockets are still live and open
+      if (!a.ws || a.ws.readyState !== 1) {
+        queue.delete(a.user.id);
+        continue;
+      }
+      if (!b.ws || b.ws.readyState !== 1) {
+        queue.delete(b.user.id);
+        continue;
+      }
+
       // Check bidirectional blocked lists
       const aBlockedB = Array.isArray(a.blockedUserIds) && a.blockedUserIds.includes(b.user.id);
       const bBlockedA = Array.isArray(b.blockedUserIds) && b.blockedUserIds.includes(a.user.id);
@@ -283,7 +293,7 @@ wss.on('connection', (ws) => {
     }
 
     else if (type === 'ROOM_JOIN') {
-      // Reconnect to existing room (page reload)
+      // Connect / Reconnect to room
       const { roomId, userId, partnerId } = msg;
       clientUserId = userId;
       rooms.set(userId, { ws, roomId, partnerId });
@@ -294,7 +304,14 @@ wss.on('connection', (ws) => {
         roomMembers.set(roomId, members);
       }
       members.add(userId);
-      console.log(`[Room] ${userId} reconnected to room ${roomId}`);
+      console.log(`[Room] ${userId} active in room ${roomId}`);
+
+      // If partner is currently open in this room, sync online status
+      const partnerInfo = rooms.get(partnerId);
+      if (partnerInfo && partnerInfo.roomId === roomId && partnerInfo.ws?.readyState === 1) {
+        send(ws, { type: 'STATUS', status: 'online' });
+        send(partnerInfo.ws, { type: 'STATUS', status: 'online' });
+      }
     }
 
     else if (type === 'PING') {

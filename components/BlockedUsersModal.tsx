@@ -104,9 +104,9 @@ export const BlockedUsersModal: React.FC<BlockedUsersModalProps> = ({ isOpen, on
               </p>
             </div>
           ) : (
-            allBlockedList.map((user) => (
+            allBlockedList.map((user, idx) => (
               <div
-                key={user.id}
+                key={`blocked-modal-user-${user.id}-${idx}`}
                 className="p-3 bg-white border-2 border-black rounded-2xl flex items-center justify-between gap-2.5 shadow-2xs hover:shadow-xs transition-all"
               >
                 <div className="flex items-center gap-2.5 min-w-0">

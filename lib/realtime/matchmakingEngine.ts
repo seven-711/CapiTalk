@@ -379,13 +379,50 @@ class MatchmakingEngine {
     return myMatch && partnerMatch;
   }
 
-  private scanLocalStorageQueue(user: UserProfile, filter: QueueFilter) {
+  private syncToLocalStorage(user: UserProfile, filter: QueueFilter) {
+    if (typeof window === 'undefined') return;
+    try {
+      const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
+      const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
+      const existing: any[] = raw ? JSON.parse(raw) : [];
+      const now = Date.now();
+      // Keep only recent active entries (< 6 seconds)
+      const filtered = existing.filter((q) => q.user.id !== user.id && now - (q.lastHeartbeat || q.joinedAt) < 6000);
+      filtered.push({
+        user,
+        filter,
+        blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
+        joinedAt: now,
+        lastHeartbeat: now,
+      });
+      localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(filtered));
+    } catch (e) {}
+  }
+
+  private removeFromLocalStorage(userId: string) {
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
+      const existing: any[] = raw ? JSON.parse(raw) : [];
+      const filtered = existing.filter((q) => q.user.id !== userId);
+      localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(filtered));
+    } catch (e) {}
+  }
+
+  private scanLocalStorageQueue(user: UserProfile, filter: QueueFilter) {
+    if (typeof window === 'undefined') return;
+    // If WebSocket is active, let the server handle live matchmaking
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    try {
+      const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
       const queueItems: any[] = raw ? JSON.parse(raw) : [];
+      const now = Date.now();
+      // Only match against alive entries with heartbeat within last 6 seconds
       const partner = queueItems.find(
-        (q) => q.user.id !== user.id && Date.now() - q.joinedAt < 120000 && this.filterMatches(filter, q.filter, user, q.user, q.blockedUserIds)
+        (q) => q.user.id !== user.id && now - (q.lastHeartbeat || q.joinedAt) < 6000 && this.filterMatches(filter, q.filter, user, q.user, q.blockedUserIds)
       );
 
       if (partner) {
@@ -425,6 +462,11 @@ class MatchmakingEngine {
 
     this.removeFromLocalStorage(match.userOne.id);
     this.removeFromLocalStorage(match.userTwo.id);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(STORAGE_MATCH_KEY);
+      } catch (e) {}
+    }
 
     if (this.supabaseChannel) {
       try {
@@ -493,33 +535,6 @@ class MatchmakingEngine {
   public onMatchFound(callback: MatchFoundCallback) {
     this.matchCallbacks.add(callback);
     return () => this.matchCallbacks.delete(callback);
-  }
-
-  private syncToLocalStorage(user: UserProfile, filter: QueueFilter) {
-    if (typeof window === 'undefined') return;
-    try {
-      const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
-      const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
-      const existing: any[] = raw ? JSON.parse(raw) : [];
-      const filtered = existing.filter((q) => q.user.id !== user.id && Date.now() - q.joinedAt < 120000);
-      filtered.push({
-        user,
-        filter,
-        blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
-        joinedAt: Date.now()
-      });
-      localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(filtered));
-    } catch (e) {}
-  }
-
-  private removeFromLocalStorage(userId: string) {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = localStorage.getItem(STORAGE_QUEUE_KEY);
-      const existing: any[] = raw ? JSON.parse(raw) : [];
-      const filtered = existing.filter((q) => q.user.id !== userId);
-      localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(filtered));
-    } catch (e) {}
   }
 
   public getWebSocket(): WebSocket | null {
