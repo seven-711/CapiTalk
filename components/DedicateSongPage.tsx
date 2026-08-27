@@ -341,7 +341,7 @@ export const DedicateSongPage: React.FC = () => {
   const isDark = isColorDark(cardBgColor);
 
   return (
-    <div className="min-h-screen bg-[#f4f4f0] text-black font-sans pb-16">
+    <div className="min-h-screen bg-[#f4f4f0] dark:bg-[#0e0e11] text-black dark:text-[#f4f4f6] font-sans pb-16 transition-colors duration-200">
       {/* ── Main Composer Container ──────────────────────────────────────── */}
       <main className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Error Alert */}
@@ -356,31 +356,31 @@ export const DedicateSongPage: React.FC = () => {
         )}
 
         {/* Composer Card with Modern Hairline Styling */}
-        <div className="space-y-4">
+        <div className="bg-white dark:bg-[#18181b] border-y sm:border border-[#d1d5dc] dark:border-zinc-800 sm:rounded-2xl p-4 sm:p-6 space-y-4 shadow-xs">
           {/* Author Badge Info */}
-          <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100 dark:border-zinc-800">
             <div className="flex items-center gap-2.5 min-w-0">
               <img
                 src={previewAvatar}
                 alt={currentAuthorAlias}
-                className="w-9 h-9 rounded-full border border-[#d1d5dc] object-cover bg-amber-50 shrink-0"
+                className="w-9 h-9 rounded-full border border-[#d1d5dc] dark:border-zinc-700 object-cover bg-amber-50 shrink-0"
               />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-xs sm:text-sm text-black truncate">
+                  <span className="font-extrabold text-xs sm:text-sm text-black dark:text-white truncate">
                     {currentAuthorAlias}
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#fff1f3] text-[#701a31] rounded-md border border-[#701a31]/20 shrink-0">
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#fff1f3] dark:bg-[#271216] text-[#701a31] dark:text-rose-400 rounded-md border border-[#701a31]/20 dark:border-rose-900/40 shrink-0">
                     {currentAuthorDept.replace('College of ', '')}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-400 font-medium">Posting to Campus Music Wall</p>
+                <p className="text-[11px] text-gray-400 dark:text-zinc-500 font-medium">Posting to Campus Music Wall</p>
               </div>
             </div>
 
             {/* Admin Switcher */}
             {isAdminUser && (
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-[#701a31]">
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-[#701a31] dark:text-rose-400">
                 <input
                   type="checkbox"
                   checked={postAsAdmin}
@@ -397,12 +397,12 @@ export const DedicateSongPage: React.FC = () => {
 
           {/* 1. Song Search & Selection */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-black flex items-center justify-between">
+            <label className="text-xs font-bold text-black dark:text-white flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <span>Search Song to Dedicate <span className="text-rose-500">*</span></span>
               </span>
               {songRequiredError && !selectedSong && (
-                <span className="text-[11px] text-red-600 font-bold">Required</span>
+                <span className="text-[11px] text-red-600 dark:text-red-400 font-bold">Required</span>
               )}
               {selectedSong && (
                 <button
@@ -412,7 +412,7 @@ export const DedicateSongPage: React.FC = () => {
                     setSongSearchQuery('');
                     setSongRequiredError(false);
                   }}
-                  className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                  className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
                 >
                   Change song
                 </button>
@@ -423,10 +423,10 @@ export const DedicateSongPage: React.FC = () => {
               <div className="relative">
                 <div className={`flex items-center rounded-xl px-3 py-2.5 transition-all shadow-2xs ${
                   songRequiredError
-                    ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40'
-                    : 'bg-[#f4f4f0] border border-[#d1d5dc] focus-within:border-black focus-within:bg-white'
+                    ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40 dark:bg-red-950/20'
+                    : 'bg-[#f4f4f0] dark:bg-zinc-800 border border-[#d1d5dc] dark:border-zinc-700 focus-within:border-black dark:focus-within:border-white focus-within:bg-white dark:focus-within:bg-zinc-900'
                 }`}>
-                  <Search className={`w-4 h-4 mr-2 shrink-0 ${songRequiredError ? 'text-red-500' : 'text-gray-400'}`} />
+                  <Search className={`w-4 h-4 mr-2 shrink-0 ${songRequiredError ? 'text-red-500' : 'text-gray-400 dark:text-zinc-500'}`} />
                   <input
                     ref={songInputRef}
                     type="text"
@@ -436,17 +436,17 @@ export const DedicateSongPage: React.FC = () => {
                       if (songRequiredError) setSongRequiredError(false);
                     }}
                     placeholder={songRequiredError ? 'Please search and select a song here...' : 'Type track name or artist (e.g., Sining, Birds of a Feather)...'}
-                    className="w-full text-xs sm:text-sm text-black placeholder-gray-400 bg-transparent border-0 focus:outline-none font-medium"
+                    className="w-full text-xs sm:text-sm text-black dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 bg-transparent border-0 focus:outline-none font-medium"
                     autoFocus={songRequiredError}
                   />
                   {isSearchingSong && (
-                    <RefreshCw className="w-4 h-4 text-gray-400 animate-spin shrink-0 ml-2" />
+                    <RefreshCw className="w-4 h-4 text-gray-400 dark:text-zinc-400 animate-spin shrink-0 ml-2" />
                   )}
                   {songSearchQuery && !isSearchingSong && (
                     <button
                       type="button"
                       onClick={() => setSongSearchQuery('')}
-                      className="p-0.5 text-gray-400 hover:text-black rounded shrink-0 ml-2"
+                      className="p-0.5 text-gray-400 hover:text-black dark:hover:text-white rounded shrink-0 ml-2"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -454,7 +454,7 @@ export const DedicateSongPage: React.FC = () => {
                 </div>
 
                 {songRequiredError && (
-                  <p className="text-xs font-bold text-red-600 mt-1.5 flex items-center gap-1.5 animate-in fade-in duration-150">
+                  <p className="text-xs font-bold text-red-600 dark:text-red-400 mt-1.5 flex items-center gap-1.5 animate-in fade-in duration-150">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
                     Please search and select a song before submitting.
                   </p>
@@ -462,7 +462,7 @@ export const DedicateSongPage: React.FC = () => {
 
                 {/* Autocomplete Dropdown List */}
                 {songSearchResults.length > 0 && (
-                  <div className="absolute z-30 w-full mt-1.5 bg-white border border-black/20 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute z-30 w-full mt-1.5 bg-white dark:bg-[#18181b] border border-black/20 dark:border-zinc-700 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100 dark:divide-zinc-800 animate-in fade-in zoom-in-95 duration-150">
                     {songSearchResults.map((track, i) => {
                       const img = track.image_url || (track.image?.[1]?.['#text'] && !track.image[1]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f') ? track.image[1]['#text'] : null);
                       return (
@@ -474,28 +474,28 @@ export const DedicateSongPage: React.FC = () => {
                             setSongSearchQuery('');
                             setSongRequiredError(false);
                           }}
-                          className="flex items-center gap-3 p-2.5 hover:bg-[#fff1f3] cursor-pointer transition-colors"
+                          className="flex items-center gap-3 p-2.5 hover:bg-[#fff1f3] dark:hover:bg-zinc-800 cursor-pointer transition-colors"
                         >
                           {img ? (
-                            <img src={img} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-lg border border-black/10 object-cover shrink-0" />
+                            <img src={img} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-lg border border-black/10 dark:border-zinc-700 object-cover shrink-0" />
                           ) : (
-                            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center border border-black/10 shrink-0 text-xs">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-zinc-800 flex items-center justify-center border border-black/10 dark:border-zinc-700 shrink-0 text-xs">
                               🎵
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs sm:text-sm font-extrabold truncate text-black">{track.name || track.title}</div>
-                            <div className="text-[11px] font-semibold text-gray-500 truncate flex items-center gap-1.5">
+                            <div className="text-xs sm:text-sm font-extrabold truncate text-black dark:text-white">{track.name || track.title}</div>
+                            <div className="text-[11px] font-semibold text-gray-500 dark:text-zinc-400 truncate flex items-center gap-1.5">
                               <span>{track.artist}</span>
                               {track.duration && (
                                 <>
                                   <span>·</span>
-                                  <span className="text-gray-400 font-mono text-[10px]">{track.duration}</span>
+                                  <span className="text-gray-400 dark:text-zinc-500 font-mono text-[10px]">{track.duration}</span>
                                 </>
                               )}
                             </div>
                           </div>
-                          <span className="text-[10px] font-bold px-2.5 py-1 bg-black text-white rounded-full shrink-0 shadow-2xs hover:bg-[#701a31] transition-colors">
+                          <span className="text-[10px] font-bold px-2.5 py-1 bg-black dark:bg-white text-white dark:text-black rounded-full shrink-0 shadow-2xs hover:bg-[#701a31] dark:hover:bg-zinc-200 transition-colors">
                             Select
                           </span>
                         </div>
@@ -506,7 +506,7 @@ export const DedicateSongPage: React.FC = () => {
               </div>
             ) : (
               /* Selected Song Card Display */
-              <div className="p-3 bg-[#fdfdfd] border border-black/15 rounded-xl flex items-center gap-3 shadow-2xs relative">
+              <div className="p-3 bg-[#fdfdfd] dark:bg-zinc-800/80 border border-black/15 dark:border-zinc-700 rounded-xl flex items-center gap-3 shadow-2xs relative">
                 {(() => {
                   const songImg = selectedSong.image_url ||
                     (selectedSong.image?.[2]?.['#text'] && !selectedSong.image[2]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f') ? selectedSong.image[2]['#text'] : null);
@@ -515,7 +515,7 @@ export const DedicateSongPage: React.FC = () => {
                       src={songImg}
                       alt={selectedSong.name}
                       referrerPolicy="no-referrer"
-                      className="w-12 h-12 rounded-xl border border-black/10 object-cover shrink-0 shadow-xs"
+                      className="w-12 h-12 rounded-xl border border-black/10 dark:border-zinc-700 object-cover shrink-0 shadow-xs"
                     />
                   ) : (
                     <div className="w-12 h-12 rounded-xl bg-neutral-900 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -525,14 +525,14 @@ export const DedicateSongPage: React.FC = () => {
                 })()}
 
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-xs sm:text-sm font-black truncate text-black mt-0.5">{selectedSong.name}</h4>
-                  <p className="text-[11px] font-bold text-gray-500 truncate">{selectedSong.artist}</p>
+                  <h4 className="text-xs sm:text-sm font-black truncate text-black dark:text-white mt-0.5">{selectedSong.name}</h4>
+                  <p className="text-[11px] font-bold text-gray-500 dark:text-zinc-400 truncate">{selectedSong.artist}</p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setSelectedSong(null)}
-                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
+                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-full transition-colors cursor-pointer"
                   title="Remove selected song"
                 >
                   <X className="w-4 h-4" />
@@ -543,12 +543,12 @@ export const DedicateSongPage: React.FC = () => {
 
           {/* 2. Dedicated To (Required) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-black flex items-center justify-between">
+            <label className="text-xs font-bold text-black dark:text-white flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <span>Dedicated To <span className="text-rose-500">*</span></span>
               </span>
               {dedicatedToRequiredError && !dedicatedTo.trim() && (
-                <span className="text-[11px] text-red-600 font-bold">Required</span>
+                <span className="text-[11px] text-red-600 dark:text-red-400 font-bold">Required</span>
               )}
             </label>
             <input
@@ -561,14 +561,14 @@ export const DedicateSongPage: React.FC = () => {
               }}
               placeholder="e.g. Someone from Nursing, Crush, Bestie, or a Name..."
               maxLength={40}
-              className={`w-full text-xs sm:text-sm text-black px-3 py-2.5 rounded-xl transition-all font-medium shadow-2xs ${
+              className={`w-full text-xs sm:text-sm text-black dark:text-white px-3 py-2.5 rounded-xl transition-all font-medium shadow-2xs ${
                 dedicatedToRequiredError && !dedicatedTo.trim()
-                  ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40 placeholder-red-400 focus:outline-none'
-                  : 'bg-[#f4f4f0] border border-[#d1d5dc] focus:border-black focus:bg-white focus:outline-none'
+                  ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40 dark:bg-red-950/20 placeholder-red-400 focus:outline-none'
+                  : 'bg-[#f4f4f0] dark:bg-zinc-800 border border-[#d1d5dc] dark:border-zinc-700 focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-900 focus:outline-none'
               }`}
             />
             {dedicatedToRequiredError && !dedicatedTo.trim() && (
-              <p className="text-xs font-bold text-red-600 mt-1 flex items-center gap-1.5 animate-in fade-in duration-150">
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1.5 animate-in fade-in duration-150">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
                 Please specify who you are dedicating this song to.
               </p>
@@ -583,7 +583,7 @@ export const DedicateSongPage: React.FC = () => {
                     setDedicatedTo(chip);
                     if (dedicatedToRequiredError) setDedicatedToRequiredError(false);
                   }}
-                  className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 hover:bg-[#fff1f3] hover:text-[#701a31] text-gray-600 rounded-full border border-gray-200 transition-colors cursor-pointer"
+                  className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 dark:bg-zinc-800 hover:bg-[#fff1f3] dark:hover:bg-rose-950/40 hover:text-[#701a31] dark:hover:text-rose-400 text-gray-600 dark:text-zinc-300 rounded-full border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
                 >
                   +{chip}
                 </button>
@@ -593,9 +593,9 @@ export const DedicateSongPage: React.FC = () => {
 
           {/* 3. Dedication Note / Message (Optional) */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-black flex items-center justify-between">
+            <label className="text-xs font-bold text-black dark:text-white flex items-center justify-between">
               <span>Dedication Note</span>
-              <span className="text-[11px] text-gray-400 font-medium">{message.length}/300</span>
+              <span className="text-[11px] text-gray-400 dark:text-zinc-500 font-medium">{message.length}/300</span>
             </label>
             <textarea
               rows={3}
@@ -603,16 +603,16 @@ export const DedicateSongPage: React.FC = () => {
               onChange={(e) => setMessage(e.target.value)}
               maxLength={300}
               placeholder="Why are you dedicating this song? Add a short note, lyrics, or confession..."
-              className="w-full p-2.5 text-xs sm:text-sm text-black placeholder-gray-400 bg-[#f4f4f0] border border-[#d1d5dc] rounded-xl focus:border-black focus:bg-white focus:outline-none resize-none leading-relaxed transition-all shadow-2xs font-medium"
+              className="w-full p-2.5 text-xs sm:text-sm text-black dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 bg-[#f4f4f0] dark:bg-zinc-800 border border-[#d1d5dc] dark:border-zinc-700 rounded-xl focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-900 focus:outline-none resize-none leading-relaxed transition-all shadow-2xs font-medium"
             />
           </div>
 
           {/* 4. Souvenir Note Color & Action Controls */}
-          <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="pt-3 border-t border-gray-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3">
             {/* Color Palette */}
             {!postAsAdmin && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-gray-500">Color:</span>
+                <span className="text-[11px] font-bold text-gray-500 dark:text-zinc-400">Color:</span>
                 {MUSIC_POST_COLORS.map((c) => (
                   <button
                     key={c.hex}
@@ -621,7 +621,7 @@ export const DedicateSongPage: React.FC = () => {
                     style={{ backgroundColor: c.hex }}
                     className={`w-6 h-6 rounded-full border border-black/15 transition-all flex items-center justify-center cursor-pointer ${
                       selectedColor === c.hex
-                        ? 'ring-2 ring-black scale-110 shadow-xs'
+                        ? 'ring-2 ring-black dark:ring-white scale-110 shadow-xs'
                         : 'opacity-70 hover:opacity-100'
                     }`}
                     title={c.name}
@@ -639,7 +639,7 @@ export const DedicateSongPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => goBack()}
-                className="px-3.5 py-1.5 text-xs font-bold text-gray-500 hover:text-black transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-bold text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -648,7 +648,7 @@ export const DedicateSongPage: React.FC = () => {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting || !selectedSong || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS))}
-                className="px-5 py-2 bg-black hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-black text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 rounded-xl"
+                className="px-5 py-2 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-30 disabled:hover:bg-black dark:disabled:hover:bg-white text-white dark:text-black font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 rounded-xl"
               >
                 {isSubmitting ? (
                   <>

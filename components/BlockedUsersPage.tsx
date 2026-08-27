@@ -38,13 +38,13 @@ export const BlockedUsersPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto py-4 px-3 sm:px-4">
+    <div className="w-full max-w-2xl mx-auto py-4 px-3 sm:px-4 text-black dark:text-[#f4f4f6]">
       {/* Top Header / Back Navigation */}
-      <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-gray-200">
+      <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-gray-200 dark:border-zinc-800">
         <button
           type="button"
           onClick={goBack}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-700 hover:text-black transition-colors cursor-pointer py-1 px-2 rounded-lg hover:bg-gray-100"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer py-1 px-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
@@ -55,7 +55,7 @@ export const BlockedUsersPage: React.FC = () => {
             <button
               type="button"
               onClick={unblockAllUsers}
-              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Unblock All</span>
@@ -67,40 +67,40 @@ export const BlockedUsersPage: React.FC = () => {
       {/* Page Title */}
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-black text-black">Blocked Users</h1>
+          <h1 className="text-xl font-black text-black dark:text-white">Blocked Users</h1>
           {allBlockedList.length > 0 && (
-            <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-bold px-2 py-0.5 rounded-full">
               {allBlockedList.length}
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
           Students you have blocked will not be paired with you in chat matchmaking.
         </p>
       </div>
 
       {/* List of Blocked Users */}
       {allBlockedList.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
-          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+        <div className="bg-white dark:bg-[#18181b] border border-gray-200 dark:border-zinc-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2">
             <ShieldCheck className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-bold text-black">No Blocked Users</h3>
-          <p className="text-xs text-gray-500 mt-1 max-w-xs leading-relaxed">
+          <h3 className="text-sm font-bold text-black dark:text-white">No Blocked Users</h3>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1 max-w-xs leading-relaxed">
             You have not blocked anyone. Peers you block during chat sessions will appear here for easy unblocking.
           </p>
           <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
               onClick={() => setViewState('queue')}
-              className="px-4 py-1.5 bg-black text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
+              className="px-4 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors cursor-pointer"
             >
               Go to Matchmaking
             </button>
             <button
               type="button"
               onClick={() => setViewState('freedom_wall')}
-              className="px-4 py-1.5 bg-gray-100 text-black text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              className="px-4 py-1.5 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white text-xs font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
             >
               Freedom Wall
             </button>
@@ -111,7 +111,7 @@ export const BlockedUsersPage: React.FC = () => {
           {allBlockedList.map((user, idx) => (
             <div
               key={`blocked-page-user-${user.id}-${idx}`}
-              className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-gray-300 transition-all"
+              className="bg-white dark:bg-[#18181b] border border-gray-200 dark:border-zinc-800 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-gray-300 dark:hover:border-zinc-700 transition-all"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <img
@@ -120,17 +120,17 @@ export const BlockedUsersPage: React.FC = () => {
                     `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id}`
                   }
                   alt={user.username}
-                  className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 shrink-0 object-cover"
+                  className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shrink-0 object-cover"
                 />
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-black truncate">
+                  <div className="text-xs font-bold text-black dark:text-white truncate">
                     {user.username}
                   </div>
-                  <div className="text-[11px] text-[#701a31] font-semibold truncate">
+                  <div className="text-[11px] text-[#701a31] dark:text-[#ff90e8] font-semibold truncate">
                     {user.department.replace('College of ', '')}
                   </div>
                   {user.blocked_at && (
-                    <div className="text-[10px] text-gray-400">
+                    <div className="text-[10px] text-gray-400 dark:text-zinc-500">
                       Blocked on {formatDate(user.blocked_at)}
                     </div>
                   )}
@@ -140,9 +140,9 @@ export const BlockedUsersPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => unblockUser(user.id)}
-                className="px-3 py-1.5 bg-white hover:bg-black hover:text-white text-black border border-gray-300 hover:border-black rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-white dark:bg-zinc-800 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black text-black dark:text-white border border-gray-300 dark:border-zinc-700 hover:border-black rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Unblock</span>
               </button>
             </div>

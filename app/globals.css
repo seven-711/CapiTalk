@@ -1,11 +1,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
   --font-sans: var(--font-poppins), 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-poppins: var(--font-poppins), 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ─── Circular View Transition (Originating from Toggle Button) ─── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
 }
 
 @layer base {
@@ -27,8 +40,29 @@
     --color-highlight-lime: #f1f333;
     --color-highlight-vermillion: #c41e3a;
 
-    --background: var(--color-canvas-cream);
-    --foreground: var(--color-ink-black);
+    --background: #fbf9f5;
+    --foreground: #000000;
+  }
+
+  .dark {
+    --color-canvas-cream: #0e0e11;
+    --color-paper-white: #18181b;
+    --color-ink-black: #f4f4f6;
+    --color-graphite: #e4e4e7;
+    --color-hairline: #27272a;
+
+    --color-maroon: #991b1b;
+    --color-maroon-dark: #450a0a;
+    --color-crimson: #ef4444;
+    --color-maroon-light: #271216;
+
+    --color-coin-pink: #ff90e8;
+    --color-highlight-yellow: #ffc900;
+    --color-highlight-lime: #f1f333;
+    --color-highlight-vermillion: #ef4444;
+
+    --background: #0e0e11;
+    --foreground: #f4f4f6;
   }
 
   html {
@@ -39,8 +73,8 @@
   }
 
   body {
-    background-color: var(--color-canvas-cream);
-    color: var(--color-ink-black);
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: var(--font-poppins), 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -79,12 +113,24 @@
   border-radius: 16px;
   box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
 }
+.dark .gumroad-card {
+  background-color: #18181b;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 4px 4px 0px 0px rgba(255, 255, 255, 0.1);
+  color: #f4f4f6;
+}
 
 .gumroad-feature-card {
   background-color: #ffffff;
   border: 2px solid #000000;
   border-radius: 20px;
   box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+}
+.dark .gumroad-feature-card {
+  background-color: #18181b;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 4px 4px 0px 0px rgba(255, 255, 255, 0.1);
+  color: #f4f4f6;
 }
 
 /* ─── Neo-Brutalist Dark Maroon Buttons ──────────────────────────────────────── */

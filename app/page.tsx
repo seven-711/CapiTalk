@@ -124,25 +124,7 @@ export default function Home() {
   const [isReactedModalDragging, setIsReactedModalDragging] = React.useState(false);
   const reactedDragStartYRef = React.useRef<number | null>(null);
 
-  const [reactedUsersList, setReactedUsersList] = React.useState<ReactedUser[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('higalaay_banner_reacted_users_v1');
-        if (saved) return JSON.parse(saved);
-        const wasHearted = localStorage.getItem('higalaay_banner_hearted') === 'true';
-        if (wasHearted) {
-          return [{
-            id: 'me',
-            username: 'You',
-            department: 'CU Student',
-            avatarUrl: '/avatars/coin-left.jpg',
-            reactedAt: Date.now(),
-          }];
-        }
-      } catch (e) {}
-    }
-    return [];
-  });
+  const [reactedUsersList, setReactedUsersList] = React.useState<ReactedUser[]>([]);
 
   const isHeroHearted = React.useMemo(() => {
     const myId = currentUser?.id || currentUser?.username || 'me';
@@ -151,15 +133,18 @@ export default function Home() {
   }, [reactedUsersList, currentUser]);
 
   const [isCommentsModalOpen, setIsCommentsModalOpen] = React.useState(false);
-  const [commentsList, setCommentsList] = React.useState<BannerComment[]>(() => {
+  const [commentsList, setCommentsList] = React.useState<BannerComment[]>([]);
+
+  React.useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('higalaay_banner_comments_v2');
-        if (saved) return JSON.parse(saved);
+        const savedUsers = localStorage.getItem('higalaay_banner_reacted_users_v1');
+        if (savedUsers) setReactedUsersList(JSON.parse(savedUsers));
+        const savedComments = localStorage.getItem('higalaay_banner_comments_v2');
+        if (savedComments) setCommentsList(JSON.parse(savedComments));
       } catch (e) {}
     }
-    return [];
-  });
+  }, []);
   const [newCommentInput, setNewCommentInput] = React.useState('');
   const [modalDragY, setModalDragY] = React.useState(0);
   const [isModalDragging, setIsModalDragging] = React.useState(false);
@@ -477,15 +462,7 @@ export default function Home() {
   const isMatchmakingTimedOut = showQueueTimeoutModal || (viewState === 'queue' && !isSearching && searchingTimeSeconds >= 35);
   const shouldHideNavAndFooter = viewState === 'chat' || viewState === 'kept_connections' || (viewState === 'queue' && isSearching) || isMatchmakingTimedOut || viewState === 'midterm_szn' || transitionPhase !== 'idle';
 
-  const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(() => {
-    if (typeof window !== 'undefined') {
-      return (
-        localStorage.getItem('capitalk_toc_accepted_v1') === 'true' ||
-        sessionStorage.getItem('capitalk_toc_accepted_session') === 'true'
-      );
-    }
-    return null;
-  });
+  const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -577,6 +554,25 @@ export default function Home() {
 
   React.useEffect(() => {
     initSession();
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('capitalk_theme');
+        const isDark = saved !== null
+          ? saved === '1'
+          : (useChatStore.getState().themeMode === 1 || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+        const targetMode = isDark ? 1 : 0;
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+        if (useChatStore.getState().themeMode !== targetMode) {
+          useChatStore.setState({ themeMode: targetMode });
+        }
+      } catch (e) {}
+    }
   }, [initSession]);
 
   // Prevent accidental page reloads while searching or active in a chat
@@ -651,7 +647,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`flex flex-col bg-[#f4f4f0] text-[#000000] ${
+    <div className={`flex flex-col bg-[#f4f4f0] dark:bg-[#0e0e11] text-[#000000] dark:text-[#f4f4f6] transition-colors duration-200 ${
       viewState === 'chat' || viewState === 'kept_connections' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
     }`}>
 
@@ -763,14 +759,14 @@ export default function Home() {
         {viewState === 'kept_connections' && <KeptConnectionsPage />}
 
         {viewState === 'landing' && (
-          <div className="w-full text-black font-sans">
+          <div className="w-full text-black dark:text-[#f4f4f6] font-sans transition-colors duration-200">
             {/* ── HERO SECTION ──────────────────────────────────────────────── */}
             <section className="sm:pt-6 sm:pb-12 sm:px-6 max-w-[1100px] mx-auto">
               <div className="text-center max-w-3xl mx-auto space-y-6">
                 {/* Higalaay Festival Facebook Post Card */}
                 <article
                   id="higalaay-banner-post"
-                  className="overflow-hidden text-left w-full max-w-xl mx-auto"
+                  className="overflow-hidden text-left w-full max-w-xl mx-auto bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]"
                 >
                   {/* Post Header */}
                   <div className="p-3 sm:p-3.5 flex items-center justify-between">
@@ -788,15 +784,15 @@ export default function Home() {
                       {/* Author Meta */}
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 leading-snug">
-                          <span className="font-bold text-sm sm:text-[15px] text-[#050505] truncate">
+                          <span className="font-bold text-sm sm:text-[15px] text-[#050505] dark:text-white truncate">
                             CapiTalk
                           </span>
-                          <span className="text-[11px] text-zinc-500 font-medium shrink-0">· Official</span>
+                          <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium shrink-0">· Official</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] sm:text-xs text-zinc-500 font-medium">
+                        <div className="flex items-center gap-1 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 font-medium">
                           <span>Fiesta Season</span>
                           <span>·</span>
-                          <Globe className="w-3 h-3 text-zinc-500" />
+                          <Globe className="w-3 h-3 text-zinc-500 dark:text-zinc-400" />
                           <span>Public</span>
                         </div>
                       </div>
@@ -804,14 +800,14 @@ export default function Home() {
                   </div>
 
                   {/* Post Caption */}
-                  <div className="px-3 sm:px-3.5 pb-2.5 text-xs sm:text-sm text-[#050505] leading-relaxed">
+                  <div className="px-3 sm:px-3.5 pb-2.5 text-xs sm:text-sm text-[#050505] dark:text-zinc-200 leading-relaxed">
                     <p>
                       Happy Higalaay Festival, Cagayan de Oro! 🎉✨ Viva Señor San Agustin! Wishing all Capitolians, friends, and higalas a joyous, safe, and festive celebration! 💛🎺🥁
                     </p>
                   </div>
 
                   {/* Pubmat Image */}
-                  <div className="relative w-full bg-[#f8a81d] overflow-hidden border-y border-black/10">
+                  <div className="relative w-full bg-[#f8a81d] overflow-hidden border-y border-black/10 dark:border-white/10">
                     <img
                       src="/images/higalaay_banner.webp"
                       alt="Happy Higalaay Festival — Cagayan de Oro"
@@ -821,7 +817,7 @@ export default function Home() {
                   </div>
 
                   {/* Reaction Summary Bar */}
-                  <div className="px-3 sm:px-3.5 py-2 flex items-center justify-between text-xs text-zinc-500 border-b border-zinc-100">
+                  <div className="px-3 sm:px-3.5 py-2 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
                     <button
                       type="button"
                       onClick={() => setIsReactedUsersModalOpen(true)}
@@ -831,14 +827,14 @@ export default function Home() {
                       <span className="w-5 h-5 flex items-center justify-center text-xs text-white group-hover:scale-110 transition-transform">
                         ❤️
                       </span>
-                      <span className="font-semibold text-zinc-700 text-xs sm:text-[13px] group-hover:underline">
+                      <span className="font-semibold text-zinc-700 dark:text-zinc-300 text-xs sm:text-[13px] group-hover:underline">
                         {reactedUsersList.length.toLocaleString()} {reactedUsersList.length === 1 ? 'reaction' : 'reactions'}
                       </span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsCommentsModalOpen(true)}
-                      className="text-[11px] sm:text-xs text-zinc-500 hover:text-black font-medium hover:underline cursor-pointer"
+                      className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 hover:text-black dark:hover:text-white font-medium hover:underline cursor-pointer"
                     >
                       {commentsList.length} {commentsList.length === 1 ? 'comment' : 'comments'}
                     </button>
@@ -853,7 +849,7 @@ export default function Home() {
                       className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold transition-all cursor-pointer select-none active:scale-95 ${
                         isHeroHearted
                           ? 'text-[#f33e5b] bg-[#f33e5b]/10 hover:bg-[#f33e5b]/15'
-                          : 'text-zinc-600 hover:text-[#f33e5b] hover:bg-rose-50/60'
+                          : 'text-zinc-600 dark:text-zinc-300 hover:text-[#f33e5b] hover:bg-rose-50/60 dark:hover:bg-rose-950/30'
                       }`}
                     >
                       <Heart
@@ -868,7 +864,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => setIsCommentsModalOpen(true)}
-                      className="py-2 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-zinc-600 hover:text-black hover:bg-zinc-100 transition-all cursor-pointer select-none active:scale-95"
+                      className="py-2 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer select-none active:scale-95"
                     >
                       <MessageCircle className="w-4 h-4" />
                       <span>Comments</span>
@@ -882,7 +878,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setViewState(currentUser ? 'queue' : 'register')}
-                    className="relative p-3 sm:p-4 bg-white hover:bg-[#fff8e6] border-2 border-black rounded-2xl flex flex-col items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-center group cursor-pointer"
+                    className="relative p-3 sm:p-4 bg-white dark:bg-[#18181b] hover:bg-[#fff8e6] dark:hover:bg-neutral-800 border-2 border-black dark:border-white/20 rounded-2xl flex flex-col items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-center group cursor-pointer"
                   >
                     <span className="absolute top-2 right-2 flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75"></span>
@@ -893,8 +889,8 @@ export default function Home() {
                       <MessageSquare className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div className="min-w-0">
-                      <span className="block text-xs sm:text-sm font-black text-black leading-tight truncate">1-on-1 Chat</span>
-                      <span className="inline-block text-[10px] text-emerald-700 font-extrabold mt-0.5">Live Match</span>
+                      <span className="block text-xs sm:text-sm font-black text-black dark:text-white leading-tight truncate">1-on-1 Chat</span>
+                      <span className="inline-block text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold mt-0.5">Live Match</span>
                     </div>
                   </button>
 
@@ -902,14 +898,14 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setViewState('freedom_wall')}
-                    className="relative p-3 sm:p-4 bg-white hover:bg-[#fff1f3] border-2 border-black rounded-2xl flex flex-col items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-center group cursor-pointer"
+                    className="relative p-3 sm:p-4 bg-white dark:bg-[#18181b] hover:bg-[#fff1f3] dark:hover:bg-[#271216] border-2 border-black dark:border-white/20 rounded-2xl flex flex-col items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-center group cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[#ffc900] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-105 transition-all">
                       <Radio className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div className="min-w-0">
-                      <span className="block text-xs sm:text-sm font-black text-black leading-tight truncate">Freedom Wall</span>
-                      <span className="inline-block text-[10px] text-[#701a31] font-extrabold mt-0.5 truncate">
+                      <span className="block text-xs sm:text-sm font-black text-black dark:text-white leading-tight truncate">Freedom Wall</span>
+                      <span className="inline-block text-[10px] text-[#701a31] dark:text-[#ff90e8] font-extrabold mt-0.5 truncate">
                         {freedomPosts.length > 0 ? `${freedomPosts.length} Notes` : 'Campus Notes'}
                       </span>
                     </div>
@@ -919,14 +915,14 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setViewState('music_wall')}
-                    className="relative p-3 sm:p-4 bg-white hover:bg-[#ffe3e8] border-2 border-black rounded-2xl flex flex-col items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-center group cursor-pointer"
+                    className="relative p-3 sm:p-4 bg-white dark:bg-[#18181b] hover:bg-[#ffe3e8] dark:hover:bg-[#35181e] border-2 border-black dark:border-white/20 rounded-2xl flex flex-col items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-center group cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[#ff90e8] text-black flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-105 transition-all">
                       <Music className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div className="min-w-0">
-                      <span className="block text-xs sm:text-sm font-black text-black leading-tight truncate">Music Wall</span>
-                      <span className="inline-block text-[10px] text-zinc-600 font-extrabold mt-0.5">Dedications</span>
+                      <span className="block text-xs sm:text-sm font-black text-black dark:text-white leading-tight truncate">Music Wall</span>
+                      <span className="inline-block text-[10px] text-zinc-600 dark:text-zinc-400 font-extrabold mt-0.5">Dedications</span>
                     </div>
                   </button>
                 </div>
@@ -937,7 +933,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => setViewState('queue')}
-                      className="w-full sm:w-auto px-8 py-3.5 bg-black hover:bg-zinc-800 text-white font-black text-sm sm:text-base rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full sm:w-auto px-8 py-3.5 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black font-black text-sm sm:text-base rounded-2xl border-2 border-black dark:border-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <span>Start Matching</span>
                     </button>
@@ -945,7 +941,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => setViewState('register')}
-                      className="w-full sm:w-auto px-8 py-3.5 bg-black hover:bg-zinc-800 text-white font-black text-sm sm:text-base rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full sm:w-auto px-8 py-3.5 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black font-black text-sm sm:text-base rounded-2xl border-2 border-black dark:border-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <span>Start Matching</span>
                     </button>
@@ -953,12 +949,12 @@ export default function Home() {
                 </div>
 
                 {/* Micro Privacy Note */}
-                <div className="pt-1 flex flex-col items-center gap-1 text-xs text-zinc-500 font-medium">
+                <div className="pt-1 flex flex-col items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
                   <p className="text-[11px] sm:text-xs">No real names, student numbers, or university logins required &middot; Ephemeral chat sessions.</p>
                   <button
                     type="button"
                     onClick={() => setViewState('privacy')}
-                    className="text-[11px] sm:text-xs font-black text-[#701a31] hover:underline flex items-center gap-1 transition-colors"
+                    className="text-[11px] sm:text-xs font-black text-[#701a31] dark:text-[#ff90e8] hover:underline flex items-center gap-1 transition-colors"
                   >
                     <span>Read Privacy &amp; Data Transparency Guarantee</span>
                     <span>&rarr;</span>
@@ -968,60 +964,60 @@ export default function Home() {
             </section>
 
             {/* ── CORE HIGHLIGHTS SECTION (3 Uniform Columns) ────────────────── */}
-            <section id="features" className="py-8 sm:py-14 px-3 sm:px-6 max-w-[1100px] mx-auto border-t border-zinc-200">
+            <section id="features" className="py-8 sm:py-14 px-3 sm:px-6 max-w-[1100px] mx-auto border-t border-zinc-200 dark:border-zinc-800">
               <div className="text-center max-w-xl mx-auto mb-8 sm:mb-12 space-y-2">
                 <span className="bg-[#701a31] text-white text-[11px] font-black px-3 py-1 rounded-full border border-black uppercase tracking-wider shadow-2xs inline-block">
                   Campus Platform
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-black tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-black text-black dark:text-white tracking-tight">
                   Designed for Capitol University
                 </h2>
-                <p className="text-xs sm:text-sm text-zinc-600 font-medium">
+                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium">
                   Everything you need to discover new friendships and explore campus life safely.
                 </p>
               </div>
 
               <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
                 {/* 1. Department Filtering */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex flex-col justify-between">
+                <div className="bg-white dark:bg-[#18181b] p-5 sm:p-6 rounded-2xl border-2 border-black dark:border-[#27272a] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.08)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex flex-col justify-between">
                   <div className="space-y-3">
                     <div className="w-10 h-10 rounded-xl bg-[#701a31] text-white border-2 border-black flex items-center justify-center shadow-xs">
                       <Users className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base sm:text-lg font-black text-black tracking-tight">
+                    <h3 className="text-base sm:text-lg font-black text-black dark:text-white tracking-tight">
                       Smart Department Matching
                     </h3>
-                    <p className="text-xs sm:text-sm text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Pair with students from your own college or explore connections across Computer Studies, Engineering, Nursing, Business, CAS, Maritime, Education, and Criminology.
                     </p>
                   </div>
                 </div>
 
                 {/* 2. Zero-Log Privacy */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex flex-col justify-between">
+                <div className="bg-white dark:bg-[#18181b] p-5 sm:p-6 rounded-2xl border-2 border-black dark:border-[#27272a] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.08)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex flex-col justify-between">
                   <div className="space-y-3">
                     <div className="w-10 h-10 rounded-xl bg-[#00e599] text-black border-2 border-black flex items-center justify-center shadow-xs">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base sm:text-lg font-black text-black tracking-tight">
+                    <h3 className="text-base sm:text-lg font-black text-black dark:text-white tracking-tight">
                       Ephemeral &amp; Anonymous
                     </h3>
-                    <p className="text-xs sm:text-sm text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Chats exist in temporary memory only. No transcripts or sensitive data are stored, and messages automatically vanish forever when conversations finish.
                     </p>
                   </div>
                 </div>
 
                 {/* 3. Community Wall & Kept Connections */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex flex-col justify-between">
+                <div className="bg-white dark:bg-[#18181b] p-5 sm:p-6 rounded-2xl border-2 border-black dark:border-[#27272a] shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.08)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex flex-col justify-between">
                   <div className="space-y-3">
                     <div className="w-10 h-10 rounded-xl bg-[#ffc900] text-black border-2 border-black flex items-center justify-center shadow-xs">
                       <Radio className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base sm:text-lg font-black text-black tracking-tight">
+                    <h3 className="text-base sm:text-lg font-black text-black dark:text-white tracking-tight">
                       Freedom Wall &amp; Friends
                     </h3>
-                    <p className="text-xs sm:text-sm text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Post anonymous notes, react to campus confessions, listen to shared music dedications, and save 1 kept connection to direct message even after skipping.
                     </p>
                   </div>
@@ -1031,7 +1027,7 @@ export default function Home() {
 
             {/* ── OFFICIAL FACEBOOK COMMUNITY SHOWCASE ──────────────────────── */}
             <section className="py-6 sm:py-10 px-3 sm:px-6 max-w-[1100px] mx-auto">
-              <div className="bg-white border-2 border-black rounded-3xl p-6 sm:p-8 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <div className="bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-3xl p-6 sm:p-8 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]">
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-6 sm:gap-8">
                   {/* Left Info Column */}
                   <div className="flex-1 space-y-3 text-left">
@@ -1040,11 +1036,11 @@ export default function Home() {
                       <span>Official Facebook Page</span>
                     </div>
 
-                    <h2 className="text-xl sm:text-3xl font-black text-black tracking-tight leading-tight">
+                    <h2 className="text-xl sm:text-3xl font-black text-black dark:text-white tracking-tight leading-tight">
                       Follow CapiTalk on Facebook
                     </h2>
 
-                    <p className="text-xs sm:text-sm text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Stay updated with campus news, platform maintenance notices, trending Freedom Wall highlights, and official community announcements.
                     </p>
 
@@ -1068,7 +1064,7 @@ export default function Home() {
                       href="https://www.facebook.com/share/17PF9MvuSC/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block group relative rounded-2xl overflow-hidden border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:scale-[1.02] active:scale-[0.99] transition-all bg-[#701a31] max-w-[280px]"
+                      className="block group relative rounded-2xl overflow-hidden border-2 border-black dark:border-white/20 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:scale-[1.02] active:scale-[0.99] transition-all bg-[#701a31] max-w-[280px]"
                     >
                       <div className="relative aspect-[3/1] w-full overflow-hidden bg-[#701a31] border-b-2 border-black">
                         <img
@@ -1092,18 +1088,18 @@ export default function Home() {
 
             {/* ── DATA PRIVACY & NON-AFFILIATION DISCLAIMER ─────────────────── */}
             <section className="py-6 sm:py-10 px-3 sm:px-6 max-w-[1100px] mx-auto">
-              <div className="bg-[#fff8e6] border-2 border-black rounded-3xl p-6 sm:p-8 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-left flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="bg-[#fff8e6] dark:bg-[#1f1a14] border-2 border-black dark:border-[#ffc900]/30 rounded-3xl p-6 sm:p-8 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,201,0,0.1)] text-left flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="max-w-2xl space-y-1.5">
                   <span className="bg-[#ffc900] text-black text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full border border-black uppercase tracking-wider shadow-2xs inline-block">
                     Student Data Guarantee
                   </span>
-                  <h3 className="text-lg sm:text-2xl font-black text-black tracking-tight">
+                  <h3 className="text-lg sm:text-2xl font-black text-black dark:text-white tracking-tight">
                     Zero Data Harvested &middot; Student-Led Community
                   </h3>
-                  <p className="text-xs sm:text-sm text-zinc-700 font-medium leading-relaxed">
+                  <p className="text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
                     CapiTalk is an independent student project created exclusively for Capitol University students. No student ID numbers, university portal logins, or real personal details are ever collected.
                   </p>
-                  <p className="text-[11px] text-zinc-500 font-semibold pt-1">
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold pt-1">
                     * CapiTalk is an independent platform and is not officially affiliated with Capitol University administration.
                   </p>
                 </div>
@@ -1119,50 +1115,50 @@ export default function Home() {
             </section>
 
             {/* ── COMMUNITY GUIDELINES ──────────────────────────────────────── */}
-            <section className="py-10 sm:py-14 px-3 sm:px-6 max-w-[1100px] mx-auto border-t border-zinc-200">
+            <section className="py-10 sm:py-14 px-3 sm:px-6 max-w-[1100px] mx-auto border-t border-zinc-200 dark:border-zinc-800">
               <div className="max-w-3xl mx-auto space-y-6">
                 <div className="text-center space-y-1.5">
-                  <h2 className="text-xl sm:text-2xl font-black text-black tracking-tight">
+                  <h2 className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tight">
                     Community Guidelines
                   </h2>
-                  <p className="text-xs sm:text-sm text-zinc-600 font-medium">
+                  <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium">
                     Keeping CapiTalk respectful, safe, and positive for all students.
                   </p>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="p-4 bg-white border-2 border-black rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-1">
-                    <h4 className="font-black text-black text-xs sm:text-sm flex items-center gap-1.5">
+                  <div className="p-4 bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.06)] space-y-1">
+                    <h4 className="font-black text-black dark:text-white text-xs sm:text-sm flex items-center gap-1.5">
                       Respect Every Peer
                     </h4>
-                    <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Treat every student with dignity. Bullying, hate speech, or harassment results in immediate restrictions.
                     </p>
                   </div>
 
-                  <div className="p-4 bg-white border-2 border-black rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-1">
-                    <h4 className="font-black text-black text-xs sm:text-sm flex items-center gap-1.5">
+                  <div className="p-4 bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.06)] space-y-1">
+                    <h4 className="font-black text-black dark:text-white text-xs sm:text-sm flex items-center gap-1.5">
                       Protect Your Privacy
                     </h4>
-                    <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Never share real passwords, personal phone numbers, physical addresses, or ID credentials in chat.
                     </p>
                   </div>
 
-                  <div className="p-4 bg-white border-2 border-black rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-1">
-                    <h4 className="font-black text-black text-xs sm:text-sm flex items-center gap-1.5">
+                  <div className="p-4 bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.06)] space-y-1">
+                    <h4 className="font-black text-black dark:text-white text-xs sm:text-sm flex items-center gap-1.5">
                       Prohibited Media
                     </h4>
-                    <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       NSFW images, explicit content, spam links, and offensive files are blocked by moderation filters.
                     </p>
                   </div>
 
-                  <div className="p-4 bg-white border-2 border-black rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-1">
-                    <h4 className="font-black text-black text-xs sm:text-sm flex items-center gap-1.5">
+                  <div className="p-4 bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.06)] space-y-1">
+                    <h4 className="font-black text-black dark:text-white text-xs sm:text-sm flex items-center gap-1.5">
                       Live Moderation
                     </h4>
-                    <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                       Use the top Report and Block tools anytime to alert moderators or permanently block troublesome users.
                     </p>
                   </div>
@@ -1175,36 +1171,36 @@ export default function Home() {
 
       {/* FOOTER — hidden during active chat, active search, and search timeout */}
       {!shouldHideNavAndFooter && (
-        <footer className="bg-[#f4f4f0] border-t border-[#d1d5dc] pt-8 pb-24 sm:py-8 px-4 sm:px-8 mt-auto">
+        <footer className="bg-[#f4f4f0] dark:bg-[#0e0e11] border-t border-[#d1d5dc] dark:border-[#27272a] pt-8 pb-24 sm:py-8 px-4 sm:px-8 mt-auto transition-colors duration-200">
           <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">
               <div className="flex items-center gap-2">
                 <CoinMascot size={28} tiltAngle={-6} />
-                <span className="font-extrabold text-sm text-black">CapiTalk</span>
+                <span className="font-extrabold text-sm text-black dark:text-white">CapiTalk</span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-[#242423]">
-              <button onClick={() => setViewState('landing')} className="hover:text-black transition-colors">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-[#242423] dark:text-neutral-300">
+              <button onClick={() => setViewState('landing')} className="hover:text-black dark:hover:text-white transition-colors">
                 Home
               </button>
-              <button onClick={() => setViewState('register')} className="hover:text-black transition-colors">
+              <button onClick={() => setViewState('register')} className="hover:text-black dark:hover:text-white transition-colors">
                 Register
               </button>
-              <button onClick={() => setViewState('freedom_wall')} className="hover:text-black transition-colors">
+              <button onClick={() => setViewState('freedom_wall')} className="hover:text-black dark:hover:text-white transition-colors">
                 Freedom Wall
               </button>
-              <button onClick={() => setViewState('terms')} className="hover:text-[#701a31] font-extrabold transition-colors">
+              <button onClick={() => setViewState('terms')} className="hover:text-[#701a31] dark:hover:text-[#ff90e8] font-extrabold transition-colors">
                 Terms and Conditions
               </button>
-              <button onClick={() => setViewState('privacy')} className="text-[#701a31] hover:underline font-extrabold transition-colors">
+              <button onClick={() => setViewState('privacy')} className="text-[#701a31] dark:text-[#ff90e8] hover:underline font-extrabold transition-colors">
                 Privacy Policy
               </button>
               <a
                 href="https://www.facebook.com/share/17PF9MvuSC/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1877f2] hover:bg-[#166fe5] text-white rounded-full font-extrabold text-xs shadow-2xs border border-black transition-all hover:scale-105 active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1877f2] hover:bg-[#166fe5] text-white rounded-full font-extrabold text-xs shadow-2xs border border-black dark:border-white/20 transition-all hover:scale-105 active:scale-95"
               >
                 <FacebookIcon className="w-3.5 h-3.5 fill-white" />
                 <span>Facebook Page</span>

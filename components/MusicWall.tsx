@@ -87,7 +87,10 @@ export const MusicWall: React.FC = () => {
     myPostIds,
     myPseudonyms,
     setViewState,
+    themeMode,
   } = useChatStore();
+
+  const isDarkMode = themeMode === 1;
 
   const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -703,8 +706,15 @@ export const MusicWall: React.FC = () => {
     const isThisPlaying = playingPostId === post.id;
     const isThisLoading = audioLoadingPostId === post.id;
 
-    // Follow the user's chosen color (matching preview in DedicateSongPage)
-    const cardBgColor = post.color || (isPostAdmin ? '#701a31' : '#fff1f3');
+    // Follow the user's chosen color, or adapt default light to dark theme
+    const isCustomColor = Boolean(post.color && post.color !== '#fff1f3' && post.color !== '#ffffff');
+    const cardBgColor = isCustomColor
+      ? post.color
+      : isPostAdmin
+      ? '#701a31'
+      : isDarkMode
+      ? '#18181b'
+      : '#fff1f3';
     const isDark = isColorDark(cardBgColor);
 
     return (
@@ -715,7 +725,7 @@ export const MusicWall: React.FC = () => {
         style={{ backgroundColor: cardBgColor }}
         className={`p-2.5 sm:p-3 rounded-2xl transition-all flex flex-col items-center justify-between group relative cursor-pointer select-none text-center hover:shadow-lg hover:-translate-y-1 duration-300 border ${
           isDark
-            ? 'border-black/20 text-white shadow-md'
+            ? 'border-white/10 dark:border-zinc-800 text-white shadow-md'
             : 'border-[#d1d5dc]/80 text-neutral-900 shadow-xs'
         }`}
       >
@@ -877,7 +887,7 @@ export const MusicWall: React.FC = () => {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] || null;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#f4f4f0] overflow-y-auto w-full custom-scrollbar">
+    <div className="flex-1 flex flex-col h-full bg-[#f4f4f0] dark:bg-[#0e0e11] text-black dark:text-[#f4f4f6] overflow-y-auto w-full custom-scrollbar transition-colors duration-200">
       {/* ───────────────────── HERO SECTION ───────────────────── */}
       <div
         className="relative w-full overflow-hidden"
@@ -1079,19 +1089,19 @@ export const MusicWall: React.FC = () => {
               onClick={() => setSelectedPostForDetail(null)}
             >
               <div
-                className="bg-white border-2 border-black rounded-3xl w-full max-w-lg shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] relative my-auto max-h-[92vh] flex flex-col text-neutral-900 animate-in zoom-in-95 duration-150 overflow-hidden"
+                className="bg-white dark:bg-[#18181b] border-2 border-black dark:border-white/20 rounded-3xl w-full max-w-lg shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.15)] relative my-auto max-h-[92vh] flex flex-col text-neutral-900 dark:text-neutral-100 animate-in zoom-in-95 duration-150 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Top Header Bar */}
-                <div className="p-3.5 sm:p-4 border-b-2 border-black flex justify-between items-center bg-[#fff8f9] shrink-0">
+                <div className="p-3.5 sm:p-4 border-b-2 border-black dark:border-white/20 flex justify-between items-center bg-[#fff8f9] dark:bg-[#271216] shrink-0">
                   <div className="flex items-center gap-2 truncate">
                     {post.dedicated_to ? (
-                      <span className="px-3 py-1 bg-rose-100 text-rose-700 text-xs font-black rounded-full border border-black/10 flex items-center gap-1.5 shadow-2xs">
+                      <span className="px-3 py-1 bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-xs font-black rounded-full border border-black/10 dark:border-rose-800/40 flex items-center gap-1.5 shadow-2xs">
                         <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
                         <span className="truncate">For: {post.dedicated_to}</span>
                       </span>
                     ) : (
-                      <span className="px-3 py-1 bg-white text-gray-800 text-xs font-extrabold rounded-full border border-black/15 shadow-2xs">
+                      <span className="px-3 py-1 bg-white dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 text-xs font-extrabold rounded-full border border-black/15 dark:border-zinc-700 shadow-2xs">
                         {post.department ? post.department.replace('College of ', '') : 'Music Wall'}
                       </span>
                     )}
@@ -1101,7 +1111,7 @@ export const MusicWall: React.FC = () => {
                       </span>
                     )}
                     {post.status === 'pending' && (
-                      <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded-full border border-amber-300">
+                      <span className="px-2.5 py-0.5 bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 text-[10px] font-bold rounded-full border border-amber-300 dark:border-amber-700">
                         Pending Review
                       </span>
                     )}
@@ -1109,21 +1119,21 @@ export const MusicWall: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedPostForDetail(null)}
-                    className="p-1.5 hover:bg-black/5 rounded-full text-black transition-colors cursor-pointer border border-transparent hover:border-black/10"
+                    className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-full text-black dark:text-white transition-colors cursor-pointer border border-transparent hover:border-black/10 dark:hover:border-white/20"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Navigation Tabs */}
-                <div className="px-3.5 sm:px-4 pt-2.5 pb-1 border-b border-black/10 bg-neutral-50 flex items-center gap-1.5 shrink-0">
+                <div className="px-3.5 sm:px-4 pt-2.5 pb-1 border-b border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#1f1f23] flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => setDetailModalTab('player')}
                     className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                       detailModalTab === 'player'
-                        ? 'bg-black text-white shadow-2xs'
-                        : 'bg-white text-neutral-600 hover:bg-neutral-200/60 border border-black/10'
+                        ? 'bg-black dark:bg-white text-white dark:text-black shadow-2xs'
+                        : 'bg-white dark:bg-[#18181b] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200/60 dark:hover:bg-zinc-800 border border-black/10 dark:border-white/10'
                     }`}
                   >
                     <Music className="w-3.5 h-3.5" />
@@ -1141,7 +1151,7 @@ export const MusicWall: React.FC = () => {
                     className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer relative ${
                       detailModalTab === 'lyrics'
                         ? 'bg-[#701a31] text-white shadow-2xs'
-                        : 'bg-white text-neutral-600 hover:bg-neutral-200/60 border border-black/10'
+                        : 'bg-white dark:bg-[#18181b] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200/60 dark:hover:bg-zinc-800 border border-black/10 dark:border-white/10'
                     }`}
                   >
                     <Mic2 className="w-3.5 h-3.5" />
@@ -1158,7 +1168,7 @@ export const MusicWall: React.FC = () => {
                   {detailModalTab === 'player' && (
                     <div className="space-y-4 animate-in fade-in duration-150">
                       {/* Track Card with Spinning Vinyl */}
-                      <div className="flex items-center gap-3.5 p-3.5 bg-neutral-900 text-white rounded-2xl border-2 border-black shadow-md relative overflow-hidden">
+                      <div className="flex items-center gap-3.5 p-3.5 bg-neutral-900 text-white rounded-2xl border-2 border-black dark:border-white/20 shadow-md relative overflow-hidden">
                         {/* Ambient Glow */}
                         <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-[#ff90e8]/20 rounded-full blur-2xl pointer-events-none" />
 
@@ -1206,11 +1216,11 @@ export const MusicWall: React.FC = () => {
 
                       {/* Dedication Message (Quote Card) */}
                       {post.message && post.message.trim() && !post.message.startsWith('🎵 ') && (
-                        <div className="bg-[#fffdf7] border-2 border-black rounded-2xl p-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-                          <div className="text-[10px] font-black text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <div className="bg-[#fffdf7] dark:bg-[#27272a] border-2 border-black dark:border-white/20 rounded-2xl p-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.1)]">
+                          <div className="text-[10px] font-black text-neutral-400 dark:text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                             <span>Dedication Message</span>
                           </div>
-                          <p className="text-xs sm:text-sm text-neutral-900 font-medium leading-relaxed whitespace-pre-wrap break-words italic">
+                          <p className="text-xs sm:text-sm text-neutral-900 dark:text-neutral-100 font-medium leading-relaxed whitespace-pre-wrap break-words italic">
                             &ldquo;{post.message.trim()}&rdquo;
                           </p>
                         </div>
@@ -1218,7 +1228,7 @@ export const MusicWall: React.FC = () => {
 
                       {/* Full Track Auto-playing YouTube Music Player */}
                       {videoId ? (
-                        <div className="w-full aspect-video rounded-2xl overflow-hidden border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-black">
+                        <div className="w-full aspect-video rounded-2xl overflow-hidden border-2 border-black dark:border-white/20 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] bg-black">
                           <iframe
                             src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`}
                             title={post.song_title || 'YouTube Music'}
@@ -1228,7 +1238,7 @@ export const MusicWall: React.FC = () => {
                           />
                         </div>
                       ) : (
-                        <div className="p-4 bg-neutral-900 text-white rounded-2xl border-2 border-black flex items-center justify-between gap-3 shadow-2xs">
+                        <div className="p-4 bg-neutral-900 text-white rounded-2xl border-2 border-black dark:border-white/20 flex items-center justify-between gap-3 shadow-2xs">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-8 h-8 rounded-full bg-[#ffc900] flex items-center justify-center text-black font-black animate-spin shrink-0">
                               <Music className="w-4 h-4" />
@@ -1256,7 +1266,7 @@ export const MusicWall: React.FC = () => {
                     <div className="space-y-3 animate-in fade-in duration-150">
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-neutral-500 truncate max-w-[180px]">
+                          <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 truncate max-w-[180px]">
                             {post.song_title}
                           </span>
                         </div>
@@ -1271,7 +1281,7 @@ export const MusicWall: React.FC = () => {
                                 setTimeout(() => setCopiedLyrics(false), 2000);
                               }
                             }}
-                            className="px-2.5 py-1 bg-white border border-black/15 hover:border-black rounded-lg text-xs font-bold text-neutral-700 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                            className="px-2.5 py-1 bg-white dark:bg-zinc-800 border border-black/15 dark:border-zinc-700 hover:border-black dark:hover:border-white rounded-lg text-xs font-bold text-neutral-700 dark:text-zinc-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                           >
                             {copiedLyrics ? (
                               <>
@@ -1289,29 +1299,29 @@ export const MusicWall: React.FC = () => {
                       </div>
 
                       {lyricsData.loading ? (
-                        <div className="p-8 text-center bg-neutral-50 border-2 border-dashed border-neutral-300 rounded-2xl flex flex-col items-center justify-center">
+                        <div className="p-8 text-center bg-neutral-50 dark:bg-zinc-800/60 border-2 border-dashed border-neutral-300 dark:border-zinc-700 rounded-2xl flex flex-col items-center justify-center">
                           <div className="w-10 h-10 rounded-full bg-[#701a31]/10 flex items-center justify-center text-[#701a31] mb-3 animate-bounce">
                             <Mic2 className="w-5 h-5" />
                           </div>
-                          <p className="text-sm font-extrabold text-neutral-800">Fetching lyrics...</p>
-                          <p className="text-xs text-neutral-500 mt-1">Connecting to YouTube Music</p>
+                          <p className="text-sm font-extrabold text-neutral-800 dark:text-neutral-200">Fetching lyrics...</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Connecting to YouTube Music</p>
                         </div>
                       ) : lyricsData.lyrics ? (
-                        <div className="p-4 sm:p-5 bg-gradient-to-b from-neutral-900 to-neutral-950 text-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] max-h-72 overflow-y-auto custom-scrollbar">
+                        <div className="p-4 sm:p-5 bg-gradient-to-b from-neutral-900 to-neutral-950 text-white border-2 border-black dark:border-white/20 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] max-h-72 overflow-y-auto custom-scrollbar">
                           <p className="text-xs sm:text-sm font-medium leading-relaxed whitespace-pre-wrap break-words text-neutral-200">
                             {lyricsData.lyrics}
                           </p>
                         </div>
                       ) : (
-                        <div className="p-6 text-center bg-neutral-50 border-2 border-neutral-200 rounded-2xl">
-                          <Mic2 className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
-                          <p className="text-xs font-bold text-neutral-700">
+                        <div className="p-6 text-center bg-neutral-50 dark:bg-zinc-800/60 border-2 border-neutral-200 dark:border-zinc-700 rounded-2xl">
+                          <Mic2 className="w-8 h-8 text-neutral-300 dark:text-zinc-600 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-neutral-700 dark:text-zinc-300">
                             {lyricsData.error || 'No official lyrics found for this song.'}
                           </p>
                           <button
                             type="button"
                             onClick={() => fetchLyrics(post)}
-                            className="mt-3 px-3 py-1.5 bg-black text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            className="mt-3 px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-bold rounded-xl hover:bg-neutral-800 dark:hover:bg-zinc-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
                           >
                             <RefreshCw className="w-3 h-3" />
                             <span>Retry</span>
@@ -1323,7 +1333,7 @@ export const MusicWall: React.FC = () => {
                 </div>
 
                 {/* Clean Minimalist Footer */}
-                <div className="p-3 sm:p-4 border-t-2 border-black bg-white shrink-0 flex items-center justify-between gap-2">
+                <div className="p-3 sm:p-4 border-t-2 border-black dark:border-white/20 bg-white dark:bg-[#18181b] shrink-0 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
@@ -1331,10 +1341,10 @@ export const MusicWall: React.FC = () => {
                         e.stopPropagation();
                         likeFreedomPost(post.id);
                       }}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-2 border-black text-xs font-extrabold transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-2 border-black dark:border-white/20 text-xs font-extrabold transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.15)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer ${
                         hasLiked
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-white text-neutral-800 hover:bg-neutral-50'
+                          ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800'
+                          : 'bg-white dark:bg-zinc-800 text-neutral-800 dark:text-zinc-200 hover:bg-neutral-50 dark:hover:bg-zinc-700'
                       }`}
                     >
                       <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
@@ -1443,21 +1453,21 @@ export const MusicWall: React.FC = () => {
           onClick={() => setSelectedPostForComments(null)}
         >
           <div
-            className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl relative flex flex-col max-h-[85vh] text-neutral-900 animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#18181b] border border-[#d1d5dc] dark:border-zinc-800 rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl relative flex flex-col max-h-[85vh] text-neutral-900 dark:text-white animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-zinc-800 shrink-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-neutral-900">Comments</h3>
-                <span className="px-2 py-0.5 bg-neutral-100 text-neutral-600 text-[11px] font-semibold rounded-full">
+                <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white">Comments</h3>
+                <span className="px-2 py-0.5 bg-neutral-100 dark:bg-zinc-800 text-neutral-600 dark:text-zinc-300 text-[11px] font-semibold rounded-full">
                   {commentsList.length}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedPostForComments(null)}
-                className="p-1.5 hover:bg-neutral-100 rounded-full text-neutral-400 hover:text-black transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-neutral-100 dark:hover:bg-zinc-800 rounded-full text-neutral-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1482,8 +1492,8 @@ export const MusicWall: React.FC = () => {
                       key={c.id}
                       className={`p-3 rounded-xl space-y-1 transition-all ${
                         isCmAdmin
-                          ? 'bg-gradient-to-br from-[#701a31]/10 via-[#fff8f9] to-[#701a31]/5 border border-[#701a31]/35 ring-1 ring-[#701a31]/20 shadow-xs'
-                          : 'bg-neutral-50 border border-neutral-200/70'
+                          ? 'bg-gradient-to-br from-[#701a31]/20 via-[#271216] to-[#701a31]/10 border border-[#701a31]/40 ring-1 ring-[#701a31]/20 shadow-xs'
+                          : 'bg-neutral-50 dark:bg-zinc-800/80 border border-neutral-200/70 dark:border-zinc-700'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -1492,8 +1502,8 @@ export const MusicWall: React.FC = () => {
                             <img
                               src={avatarUrl}
                               alt={c.author_alias}
-                              className={`w-6 h-6 rounded-full object-cover bg-white shrink-0 ${
-                                isCmAdmin ? 'border-2 border-[#701a31] shadow-xs' : 'border border-neutral-200'
+                              className={`w-6 h-6 rounded-full object-cover bg-white dark:bg-zinc-700 shrink-0 ${
+                                isCmAdmin ? 'border-2 border-[#701a31] shadow-xs' : 'border border-neutral-200 dark:border-zinc-700'
                               }`}
                               onError={(e) => {
                                 (e.target as HTMLElement).setAttribute('src', isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(c.author_alias || 'Anon Student'));
@@ -1509,7 +1519,7 @@ export const MusicWall: React.FC = () => {
                             )}
                           </div>
                           <span className={`font-bold text-xs truncate ${
-                            isCmAdmin ? 'text-[#701a31] font-black' : 'text-neutral-900'
+                            isCmAdmin ? 'text-rose-400 font-black' : 'text-neutral-900 dark:text-white'
                           }`}>
                             @{c.author_alias}
                           </span>
@@ -1520,13 +1530,13 @@ export const MusicWall: React.FC = () => {
                           )}
                         </div>
                         {!isCmAdmin && c.department && (
-                          <span className="text-[10px] font-medium text-neutral-400 shrink-0">
+                          <span className="text-[10px] font-medium text-neutral-400 dark:text-zinc-400 shrink-0">
                             {c.department?.replace('College of ', '')}
                           </span>
                         )}
                       </div>
                       <p className={`text-xs leading-relaxed break-words pl-8 ${
-                        isCmAdmin ? 'text-[#1a050b] font-medium' : 'text-neutral-700'
+                        isCmAdmin ? 'text-rose-100 font-medium' : 'text-neutral-700 dark:text-zinc-200'
                       }`}>
                         {c.message}
                       </p>
@@ -1537,24 +1547,24 @@ export const MusicWall: React.FC = () => {
             </div>
 
             {/* Add Comment Form */}
-            <div className="pt-3 border-t border-neutral-100 shrink-0">
+            <div className="pt-3 border-t border-neutral-100 dark:border-zinc-800 shrink-0">
               {isAdminUser && (
-                <div className="flex items-center justify-between px-1 mb-2 pb-1.5 border-b border-neutral-100">
+                <div className="flex items-center justify-between px-1 mb-2 pb-1.5 border-b border-neutral-100 dark:border-zinc-800">
                   <button
                     type="button"
                     onClick={() => setCommentAsAdmin(!commentAsAdmin)}
                     className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                       commentAsAdmin
                         ? 'bg-[#701a31] text-white border border-[#701a31]'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                        : 'bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700'
                     }`}
                   >
                     <span>{commentAsAdmin ? 'Replying as Admin (Official)' : 'Reply as Admin'}</span>
                     <span className={`w-2 h-2 rounded-full ${commentAsAdmin ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
                   </button>
                   {commentAsAdmin && (
-                    <span className="text-[10px] font-bold text-[#701a31] uppercase tracking-wider flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#701a31]" />
+                    <span className="text-[10px] font-bold text-[#701a31] dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#701a31] dark:bg-rose-400" />
                       Admin Active
                     </span>
                   )}
@@ -1568,16 +1578,16 @@ export const MusicWall: React.FC = () => {
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
                   placeholder={commentAsAdmin ? "Write a comment as Admin..." : "Write a comment..."}
-                  className={`w-full border rounded-xl px-3.5 py-2 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none transition-all font-medium ${
+                  className={`w-full border rounded-xl px-3.5 py-2 text-xs text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-zinc-500 focus:outline-none transition-all font-medium ${
                     commentAsAdmin
-                      ? 'bg-[#fff8f9] border-[#701a31]/30 focus:border-[#701a31] focus:bg-white'
-                      : 'bg-[#f4f4f0] border-[#d1d5dc] focus:border-black focus:bg-white'
+                      ? 'bg-[#fff8f9] dark:bg-[#271216] border-[#701a31]/30 focus:border-[#701a31] focus:bg-white dark:focus:bg-[#1f1f23]'
+                      : 'bg-[#f4f4f0] dark:bg-zinc-800 border-[#d1d5dc] dark:border-zinc-700 focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-900'
                   }`}
                 />
                 <button
                   type="submit"
                   className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0 ${
-                    commentAsAdmin ? 'bg-[#701a31] hover:bg-[#5a1527]' : 'bg-black hover:bg-neutral-800'
+                    commentAsAdmin ? 'bg-[#701a31] hover:bg-[#5a1527]' : 'bg-black dark:bg-white dark:text-black hover:bg-neutral-800 dark:hover:bg-zinc-200'
                   }`}
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -1597,20 +1607,20 @@ export const MusicWall: React.FC = () => {
             onClick={() => setReactorsPost(null)}
           >
             <div
-              className="bg-white border border-[#d1d5dc] rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-2xl relative text-neutral-900 animate-in zoom-in-95 duration-150"
+              className="bg-white dark:bg-[#18181b] border border-[#d1d5dc] dark:border-zinc-800 rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-2xl relative text-neutral-900 dark:text-white animate-in zoom-in-95 duration-150"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-bold text-neutral-900">Likes</h3>
-                  <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-semibold rounded-full border border-rose-100">
+                  <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white">Likes</h3>
+                  <span className="px-2 py-0.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 text-[11px] font-semibold rounded-full border border-rose-100 dark:border-rose-800/40">
                     {post.likes_count || 0}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setReactorsPost(null)}
-                  className="p-1.5 hover:bg-neutral-100 rounded-full text-neutral-400 hover:text-black transition-colors cursor-pointer"
+                  className="p-1.5 hover:bg-neutral-100 dark:hover:bg-zinc-800 rounded-full text-neutral-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1624,19 +1634,19 @@ export const MusicWall: React.FC = () => {
                     const avatarUrl = prof.avatar_url || (currentUser && currentUser.id === uid && currentUser.avatar_url) || getAvatarForPseudonym(displayName);
 
                     return (
-                      <div key={uid} className="p-2.5 bg-neutral-50 border border-neutral-200/70 rounded-xl flex items-center justify-between">
+                      <div key={uid} className="p-2.5 bg-neutral-50 dark:bg-zinc-800/80 border border-neutral-200/70 dark:border-zinc-700 rounded-xl flex items-center justify-between">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
                             src={avatarUrl}
                             alt={displayName}
-                            className="w-8 h-8 rounded-full border border-neutral-200 object-cover bg-white shrink-0"
+                            className="w-8 h-8 rounded-full border border-neutral-200 dark:border-zinc-700 object-cover bg-white dark:bg-zinc-700 shrink-0"
                             onError={(e) => {
                               (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(displayName));
                             }}
                           />
                           <div className="min-w-0">
-                            <div className="text-xs font-bold text-neutral-900 truncate">@{displayName}</div>
-                            <div className="text-[10px] font-medium text-neutral-400 truncate">{displayDept}</div>
+                            <div className="text-xs font-bold text-neutral-900 dark:text-white truncate">@{displayName}</div>
+                            <div className="text-[10px] font-medium text-neutral-400 dark:text-zinc-400 truncate">{displayDept}</div>
                           </div>
                         </div>
                         <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 shrink-0 ml-2" />

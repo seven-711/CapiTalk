@@ -103,7 +103,7 @@ export const TermsOfConduct: React.FC<TermsOfConductProps> = ({
   ];
 
   return (
-    <div className="w-full min-h-screen bg-[#f4f4f0] py-6 sm:py-12 px-3 sm:px-6">
+    <div className="w-full min-h-screen bg-[#f4f4f0] dark:bg-[#0e0e11] text-black dark:text-[#f4f4f6] py-6 sm:py-12 px-3 sm:px-6 transition-colors duration-200">
       <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
         
         {isStandaloneView && (

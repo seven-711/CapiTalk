@@ -128,6 +128,9 @@ interface ChatStoreState {
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
   dismissAnnouncement: () => void;
+
+  themeMode: 0 | 1;
+  toggleThemeMode: (event?: React.MouseEvent | React.TouchEvent | any) => void;
 }
 
 const DEMO_FREEDOM_POSTS: FreedomPost[] = [];
@@ -432,6 +435,118 @@ export const useChatStore = create<ChatStoreState>()(
         });
 
         return { streakCount: newCount, isNewTrigger: true };
+      },
+
+      themeMode: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const standalone = localStorage.getItem('capitalk_theme');
+              if (standalone !== null) {
+                const mode = standalone === '1' ? 1 : 0;
+                if (mode === 1) {
+                  document.documentElement.classList.add('dark');
+                  document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.setAttribute('data-theme', 'light');
+                }
+                return mode;
+              }
+              const zustandRaw = localStorage.getItem('capitalk-storage');
+              if (zustandRaw) {
+                const parsed = JSON.parse(zustandRaw);
+                if (typeof parsed?.state?.themeMode === 'number') {
+                  const mode = parsed.state.themeMode === 1 ? 1 : 0;
+                  if (mode === 1) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                  }
+                  return mode;
+                }
+              }
+              if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+                document.documentElement.setAttribute('data-theme', 'dark');
+                return 1;
+              }
+            } catch (e) {}
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            return 0;
+          })()
+        : 0,
+      toggleThemeMode: (event?: React.MouseEvent | React.TouchEvent | any) => {
+        const next = (get().themeMode ^ 1) as 0 | 1;
+        const applyTheme = () => {
+          set({ themeMode: next });
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('capitalk_theme', String(next));
+              if (next === 1) {
+                document.documentElement.classList.add('dark');
+                document.documentElement.setAttribute('data-theme', 'dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.setAttribute('data-theme', 'light');
+              }
+            } catch (e) {}
+          }
+        };
+
+        if (typeof window !== 'undefined' && typeof (document as any).startViewTransition === 'function') {
+          let x = window.innerWidth / 2;
+          let y = 0;
+
+          if (event) {
+            if (typeof event.clientX === 'number' && (event.clientX !== 0 || event.clientY !== 0)) {
+              x = event.clientX;
+              y = event.clientY;
+            } else if (event.touches && event.touches[0]) {
+              x = event.touches[0].clientX;
+              y = event.touches[0].clientY;
+            } else if (event.currentTarget && typeof event.currentTarget.getBoundingClientRect === 'function') {
+              const rect = event.currentTarget.getBoundingClientRect();
+              x = rect.left + rect.width / 2;
+              y = rect.top + rect.height / 2;
+            }
+          }
+
+          const endRadius = Math.hypot(
+            Math.max(x, window.innerWidth - x),
+            Math.max(y, window.innerHeight - y)
+          );
+
+          try {
+            const transition = (document as any).startViewTransition(() => {
+              applyTheme();
+            });
+
+            if (transition && transition.ready) {
+              transition.ready.then(() => {
+                document.documentElement.animate(
+                  {
+                    clipPath: [
+                      `circle(0px at ${x}px ${y}px)`,
+                      `circle(${endRadius}px at ${x}px ${y}px)`,
+                    ],
+                  },
+                  {
+                    duration: 550,
+                    easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                    pseudoElement: '::view-transition-new(root)',
+                  }
+                );
+              }).catch(() => {});
+            }
+          } catch (err) {
+            applyTheme();
+          }
+        } else {
+          applyTheme();
+        }
       },
 
       isMatchTransitioning: false,
@@ -1190,7 +1305,7 @@ export const useChatStore = create<ChatStoreState>()(
         if (sessionInitialized) return;
         sessionInitialized = true;
 
-        // Fallback profile and kept connection restoration
+        // Fallback profile, kept connection, and theme restoration
         if (typeof window !== 'undefined') {
           try {
             if (!get().currentUser) {
@@ -1200,6 +1315,34 @@ export const useChatStore = create<ChatStoreState>()(
             if (!get().keptConnection) {
               const rawKept = localStorage.getItem('capitalk_kept_connection_v1');
               if (rawKept) set({ keptConnection: JSON.parse(rawKept) });
+            }
+            const standaloneTheme = localStorage.getItem('capitalk_theme');
+            let isDark = false;
+            if (standaloneTheme !== null) {
+              isDark = standaloneTheme === '1';
+            } else {
+              const zustandRaw = localStorage.getItem('capitalk-storage');
+              if (zustandRaw) {
+                const parsed = JSON.parse(zustandRaw);
+                if (typeof parsed?.state?.themeMode === 'number') {
+                  isDark = parsed.state.themeMode === 1;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                  isDark = true;
+                }
+              } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                isDark = true;
+              }
+            }
+            const mode = isDark ? 1 : 0;
+            if (get().themeMode !== mode) {
+              set({ themeMode: mode });
+            }
+            if (isDark) {
+              document.documentElement.classList.add('dark');
+              document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+              document.documentElement.setAttribute('data-theme', 'light');
             }
           } catch (e) {}
         }
@@ -4106,7 +4249,27 @@ export const useChatStore = create<ChatStoreState>()(
         wallNotifications: state.wallNotifications,
         myPostIds: state.myPostIds,
         keptConnection: state.keptConnection,
+        themeMode: state.themeMode,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state && typeof window !== 'undefined') {
+          const standalone = localStorage.getItem('capitalk_theme');
+          const isDark = standalone !== null
+            ? standalone === '1'
+            : state.themeMode === 1;
+          const finalMode = isDark ? 1 : 0;
+          if (state.themeMode !== finalMode) {
+            useChatStore.setState({ themeMode: finalMode });
+          }
+          if (finalMode === 1) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        }
+      },
     }
   )
 );

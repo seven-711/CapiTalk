@@ -43,7 +43,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("h-full", "antialiased", poppins.variable, "font-sans")} suppressHydrationWarning>
-      <body className="min-h-full flex flex-col bg-[#f4f4f0] text-[#000000] selection:bg-[#ff90e8] selection:text-[#000000]">
+
+      <body className="min-h-full flex flex-col bg-[#f4f4f0] dark:bg-[#0e0e11] text-[#000000] dark:text-[#f4f4f6] selection:bg-[#ff90e8] selection:text-[#000000] transition-colors duration-200">
         {children}
         <SpeedInsights />
         <Analytics />

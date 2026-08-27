@@ -41,6 +41,8 @@ import {
   CheckCircle2,
   Clock,
   RotateCcw,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
@@ -211,6 +213,8 @@ export const ChatRoom: React.FC = () => {
     pendingOutgoingConnection,
     keepPartner,
     setViewState,
+    themeMode,
+    toggleThemeMode,
   } = useChatStore();
 
   const partner = activeRoom && currentUser
@@ -219,14 +223,8 @@ export const ChatRoom: React.FC = () => {
 
   const [text, setText] = useState('');
 
-  // Dark Mode State with LocalStorage Persistence & Realtime Room Sync
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('capitalk_chat_theme');
-      if (saved) return saved === 'dark';
-    }
-    return false;
-  });
+  // Dark Mode State derived from binary themeMode (1 = dark, 0 = light)
+  const isDarkMode = themeMode === 1;
 
   // Chat Color Theme State (defaults to 'maroon' as CapiTalk brand identity)
   const [chatTheme, setChatTheme] = useState<string>(() => {
@@ -864,8 +862,29 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Buttons: Theme Modal, Report, Block, Exit, Next */}
+        {/* Action Buttons: Dark Mode, Theme Modal, Report, Block, Exit, Next */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Dark / Light Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={(e) => toggleThemeMode(e)}
+            suppressHydrationWarning
+            style={{
+              backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
+              color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
+              borderColor: isAdminRoom ? undefined : activeThemeConfig.id === 'yellow' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
+            }}
+            className="p-1.5 sm:p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 flex items-center justify-center shadow-2xs cursor-pointer"
+            title={themeMode === 1 ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={themeMode === 1 ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {themeMode === 1 ? (
+              <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffc900] animate-in spin-in-90 duration-300" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-in zoom-in-75 duration-300" />
+            )}
+          </button>
+
           {/* Theme Chooser Modal Trigger Button */}
           <button
             type="button"

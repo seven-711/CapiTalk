@@ -237,7 +237,10 @@ export const FreedomWall: React.FC = () => {
     startSearch,
     targetPostId,
     setTargetPostId,
+    themeMode,
   } = useChatStore();
+
+  const isDarkMode = themeMode === 1;
 
   // Admin Privilege Detection (Reactive & Cryptographically Verified)
   const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
@@ -1043,8 +1046,15 @@ export const FreedomWall: React.FC = () => {
     const commentsCount = commentsCountMap[post.id] || 0;
     const isActionMenuOpen = openActionMenuPostId === post.id;
 
-    // Retain user's chosen note color (e.g. #ffc900, #701a31, #ff90e8, #00e599, #7dd3fc, etc.)
-    const cardBgColor = post.color || (isPostAdmin ? '#701a31' : '#ffffff');
+    // Retain user's chosen note color, or adapt default white to dark theme
+    const isCustomColor = Boolean(post.color && post.color !== '#ffffff' && post.color !== '#fff');
+    const cardBgColor = isCustomColor
+      ? post.color
+      : isPostAdmin
+      ? '#701a31'
+      : isDarkMode
+      ? '#18181b'
+      : '#ffffff';
     const isDark = isColorDark(cardBgColor);
 
     return (
@@ -1054,7 +1064,7 @@ export const FreedomWall: React.FC = () => {
         style={{ backgroundColor: cardBgColor }}
         className={`sm:rounded-xl shadow-xs border-y sm:border overflow-visible relative transition-all duration-200 ${
           isDark
-            ? 'border-black/20 text-white shadow-md'
+            ? 'border-white/10 dark:border-[#27272a] text-white shadow-md'
             : 'border-[#e4e6eb] text-[#050505]'
         } ${isPinned ? 'ring-2 ring-amber-400/90' : ''}`}
       >
@@ -1470,7 +1480,7 @@ export const FreedomWall: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] text-[#050505] flex flex-col font-sans pb-16 sm:pb-8 pt-2 sm:pt-4 px-0 sm:px-4">
+    <div className="min-h-screen bg-[#f0f2f5] dark:bg-[#0e0e11] text-[#050505] dark:text-[#f4f4f6] flex flex-col font-sans pb-16 sm:pb-8 pt-2 sm:pt-4 px-0 sm:px-4 transition-colors duration-200">
       {/* ── Main Feed Column (Matching MidtermSzn max-w-[620px]) ────────────── */}
       <main className="flex-1 max-w-[620px] mx-auto w-full space-y-3 sm:space-y-4">
         {/* ── Prominent "What's on your mind?" Composer Card ──────────────────── */}
@@ -1485,7 +1495,7 @@ export const FreedomWall: React.FC = () => {
             <img
               src={currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg')}
               alt={currentUser?.username || 'You'}
-              className="w-10 h-10 rounded-full object-cover border border-[#d1d5dc] bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity ring-2 ring-transparent group-hover/avatar:ring-[#1877f2]/40"
+              className="w-10 h-10 rounded-full object-cover border border-[#d1d5dc] dark:border-zinc-700 bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity ring-2 ring-transparent group-hover/avatar:ring-[#1877f2]/40"
               onError={(e) => {
                 (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(currentUser?.username || 'Anon'));
               }}
@@ -1496,12 +1506,12 @@ export const FreedomWall: React.FC = () => {
           <button
             type="button"
             onClick={() => setViewState('add_note')}
-            className="flex-1 bg-[#f0f2f5] hover:bg-[#e4e6eb] border border-[#e4e6eb] hover:border-[#ccd0d5] transition-all rounded-full px-4 py-2.5 text-left text-[#65676b] hover:text-black text-[14px] sm:text-[15px] font-medium truncate cursor-pointer flex items-center justify-between gap-2 shadow-2xs group"
+            className="flex-1 bg-[#f0f2f5] dark:bg-[#18181b] hover:bg-[#e4e6eb] dark:hover:bg-zinc-800 border border-[#e4e6eb] dark:border-white/20 hover:border-[#ccd0d5] dark:hover:border-white/30 transition-all rounded-full px-4 py-2.5 text-left text-[#65676b] dark:text-zinc-300 hover:text-black dark:hover:text-white text-[14px] sm:text-[15px] font-medium truncate cursor-pointer flex items-center justify-between gap-2 shadow-2xs group"
           >
             <span className="truncate">
               What&apos;s on your mind, {currentUser?.username || 'Capitolian'}?
             </span>
-            <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-7 h-7 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Plus className="w-4 h-4 stroke-[2.5]" />
             </div>
           </button>
@@ -1512,21 +1522,21 @@ export const FreedomWall: React.FC = () => {
           {isSearchExpanded || searchQuery ? (
             <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
               <div className="relative flex-1 min-w-0">
-                <Search className="w-4 h-4 text-[#65676b] absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-[#65676b] dark:text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search notes, topics, aliases..."
-                  className="w-full pl-9 pr-8 py-1.5 text-[13px] bg-[#f0f2f5] border border-[#e4e6eb] rounded-lg font-medium text-[#050505] focus:outline-none focus:border-[#1877f2] focus:bg-white transition-colors"
+                  className="w-full pl-9 pr-8 py-1.5 text-[13px] bg-[#f0f2f5] dark:bg-zinc-800 border border-[#e4e6eb] dark:border-zinc-700 rounded-lg font-medium text-[#050505] dark:text-white placeholder-[#65676b] dark:placeholder-zinc-500 focus:outline-none focus:border-[#1877f2] focus:bg-white dark:focus:bg-zinc-900 transition-colors"
                   autoFocus
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-[#65676b] hover:text-[#050505] cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1538,7 +1548,7 @@ export const FreedomWall: React.FC = () => {
                   setSearchQuery('');
                   setIsSearchExpanded(false);
                 }}
-                className="px-3 py-2.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold rounded-lg border border-[#e4e6eb] shrink-0 cursor-pointer transition-colors"
+                className="px-3 py-2.5 bg-[#f0f2f5] dark:bg-zinc-800 hover:bg-[#e4e6eb] dark:hover:bg-zinc-700 text-[#050505] dark:text-white text-xs font-bold rounded-lg border border-[#e4e6eb] dark:border-zinc-700 shrink-0 cursor-pointer transition-colors"
               >
                 Cancel
               </button>
@@ -1551,8 +1561,8 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setActiveTab('latest')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                     activeTab === 'latest'
-                      ? 'bg-black text-white shadow-xs'
-                      : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
+                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-xs'
+                      : 'text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white hover:bg-[#f0f2f5] dark:hover:bg-zinc-800'
                   }`}
                 >
                   <Clock className="w-3.5 h-3.5" />
@@ -1563,11 +1573,11 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setActiveTab('trending')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                     activeTab === 'trending'
-                      ? 'bg-black text-white shadow-xs'
-                      : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
+                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-xs'
+                      : 'text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white hover:bg-[#f0f2f5] dark:hover:bg-zinc-800'
                   }`}
                 >
-                  <Flame className={`w-3.5 h-3.5 ${activeTab === 'trending' ? 'text-amber-300' : 'text-[#f7b125]'}`} />
+                  <Flame className={`w-3.5 h-3.5 ${activeTab === 'trending' ? 'text-amber-300 dark:text-amber-500' : 'text-[#f7b125]'}`} />
                   <span>Trending</span>
                 </button>
                 <button
@@ -1575,8 +1585,8 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setActiveTab('my_notes')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                     activeTab === 'my_notes'
-                      ? 'bg-black text-white shadow-xs'
-                      : 'text-[#65676b] hover:text-[#050505] hover:bg-[#f0f2f5]'
+                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-xs'
+                      : 'text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white hover:bg-[#f0f2f5] dark:hover:bg-zinc-800'
                   }`}
                 >
                   <span>Your notes</span>
@@ -1590,7 +1600,7 @@ export const FreedomWall: React.FC = () => {
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer ${
                       activeTab === 'pending'
                         ? 'bg-amber-600 text-white shadow-xs'
-                        : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300'
+                        : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-300 dark:border-amber-700'
                     }`}
                   >
                     <Clock className="w-3.5 h-3.5" />
@@ -1606,7 +1616,7 @@ export const FreedomWall: React.FC = () => {
                     setIsSearchExpanded(true);
                     setTimeout(() => searchInputRef.current?.focus(), 50);
                   }}
-                  className="px-2.5 py-1.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 bg-[#f0f2f5] dark:bg-zinc-800 hover:bg-[#e4e6eb] dark:hover:bg-zinc-700 text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer rounded-lg"
                   title="Search campus notes"
                 >
                   <Search className="w-3.5 h-3.5" />
@@ -1618,15 +1628,15 @@ export const FreedomWall: React.FC = () => {
                   onClick={() => setShowDeptModal(true)}
                   className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer relative ${
                     departmentFilter !== 'all'
-                      ? 'bg-black text-white border-black'
-                      : 'bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505]'
+                      ? 'bg-black dark:bg-white text-white dark:text-black border-black'
+                      : 'bg-[#f0f2f5] dark:bg-zinc-800 hover:bg-[#e4e6eb] dark:hover:bg-zinc-700 text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white'
                   }`}
                   title={departmentFilter === 'all' ? 'Filter by department' : `Filtering by ${departmentFilter.replace('College of ', '')}`}
                   aria-label="Filter by department"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                   {departmentFilter !== 'all' && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-white" />
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-rose-500" />
                   )}
                 </button>
               </div>
@@ -1641,17 +1651,17 @@ export const FreedomWall: React.FC = () => {
             onClick={() => setShowDeptModal(false)}
           >
             <div
-              className="bg-white border border-[#e4e6eb] rounded-2xl max-w-sm w-full p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col font-sans text-[#050505] max-h-[85vh] overflow-hidden"
+              className="bg-white dark:bg-[#18181b] border border-[#e4e6eb] dark:border-zinc-800 rounded-2xl max-w-sm w-full p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col font-sans text-[#050505] dark:text-white max-h-[85vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-3 border-b border-[#e4e6eb] shrink-0">
-                <h3 className="text-sm sm:text-base font-bold text-[#050505]">
+              <div className="flex items-center justify-between pb-3 border-b border-[#e4e6eb] dark:border-zinc-800 shrink-0">
+                <h3 className="text-sm sm:text-base font-bold text-[#050505] dark:text-white">
                   Filter by Department
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowDeptModal(false)}
-                  className="p-1 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
+                  className="p-1 rounded-full hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1668,7 +1678,7 @@ export const FreedomWall: React.FC = () => {
                   className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
                     departmentFilter === 'all'
                       ? 'bg-[#1877f2] text-white'
-                      : 'bg-white hover:bg-[#f0f2f5] text-[#050505]'
+                      : 'bg-white dark:bg-[#18181b] hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 text-[#050505] dark:text-white'
                   }`}
                 >
                   <span>All Departments</span>
@@ -1689,7 +1699,7 @@ export const FreedomWall: React.FC = () => {
                       className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between text-left cursor-pointer ${
                         isSelected
                           ? 'bg-[#1877f2] text-white'
-                          : 'bg-white hover:bg-[#f0f2f5] text-[#050505]'
+                          : 'bg-white dark:bg-[#18181b] hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 text-[#050505] dark:text-white'
                       }`}
                     >
                       <span>{dept.replace('College of ', '')}</span>
@@ -1795,41 +1805,48 @@ export const FreedomWall: React.FC = () => {
           onClick={() => setSelectedPostForComments(null)}
         >
           <div
-            className="bg-white sm:rounded-2xl border-t sm:border border-[#e4e6eb] w-full max-w-2xl h-[100dvh] sm:h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#18181b] sm:rounded-2xl border-t sm:border border-[#e4e6eb] dark:border-zinc-800 w-full max-w-2xl h-[100dvh] sm:h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-4 py-3 border-b border-[#e4e6eb] flex items-center justify-between shrink-0 bg-white">
+            <div className="px-4 py-3 border-b border-[#e4e6eb] dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-[#18181b]">
               <div className="flex items-center gap-2.5">
-                <h3 className="font-bold text-base text-[#050505]">
+                <h3 className="font-bold text-base text-[#050505] dark:text-white">
                   {selectedPostForComments.author_alias}'s Note
                 </h3>
-                <span className="px-2.5 py-0.5 bg-[#f0f2f5] text-[#65676b] text-xs font-semibold rounded-full">
+                <span className="px-2.5 py-0.5 bg-[#f0f2f5] dark:bg-zinc-800 text-[#65676b] dark:text-zinc-300 text-xs font-semibold rounded-full">
                   {commentsList.length} {commentsList.length === 1 ? 'comment' : 'comments'}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedPostForComments(null)}
-                className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Scrollable Content (Original Note Snippet + Comments Thread) */}
-            <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 bg-[#f0f2f5]">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 bg-[#f0f2f5] dark:bg-[#0e0e11]">
               {/* Original Note Snippet */}
               {(() => {
                 const isCmPostAdmin = Boolean(selectedPostForComments.is_admin);
-                const cmNoteBg = selectedPostForComments.color || (isCmPostAdmin ? '#701a31' : '#ffffff');
+                const isCustomCmColor = Boolean(selectedPostForComments.color && selectedPostForComments.color !== '#ffffff' && selectedPostForComments.color !== '#fff');
+                const cmNoteBg = isCustomCmColor
+                  ? selectedPostForComments.color
+                  : isCmPostAdmin
+                  ? '#701a31'
+                  : isDarkMode
+                  ? '#18181b'
+                  : '#ffffff';
                 const isCmNoteDark = isColorDark(cmNoteBg);
 
                 return (
                   <div
                     style={{ backgroundColor: cmNoteBg }}
                     className={`rounded-xl p-2.5 sm:p-3 border shadow-2xs space-y-1.5 ${
-                      isCmNoteDark ? 'border-black/20 text-white' : 'border-[#e4e6eb] text-[#050505]'
+                      isCmNoteDark ? 'border-white/10 dark:border-zinc-800 text-white' : 'border-[#e4e6eb] text-[#050505]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -1883,9 +1900,9 @@ export const FreedomWall: React.FC = () => {
                     <p className="text-xs font-medium">Loading comments...</p>
                   </div>
                 ) : commentsList.length === 0 ? (
-                  <div className="text-center py-8 bg-white rounded-xl border border-[#e4e6eb] p-4 shadow-2xs">
-                    <p className="font-bold text-xs sm:text-sm text-[#050505]">No comments yet</p>
-                    <p className="text-[11px] sm:text-xs text-[#65676b] mt-0.5">
+                  <div className="text-center py-8 bg-white dark:bg-[#18181b] rounded-xl border border-[#e4e6eb] dark:border-zinc-800 p-4 shadow-2xs">
+                    <p className="font-bold text-xs sm:text-sm text-[#050505] dark:text-white">No comments yet</p>
+                    <p className="text-[11px] sm:text-xs text-[#65676b] dark:text-zinc-400 mt-0.5">
                       Be the first to share your thoughts on this note!
                     </p>
                   </div>
@@ -1934,8 +1951,8 @@ export const FreedomWall: React.FC = () => {
                               <img
                                 src={cm.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(cm.author_alias))}
                                 alt={cm.author_alias}
-                                className={`${isReply ? 'w-6 h-6' : 'w-7 h-7 sm:w-7.5 sm:h-7.5'} rounded-full object-cover bg-white ${
-                                  isCmAdmin ? 'border-2 border-[#701a31] shadow-xs' : 'border border-[#e4e6eb]'
+                                className={`${isReply ? 'w-6 h-6' : 'w-7 h-7 sm:w-7.5 sm:h-7.5'} rounded-full object-cover bg-white dark:bg-zinc-800 ${
+                                  isCmAdmin ? 'border-2 border-[#701a31] shadow-xs' : 'border border-[#e4e6eb] dark:border-zinc-700'
                                 }`}
                               />
                               {isCmAdmin && (
@@ -1953,8 +1970,8 @@ export const FreedomWall: React.FC = () => {
                               <div className="relative inline-block max-w-[92%] sm:max-w-[85%] group/bubble">
                                 <div className={`rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-2xs space-y-0.5 transition-all ${
                                   isCmAdmin
-                                    ? 'bg-gradient-to-br from-[#701a31]/10 via-[#fff8f9] to-[#701a31]/5 border border-[#701a31]/35 ring-1 ring-[#701a31]/20 shadow-xs'
-                                    : 'bg-white border border-[#e4e6eb]'
+                                    ? 'bg-gradient-to-br from-[#701a31]/20 via-[#271216] to-[#701a31]/10 border border-[#701a31]/40 ring-1 ring-[#701a31]/20 shadow-xs'
+                                    : 'bg-white dark:bg-[#18181b] border border-[#e4e6eb] dark:border-zinc-800'
                                 }`}>
                                   <div className="flex items-center gap-1 leading-tight flex-wrap">
                                     <button
@@ -1968,7 +1985,7 @@ export const FreedomWall: React.FC = () => {
                                         is_admin: isCmAdmin,
                                       })}
                                       className={`font-bold text-[12px] sm:text-[12.5px] hover:underline cursor-pointer truncate ${
-                                        isCmAdmin ? 'text-[#701a31] font-black' : 'text-[#050505]'
+                                        isCmAdmin ? 'text-rose-400 font-black' : 'text-[#050505] dark:text-white'
                                       }`}
                                     >
                                       @{cm.author_alias}
@@ -1979,7 +1996,7 @@ export const FreedomWall: React.FC = () => {
                                       </span>
                                     ) : (
                                       cm.department && (
-                                        <span className="text-[10px] text-[#65676b] font-normal">
+                                        <span className="text-[10px] text-[#65676b] dark:text-zinc-400 font-normal">
                                           · {cm.department.replace('College of ', '')}
                                         </span>
                                       )
@@ -1987,7 +2004,7 @@ export const FreedomWall: React.FC = () => {
                                   </div>
 
                                   <p className={`text-[12.5px] sm:text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
-                                    isCmAdmin ? 'text-[#1a050b] font-medium' : 'text-[#050505]'
+                                    isCmAdmin ? 'text-rose-100 font-medium' : 'text-[#050505] dark:text-zinc-200'
                                   }`}>
                                     {cm.message}
                                   </p>
@@ -2001,25 +2018,25 @@ export const FreedomWall: React.FC = () => {
                                       e.stopPropagation();
                                       setSelectedCommentForReactors(cm);
                                     }}
-                                    className="absolute -bottom-2 -right-1.5 sm:-right-2 bg-white px-1.5 py-0.5 rounded-full shadow-xs border border-[#e4e6eb] flex items-center gap-1 text-[10px] sm:text-[10.5px] font-bold text-[#65676b] select-none animate-in zoom-in-75 duration-150 z-10 hover:scale-105 active:scale-95 transition-all cursor-pointer group/pill"
+                                    className="absolute -bottom-2 -right-1.5 sm:-right-2 bg-white dark:bg-[#27272a] px-1.5 py-0.5 rounded-full shadow-xs border border-[#e4e6eb] dark:border-zinc-700 flex items-center gap-1 text-[10px] sm:text-[10.5px] font-bold text-[#65676b] dark:text-zinc-300 select-none animate-in zoom-in-75 duration-150 z-10 hover:scale-105 active:scale-95 transition-all cursor-pointer group/pill"
                                     title={`${likesCount} ${likesCount === 1 ? 'person reacted with love' : 'people reacted with love'} (Click to see who reacted)`}
                                   >
                                     <div className="w-3.5 h-3.5 rounded-full bg-[#f33e5b] flex items-center justify-center text-white shadow-2xs group-hover/pill:scale-110 transition-transform">
                                       <Heart className="w-2 h-2 fill-white text-white" />
                                     </div>
-                                    <span className="text-zinc-700 font-semibold">{likesCount}</span>
+                                    <span className="text-zinc-700 dark:text-zinc-200 font-semibold">{likesCount}</span>
                                   </button>
                                 )}
                               </div>
 
                               {/* Footer action links */}
-                              <div className="flex items-center gap-2.5 sm:gap-3 px-2 pt-1 text-[10.5px] sm:text-[11px] text-[#65676b] font-bold leading-none">
+                              <div className="flex items-center gap-2.5 sm:gap-3 px-2 pt-1 text-[10.5px] sm:text-[11px] text-[#65676b] dark:text-zinc-400 font-bold leading-none">
                                 <span>{formatRelativeTime(cm.created_at, now)}</span>
                                 <button
                                   type="button"
                                   onClick={() => toggleLikeComment(cm)}
                                   className={`hover:underline cursor-pointer flex items-center gap-1 transition-colors active:scale-95 ${
-                                    hasLiked ? 'text-[#f33e5b] font-bold' : 'text-[#65676b] hover:text-[#f33e5b]'
+                                    hasLiked ? 'text-[#f33e5b] font-bold' : 'text-[#65676b] dark:text-zinc-400 hover:text-[#f33e5b]'
                                   }`}
                                 >
                                   <span>{hasLiked ? 'Liked' : 'Like'}</span>
@@ -2041,16 +2058,16 @@ export const FreedomWall: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => toggleExpandReplies(cm.id)}
-                                className="group/reply flex items-center gap-1.5 text-[11px] font-bold text-[#65676b] hover:text-[#050505] py-0.5 cursor-pointer select-none transition-colors"
+                                className="group/reply flex items-center gap-1.5 text-[11px] font-bold text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white py-0.5 cursor-pointer select-none transition-colors"
                               >
-                                <span className="w-4 h-[1.5px] bg-[#ccd0d5] group-hover/reply:bg-[#65676b] transition-colors shrink-0" />
+                                <span className="w-4 h-[1.5px] bg-[#ccd0d5] dark:bg-zinc-700 group-hover/reply:bg-[#65676b] dark:group-hover/reply:bg-zinc-300 transition-colors shrink-0" />
                                 {isExpanded ? (
-                                  <span className="flex items-center gap-1 text-[#65676b] group-hover/reply:text-[#050505]">
+                                  <span className="flex items-center gap-1 text-[#65676b] dark:text-zinc-400 group-hover/reply:text-[#050505] dark:group-hover/reply:text-white">
                                     <ChevronUp className="w-3 h-3" />
                                     <span>Hide {totalRepliesCount === 1 ? 'reply' : `${totalRepliesCount} replies`}</span>
                                   </span>
                                 ) : (
-                                  <span className="flex items-center gap-1 text-[#65676b] group-hover/reply:text-[#050505]">
+                                  <span className="flex items-center gap-1 text-[#65676b] dark:text-zinc-400 group-hover/reply:text-[#050505] dark:group-hover/reply:text-white">
                                     <ChevronDown className="w-3 h-3" />
                                     <span>
                                       {totalRepliesCount === 1
@@ -2062,7 +2079,7 @@ export const FreedomWall: React.FC = () => {
                               </button>
 
                               {isExpanded && (
-                                <div className="space-y-1 animate-in slide-in-from-top-1 duration-150 border-l border-[#e4e6eb] pl-2 -ml-2">
+                                <div className="space-y-1 animate-in slide-in-from-top-1 duration-150 border-l border-[#e4e6eb] dark:border-zinc-800 pl-2 -ml-2">
                                   {directReplies.map((reply) => renderNode(reply, depth + 1))}
                                 </div>
                               )}
@@ -2079,24 +2096,24 @@ export const FreedomWall: React.FC = () => {
             </div>
 
             {/* Modal Input Footer */}
-            <div className="p-2 sm:p-2.5 bg-white border-t border-[#e4e6eb] shrink-0">
+            <div className="p-2 sm:p-2.5 bg-white dark:bg-[#18181b] border-t border-[#e4e6eb] dark:border-zinc-800 shrink-0">
               {isAdminUser && (
-                <div className="flex items-center justify-between px-1 mb-1.5 pb-1.5 border-b border-[#e4e6eb]">
+                <div className="flex items-center justify-between px-1 mb-1.5 pb-1.5 border-b border-[#e4e6eb] dark:border-zinc-800">
                   <button
                     type="button"
                     onClick={() => setCommentAsAdmin(!commentAsAdmin)}
                     className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                       commentAsAdmin
                         ? 'bg-[#701a31] text-white border border-[#701a31]'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                        : 'bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700'
                     }`}
                   >
                     <span>{commentAsAdmin ? 'Replying as Admin (Official)' : 'Reply as Admin'}</span>
                     <span className={`w-2 h-2 rounded-full ${commentAsAdmin ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
                   </button>
                   {commentAsAdmin && (
-                    <span className="text-[10px] font-bold text-[#701a31] uppercase tracking-wider flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#701a31]" />
+                    <span className="text-[10px] font-bold text-[#701a31] dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#701a31] dark:bg-rose-400" />
                       Admin Badge Active
                     </span>
                   )}
@@ -2104,7 +2121,7 @@ export const FreedomWall: React.FC = () => {
               )}
 
               {replyingTo && (
-                <div className="mb-1.5 px-2.5 py-1 bg-[#f0f2f5] rounded-md text-[11px] font-medium text-[#050505] flex items-center justify-between animate-in fade-in">
+                <div className="mb-1.5 px-2.5 py-1 bg-[#f0f2f5] dark:bg-zinc-800 rounded-md text-[11px] font-medium text-[#050505] dark:text-white flex items-center justify-between animate-in fade-in">
                   <div className="flex items-center gap-1.5">
                     <Reply className="w-3 h-3 text-[#1877f2]" />
                     <span>Replying to <span className="font-bold">@{replyingTo.alias}</span></span>
@@ -2112,7 +2129,7 @@ export const FreedomWall: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setReplyingTo(null)}
-                    className="p-0.5 hover:bg-gray-200 rounded text-[#65676b] hover:text-[#050505] cursor-pointer"
+                    className="p-0.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white cursor-pointer"
                     title="Cancel reply"
                   >
                     <X className="w-3 h-3" />
@@ -2125,8 +2142,8 @@ export const FreedomWall: React.FC = () => {
                   <img
                     src={commentAsAdmin ? '/avatars/coin-left.jpg' : (currentUser?.avatar_url || getAvatarForPseudonym(commentAlias))}
                     alt="My avatar"
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover bg-[#f0f2f5] ${
-                      commentAsAdmin ? 'border-2 border-[#701a31]' : 'border border-[#e4e6eb]'
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover bg-[#f0f2f5] dark:bg-zinc-800 ${
+                      commentAsAdmin ? 'border-2 border-[#701a31]' : 'border border-[#e4e6eb] dark:border-zinc-700'
                     }`}
                   />
                   {commentAsAdmin && (
@@ -2152,10 +2169,10 @@ export const FreedomWall: React.FC = () => {
                   }
                   rows={1}
                   maxLength={2000}
-                  className={`flex-1 border rounded-2xl px-3 py-1.5 sm:py-2 text-[13px] text-[#050505] placeholder-[#65676b] outline-none transition-colors resize-none max-h-24 overflow-y-auto leading-snug ${
+                  className={`flex-1 border rounded-2xl px-3 py-1.5 sm:py-2 text-[13px] text-[#050505] dark:text-white placeholder-[#65676b] dark:placeholder-zinc-500 outline-none transition-colors resize-none max-h-24 overflow-y-auto leading-snug ${
                     commentAsAdmin
-                      ? 'bg-[#fff8f9] border-[#701a31]/30 focus:border-[#701a31] focus:bg-white'
-                      : 'bg-[#f0f2f5] border-[#e4e6eb] focus:bg-white focus:border-[#1877f2]'
+                      ? 'bg-[#fff8f9] dark:bg-[#271216] border-[#701a31]/30 focus:border-[#701a31] focus:bg-white dark:focus:bg-[#1f1f23]'
+                      : 'bg-[#f0f2f5] dark:bg-[#27272a] border-[#e4e6eb] dark:border-zinc-700 focus:bg-white dark:focus:bg-[#18181b] focus:border-[#1877f2]'
                   }`}
                   required
                 />
@@ -2202,22 +2219,22 @@ export const FreedomWall: React.FC = () => {
           onClick={() => setReactorsPost(null)}
         >
           <div
-            className="bg-white rounded-2xl border border-[#e4e6eb] w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#18181b] rounded-2xl border border-[#e4e6eb] dark:border-zinc-800 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-4 py-3.5 border-b border-[#e4e6eb] flex items-center justify-between shrink-0">
+            <div className="px-4 py-3.5 border-b border-[#e4e6eb] dark:border-zinc-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-[#f33e5b] flex items-center justify-center shadow-2xs">
                   <Heart className="w-3.5 h-3.5 text-white fill-white" />
                 </div>
-                <h3 className="font-bold text-base text-[#050505]">Reactions</h3>
-                <span className="text-xs text-[#65676b]">({reactorsPost.likes_count})</span>
+                <h3 className="font-bold text-base text-[#050505] dark:text-white">Reactions</h3>
+                <span className="text-xs text-[#65676b] dark:text-zinc-400">({reactorsPost.likes_count})</span>
               </div>
               <button
                 type="button"
                 onClick={() => setReactorsPost(null)}
-                className="p-1 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
+                className="p-1 rounded-full hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2226,8 +2243,8 @@ export const FreedomWall: React.FC = () => {
             {/* Reactors List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {(reactorsPost.liked_by_users || []).length === 0 ? (
-                <div className="text-center py-10 text-xs text-[#65676b]">
-                  <Heart className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <div className="text-center py-10 text-xs text-[#65676b] dark:text-zinc-400">
+                  <Heart className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-zinc-600" />
                   No reactions recorded yet.
                 </div>
               ) : (
@@ -2238,15 +2255,15 @@ export const FreedomWall: React.FC = () => {
                   const avatarUrl = (profile as any)?.avatar_url || getAvatarForPseudonym(displayName);
 
                   return (
-                    <div key={uid} className="flex items-center gap-3 p-2.5 bg-[#f0f2f5]/60 hover:bg-[#f0f2f5] rounded-xl border border-[#e4e6eb] transition-colors">
+                    <div key={uid} className="flex items-center gap-3 p-2.5 bg-[#f0f2f5]/60 dark:bg-zinc-800/60 hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 rounded-xl border border-[#e4e6eb] dark:border-zinc-700 transition-colors">
                       <img
                         src={avatarUrl}
                         alt={displayName}
-                        className="w-9 h-9 rounded-full border border-[#e4e6eb] object-cover bg-white shrink-0"
+                        className="w-9 h-9 rounded-full border border-[#e4e6eb] dark:border-zinc-700 object-cover bg-white dark:bg-zinc-700 shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-[13px] text-[#050505] truncate">{displayName}</p>
-                        <p className="text-[11px] text-[#65676b] truncate">{displayDept}</p>
+                        <p className="font-bold text-[13px] text-[#050505] dark:text-white truncate">{displayName}</p>
+                        <p className="text-[11px] text-[#65676b] dark:text-zinc-400 truncate">{displayDept}</p>
                       </div>
                       <div className="w-6 h-6 rounded-full bg-[#f33e5b] flex items-center justify-center shrink-0">
                         <Heart className="w-3 h-3 text-white fill-white" />
@@ -2257,11 +2274,11 @@ export const FreedomWall: React.FC = () => {
               )}
             </div>
 
-            <div className="p-3 border-t border-[#e4e6eb] shrink-0 bg-white">
+            <div className="p-3 border-t border-[#e4e6eb] dark:border-zinc-800 shrink-0 bg-white dark:bg-[#18181b]">
               <button
                 type="button"
                 onClick={() => setReactorsPost(null)}
-                className="w-full py-2 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                className="w-full py-2 bg-[#f0f2f5] dark:bg-zinc-800 hover:bg-[#e4e6eb] dark:hover:bg-zinc-700 text-[#050505] dark:text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -2277,13 +2294,13 @@ export const FreedomWall: React.FC = () => {
           onClick={() => setViewingProfile(null)}
         >
           <div
-            className="bg-white border border-[#e4e6eb] p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl relative animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#18181b] border border-[#e4e6eb] dark:border-zinc-800 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setViewingProfile(null)}
-              className="absolute top-3.5 right-3.5 p-1 hover:bg-[#f0f2f5] rounded-full transition-colors text-[#65676b] hover:text-[#050505] cursor-pointer"
+              className="absolute top-3.5 right-3.5 p-1 hover:bg-[#f0f2f5] dark:hover:bg-zinc-800 rounded-full transition-colors text-[#65676b] dark:text-zinc-400 hover:text-[#050505] dark:hover:text-white cursor-pointer"
               title="Close profile"
             >
               <X className="w-4 h-4" />
@@ -2293,36 +2310,36 @@ export const FreedomWall: React.FC = () => {
               <img
                 src={viewingProfile.avatar_url || getAvatarForPseudonym(viewingProfile.username)}
                 alt={viewingProfile.username}
-                className="w-20 h-20 rounded-full border-2 border-[#e4e6eb] object-cover shadow-sm bg-[#f0f2f5]"
+                className="w-20 h-20 rounded-full border-2 border-[#e4e6eb] dark:border-zinc-700 object-cover shadow-sm bg-[#f0f2f5] dark:bg-zinc-800"
                 onError={(e) => {
                   (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(viewingProfile.username));
                 }}
               />
               {viewingProfile.is_admin ? (
-                <span className="absolute bottom-0 right-0 bg-[#701a31] text-white border-2 border-white rounded-full p-1 text-[10px]" title="Official Platform Admin">
+                <span className="absolute bottom-0 right-0 bg-[#701a31] text-white border-2 border-white dark:border-zinc-800 rounded-full p-1 text-[10px]" title="Official Platform Admin">
                   👑
                 </span>
               ) : (
-                <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" title="Active Student" />
+                <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-zinc-800 rounded-full" title="Active Student" />
               )}
             </div>
 
-            <h3 className="text-base font-bold text-[#050505] flex items-center justify-center gap-1.5">
+            <h3 className="text-base font-bold text-[#050505] dark:text-white flex items-center justify-center gap-1.5">
               @{viewingProfile.username}
               {viewingProfile.is_admin && (
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-[#701a31]/10 text-[#701a31] rounded-full uppercase">
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-[#701a31]/10 dark:bg-rose-950/40 text-[#701a31] dark:text-rose-400 border border-[#701a31]/20 dark:border-rose-800/40 rounded-full uppercase">
                   ADMIN
                 </span>
               )}
             </h3>
 
-            <div className="mt-1.5 inline-block px-2.5 py-0.5 bg-[#f0f2f5] text-[#65676b] rounded-full text-xs font-semibold">
+            <div className="mt-1.5 inline-block px-2.5 py-0.5 bg-[#f0f2f5] dark:bg-zinc-800 text-[#65676b] dark:text-zinc-300 rounded-full text-xs font-semibold">
               {viewingProfile.department.replace('College of ', '')}
             </div>
 
-            <div className="mt-3.5 p-3 bg-[#f0f2f5] rounded-xl text-left border border-[#e4e6eb]">
-              <p className="text-[10px] font-bold text-[#65676b] uppercase tracking-wider mb-0.5">Bio</p>
-              <p className="text-xs text-[#050505] leading-relaxed">
+            <div className="mt-3.5 p-3 bg-[#f0f2f5] dark:bg-zinc-800/60 rounded-xl text-left border border-[#e4e6eb] dark:border-zinc-700">
+              <p className="text-[10px] font-bold text-[#65676b] dark:text-zinc-400 uppercase tracking-wider mb-0.5">Bio</p>
+              <p className="text-xs text-[#050505] dark:text-zinc-200 leading-relaxed">
                 {viewingProfile.bio?.trim() ? viewingProfile.bio : "Active student at CU."}
               </p>
             </div>
@@ -2373,25 +2390,25 @@ export const FreedomWall: React.FC = () => {
             onClick={() => setSelectedCommentForReactors(null)}
           >
             <div
-              className="bg-white border-t-2 sm:border border-[#e4e6eb] rounded-t-3xl sm:rounded-2xl max-w-sm w-full shadow-2xl flex flex-col max-h-[75vh] sm:max-h-[70vh] overflow-hidden animate-in slide-in-from-bottom duration-200"
+              className="bg-white dark:bg-[#18181b] border-t-2 sm:border border-[#e4e6eb] dark:border-zinc-800 rounded-t-3xl sm:rounded-2xl max-w-sm w-full shadow-2xl flex flex-col max-h-[75vh] sm:max-h-[70vh] overflow-hidden animate-in slide-in-from-bottom duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Grab Bar on Mobile */}
-              <div className="pt-2.5 pb-1 flex flex-col items-center justify-center sm:hidden shrink-0 bg-white">
-                <div className="w-12 h-1 bg-zinc-300 rounded-full" />
+              <div className="pt-2.5 pb-1 flex flex-col items-center justify-center sm:hidden shrink-0 bg-white dark:bg-[#18181b]">
+                <div className="w-12 h-1 bg-zinc-300 dark:bg-zinc-700 rounded-full" />
               </div>
 
               {/* Header */}
-              <div className="px-4 py-3 sm:py-3.5 border-b border-[#e4e6eb] flex items-center justify-between shrink-0 bg-white">
+              <div className="px-4 py-3 sm:py-3.5 border-b border-[#e4e6eb] dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-[#18181b]">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-[#f33e5b] flex items-center justify-center text-white shadow-2xs">
                     <Heart className="w-3.5 h-3.5 fill-white text-white" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-black text-[#050505] tracking-tight leading-tight">
+                    <h3 className="text-sm sm:text-base font-black text-[#050505] dark:text-white tracking-tight leading-tight">
                       People who reacted
                     </h3>
-                    <p className="text-[11px] text-[#65676b] font-medium">
+                    <p className="text-[11px] text-[#65676b] dark:text-zinc-400 font-medium">
                       {reactorsList.length} {reactorsList.length === 1 ? 'reaction' : 'reactions'}
                     </p>
                   </div>
@@ -2399,7 +2416,7 @@ export const FreedomWall: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedCommentForReactors(null)}
-                  className="p-1.5 hover:bg-gray-100 rounded-full text-zinc-400 hover:text-black transition-colors cursor-pointer"
+                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                   aria-label="Close"
                 >
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -2407,9 +2424,9 @@ export const FreedomWall: React.FC = () => {
               </div>
 
               {/* Reactors List */}
-              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 divide-y divide-[#f0f2f5] overscroll-contain">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 divide-y divide-[#f0f2f5] dark:divide-zinc-800 overscroll-contain">
                 {reactorsList.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-[#65676b] font-medium">
+                  <div className="text-center py-8 text-xs text-[#65676b] dark:text-zinc-400 font-medium">
                     No reactions yet.
                   </div>
                 ) : (
@@ -2420,26 +2437,26 @@ export const FreedomWall: React.FC = () => {
                           <img
                             src={user.avatar_url || getAvatarForPseudonym(user.username)}
                             alt={user.username}
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#e4e6eb] bg-amber-50 shadow-2xs"
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#e4e6eb] dark:border-zinc-700 bg-amber-50 shadow-2xs"
                             onError={(e) => {
                               (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
                             }}
                           />
-                          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#f33e5b] border-2 border-white flex items-center justify-center text-[8px] text-white shadow-2xs">
+                          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#f33e5b] border-2 border-white dark:border-zinc-800 flex items-center justify-center text-[8px] text-white shadow-2xs">
                             <Heart className="w-2 h-2 fill-white text-white" />
                           </span>
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-xs sm:text-sm text-[#050505] truncate">
+                          <p className="font-bold text-xs sm:text-sm text-[#050505] dark:text-white truncate">
                             {user.username}
                           </p>
-                          <p className="text-[11px] text-[#65676b] font-medium truncate">
+                          <p className="text-[11px] text-[#65676b] dark:text-zinc-400 font-medium truncate">
                             {user.department}
                           </p>
                         </div>
                       </div>
                       {user.reacted_at && (
-                        <span className="text-[10px] text-zinc-400 font-medium shrink-0">
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium shrink-0">
                           {formatRelativeTime(user.reacted_at, now)}
                         </span>
                       )}

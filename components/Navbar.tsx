@@ -24,6 +24,8 @@ import {
   UserMinus,
   MessageSquareText,
   Music,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
@@ -69,7 +71,17 @@ export const Navbar: React.FC = () => {
     streakCount,
     isStreakTriggeredToday,
     setShowStreakCelebrationModal,
+    themeMode,
+    toggleThemeMode,
   } = useChatStore();
+
+  const [mounted, setMounted] = useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeUser = mounted ? currentUser : null;
+  const isDarkMode = mounted ? themeMode === 1 : false;
 
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
@@ -92,12 +104,13 @@ export const Navbar: React.FC = () => {
   const readMusicSet = React.useMemo(() => new Set(readMusicPostIds || []), [readMusicPostIds]);
 
   const unreadFreedomNotesCount = React.useMemo(() => {
+    if (!mounted) return 0;
     if (viewState === 'freedom_wall' || viewState === 'add_note') return 0;
     if (readFreedomSet.size === 0 && approvedNotes.length > 0) {
       return Math.min(approvedNotes.length, 3);
     }
     return approvedNotes.filter((p) => !readFreedomSet.has(p.id)).length;
-  }, [approvedNotes, readFreedomSet, viewState]);
+  }, [approvedNotes, readFreedomSet, viewState, mounted]);
 
   const unreadMusicNotesCount = React.useMemo(() => {
     if (viewState === 'music_wall' || viewState === 'dedicate_song') return 0;
@@ -188,7 +201,7 @@ export const Navbar: React.FC = () => {
   return (
     <>
       {/* ── Top Brand Bar ─────────────────────────────────────────────────── */}
-      <header className="w-full bg-[#f4f4f0] border-b border-[#d1d5dc] sticky p-2 top-0 z-40">
+      <header className="w-full bg-[#f4f4f0]/95 dark:bg-[#0e0e11]/95 backdrop-blur-md border-b border-[#d1d5dc] dark:border-[#27272a] sticky p-2 top-0 z-40 transition-colors duration-200">
         <div className="max-w-[1200px] mx-auto px-2 sm:px-6 h-10 sm:h-14 flex items-center justify-between gap-1 sm:gap-2 relative">
           {/* Brand & Wordmark */}
           <div 
@@ -198,11 +211,11 @@ export const Navbar: React.FC = () => {
             <CoinMascot size={22} tiltAngle={-8} />
             <div className="hidden sm:block">
               <div className="flex items-center gap-1">
-                <span className="font-extrabold text-sm sm:text-xl tracking-tight text-[#000000]">
+                <span className="font-extrabold text-sm sm:text-xl tracking-tight text-[#000000] dark:text-[#f4f4f6]">
                   CapiTalk
                 </span>
               </div>
-              <p className="text-[10px] text-[#242423] font-medium hidden md:block">
+              <p className="text-[10px] text-[#242423] dark:text-neutral-400 font-medium hidden md:block">
                 Connect Beyond Your Department
               </p>
             </div>
@@ -210,7 +223,7 @@ export const Navbar: React.FC = () => {
 
           {/* Live Online Users / Visitors Indicator */}
           <div 
-            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 bg-emerald-50 text-emerald-900 border border-emerald-300/80 font-black text-[10px] sm:text-[11px] rounded-full tracking-wider uppercase shrink-0 select-none shadow-[2px_2px_0px_0px_rgba(16,185,129,0.2)] hover:shadow-[3px_3px_0px_0px_rgba(16,185,129,0.3)] transition-all"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 font-black text-[10px] sm:text-[11px] rounded-full tracking-wider uppercase shrink-0 select-none shadow-[2px_2px_0px_0px_rgba(16,185,129,0.2)] hover:shadow-[3px_3px_0px_0px_rgba(16,185,129,0.3)] transition-all"
             title={`${onlineCount} active ${onlineCount === 1 ? 'student / visitor' : 'students / visitors'} online right now`}
           >
             <span className="relative flex h-2 w-2 shrink-0">
@@ -228,7 +241,7 @@ export const Navbar: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowStreakCelebrationModal(true)}
-            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#fff8e6] text-black rounded-full transition-all cursor-pointer active:scale-95 shrink-0 select-none"
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#fff8e6] dark:hover:bg-neutral-800 text-black dark:text-white rounded-full transition-all cursor-pointer active:scale-95 shrink-0 select-none"
             title={`Daily Streak: ${streakCount} ${streakCount === 1 ? 'day' : 'days'}`}
           >
             <div className="w-10 h-5 flex items-center justify-center shrink-0 pointer-events-none">
@@ -240,18 +253,18 @@ export const Navbar: React.FC = () => {
                 className="w-full h-full object-contain"
               />
             </div>
-            <span className="text-xs font-black text-black">
+            <span className="text-xs font-black text-black dark:text-white">
               {streakCount}
             </span>
           </button>
 
           {/* Navigation Links & Action Buttons */}
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {viewState !== 'landing' && (
               <button
                 type="button"
                 onClick={() => setViewState('landing')}
-                className="text-xs font-medium text-[#242423] hover:text-black px-2 py-1 rounded hidden md:block"
+                className="text-xs font-medium text-[#242423] dark:text-neutral-300 hover:text-black dark:hover:text-white px-2 py-1 rounded hidden md:block"
               >
                 Home
               </button>
@@ -266,8 +279,8 @@ export const Navbar: React.FC = () => {
                 }}
                 className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all relative ${
                   viewState === 'freedom_wall' || viewState === 'add_note'
-                    ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                    : 'bg-white text-black hover:bg-[#fff1f3]'
+                    ? 'bg-[#701a31] dark:bg-[#991b1b] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    : 'bg-white dark:bg-[#18181b] text-black dark:text-white hover:bg-[#fff1f3] dark:hover:bg-[#271216] border border-gray-200 dark:border-[#27272a]'
                 }`}
                 title="Campus Freedom Wall"
               >
@@ -287,8 +300,8 @@ export const Navbar: React.FC = () => {
                 }}
                 className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all relative ${
                   viewState === 'music_wall' || viewState === 'dedicate_song'
-                    ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                    : 'bg-[#fff1f3] text-black hover:bg-[#ffe3e8]'
+                    ? 'bg-[#701a31] dark:bg-[#991b1b] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    : 'bg-[#fff1f3] dark:bg-[#271216] text-black dark:text-white hover:bg-[#ffe3e8] dark:hover:bg-[#35181e] border border-gray-200 dark:border-[#27272a]'
                 }`}
                 title="Campus Music Dedications"
               >
@@ -306,7 +319,7 @@ export const Navbar: React.FC = () => {
                   setHasNewConnectionNotif(false);
                   setViewState('kept_connections');
                 }}
-                className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white text-black hover:bg-[#fff1f3] border border-gray-200 relative"
+                className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white dark:bg-[#18181b] text-black dark:text-white hover:bg-[#fff1f3] dark:hover:bg-[#271216] border border-gray-200 dark:border-[#27272a] relative"
                 title="Your Kept Connection & Messages"
               >
                 <Heart className="w-3 h-3 text-[#ff90e8]" />
@@ -326,8 +339,8 @@ export const Navbar: React.FC = () => {
                 onClick={() => setViewState('blocked_users')}
                 className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all ${
                   viewState === 'blocked_users'
-                    ? 'bg-[#701a31] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                    : 'bg-white text-black hover:bg-red-50 border border-gray-200'
+                    ? 'bg-[#701a31] dark:bg-[#991b1b] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    : 'bg-white dark:bg-[#18181b] text-black dark:text-white hover:bg-red-50 dark:hover:bg-red-950/30 border border-gray-200 dark:border-[#27272a]'
                 }`}
                 title="Blocked Users"
               >
@@ -346,8 +359,8 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowNotifPopover(!showNotifPopover)}
-                className={`hidden md:inline-flex p-1.5 sm:p-2 rounded-full  transition-all cursor-pointer relative ${
-                  showNotifPopover ? 'text-white' : 'hover:bg-[#fff1f3] text-black'
+                className={`hidden md:inline-flex p-1.5 sm:p-2 rounded-full transition-all cursor-pointer relative ${
+                  showNotifPopover ? 'bg-[#701a31] dark:bg-[#991b1b] text-white' : 'hover:bg-[#fff1f3] dark:hover:bg-neutral-800 text-black dark:text-white'
                 }`}
                 title="Notifications"
                 aria-label="Notifications"
@@ -364,12 +377,28 @@ export const Navbar: React.FC = () => {
               </button>
             </div>
 
-            {currentUser ? (
+            {/* Dark / Light Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={(e) => toggleThemeMode(e)}
+              suppressHydrationWarning
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-black/15 dark:border-white/20 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-[#ffc900] hover:bg-[#fff1f3] dark:hover:bg-neutral-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-90 shrink-0"
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? (
+                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffc900] animate-in spin-in-90 duration-300" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-800 dark:text-neutral-200 animate-in zoom-in-75 duration-300" />
+              )}
+            </button>
+
+            {activeUser ? (
               <div className="hidden lg:flex items-center gap-1 sm:gap-2">
-                <div className="flex items-center gap-2 border border-[#d1d5dc] bg-white rounded-full px-3 py-1 text-xs font-medium">
+                <div className="flex items-center gap-2 border border-[#d1d5dc] dark:border-[#27272a] bg-white dark:bg-[#18181b] rounded-full px-3 py-1 text-xs font-medium text-black dark:text-white">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="truncate max-w-[80px]">{currentUser.username}</span>
-                  <span className="text-[#242423] opacity-75 hidden xl:inline">({currentUser.department.replace('College of ', '')})</span>
+                  <span className="truncate max-w-[80px]">{activeUser.username}</span>
+                  <span className="text-[#242423] dark:text-neutral-400 opacity-75 hidden xl:inline">({activeUser.department.replace('College of ', '')})</span>
                 </div>
               </div>
             ) : (
@@ -385,14 +414,14 @@ export const Navbar: React.FC = () => {
               </div>
             )}
 
-            {/* Mobile Streak Badge (Next to Hamburger Icon) */}
+            {/* Mobile Streak Badge (Next to Theme Toggle / Menu) */}
             <button
               type="button"
               onClick={() => setShowStreakCelebrationModal(true)}
-              className="flex md:hidden items-center mr-2 hover:bg-[#fff8e6] text-black rounded-xl transition-all active:scale-95 shrink-0 select-none cursor-pointer"
+              className="flex md:hidden items-center mr-1 hover:bg-[#fff8e6] dark:hover:bg-neutral-800 text-black dark:text-white rounded-xl transition-all active:scale-95 shrink-0 select-none cursor-pointer"
               title={`Daily Streak: ${streakCount} ${streakCount === 1 ? 'day' : 'days'}`}
             >
-              <div className="w-9 h-5 flex items-center justify-center shrink-0 pointer-events-none">
+              <div className="w-8 h-5 flex items-center justify-center shrink-0 pointer-events-none">
                 <DotLottieReact
                   key={`streak-mobile-${isStreakTriggeredToday ? 'triggered' : 'untriggered'}-${streakCount}`}
                   src={isStreakTriggeredToday ? '/animated-assets/triggeredStreak.lottie' : '/animated-assets/untriggeredStreak.lottie'}
@@ -401,7 +430,7 @@ export const Navbar: React.FC = () => {
                   className="w-full h-full object-contain"
                 />
               </div>
-              <span className="text-xs mt-1 font-black text-black">
+              <span className="text-xs mt-1 font-black text-black dark:text-white">
                 {streakCount}
               </span>
             </button>
@@ -412,7 +441,7 @@ export const Navbar: React.FC = () => {
       {/* ── Mobile Bottom Navigation Bar (Icon Only) ───────────────────────── */}
       <nav
         aria-label="Mobile Navigation Bar"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-[#f4f4f0]/95 backdrop-blur-md border-t border-[#d1d5dc] px-2 sm:px-3 py-2 flex items-center justify-around md:hidden pb-[max(0.65rem,env(safe-area-inset-bottom))]"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-[#f4f4f0]/95 dark:bg-[#0e0e11]/95 backdrop-blur-md border-t border-[#d1d5dc] dark:border-[#27272a] px-2 sm:px-3 py-2 flex items-center justify-around md:hidden pb-[max(0.65rem,env(safe-area-inset-bottom))] transition-colors duration-200"
       >
         {/* 1. Home Button */}
         <button
@@ -423,8 +452,8 @@ export const Navbar: React.FC = () => {
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'landing' && !showNotifPopover
-              ? 'bg-[#000000] text-[#ffffff]'
-              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+              ? 'bg-[#000000] dark:bg-white text-[#ffffff] dark:text-black'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
           }`}
           aria-label="Home"
         >
@@ -440,8 +469,8 @@ export const Navbar: React.FC = () => {
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'queue' && !showNotifPopover
-              ? 'bg-[#000000] text-[#ffffff]'
-              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+              ? 'bg-[#000000] dark:bg-white text-[#ffffff] dark:text-black'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
           }`}
           aria-label="Search and Matchmaking"
         >
@@ -458,8 +487,8 @@ export const Navbar: React.FC = () => {
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
             (viewState === 'freedom_wall' || viewState === 'add_note') && !showNotifPopover
-              ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
-              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+              ? 'bg-[#000000] dark:bg-white text-[#ffffff] dark:text-black ring-2 ring-[#000000]/20 dark:ring-white/20'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
           }`}
           aria-label="Freedom Wall"
           title="Campus Freedom Wall"
@@ -487,8 +516,8 @@ export const Navbar: React.FC = () => {
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
             (viewState === 'music_wall' || viewState === 'dedicate_song') && !showNotifPopover
-              ? 'bg-[#000000] text-[#ffffff] ring-2 ring-[#000000]/20'
-              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+              ? 'bg-[#000000] dark:bg-white text-[#ffffff] dark:text-black ring-2 ring-[#000000]/20 dark:ring-white/20'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
           }`}
           aria-label="Music Wall"
           title="Campus Music Wall"
@@ -512,8 +541,8 @@ export const Navbar: React.FC = () => {
           onClick={() => setShowNotifPopover(!showNotifPopover)}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
             showNotifPopover
-              ? 'bg-[#000000] text-[#ffffff]'
-              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+              ? 'bg-[#000000] dark:bg-white text-[#ffffff] dark:text-black'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
           }`}
           aria-label="Notifications"
         >
@@ -538,7 +567,7 @@ export const Navbar: React.FC = () => {
             setHasNewConnectionNotif(false);
             setViewState('kept_connections');
           }}
-          className="p-2 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]"
+          className="p-2 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800"
           aria-label="Kept Connections"
           title="Kept Contact & Messages"
         >
@@ -564,17 +593,17 @@ export const Navbar: React.FC = () => {
           }}
           className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 ${
             viewState === 'register' && !showNotifPopover
-              ? 'bg-[#000000] text-[#ffffff]'
-              : 'text-[#242423] hover:text-[#000000] hover:bg-[#ffffff]'
+              ? 'bg-[#000000] dark:bg-white text-[#ffffff] dark:text-black'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
           }`}
           aria-label="Profile"
         >
-          {currentUser?.avatar_url ? (
+          {activeUser?.avatar_url ? (
             <img
-              src={currentUser.avatar_url}
-              alt={currentUser.username}
+              src={activeUser.avatar_url}
+              alt={activeUser.username}
               className={`w-5 h-5 rounded-full object-cover border ${
-                viewState === 'register' ? 'border-[#ffffff]' : 'border-[#d1d5dc]'
+                viewState === 'register' ? 'border-[#ffffff]' : 'border-[#d1d5dc] dark:border-[#27272a]'
               }`}
             />
           ) : (
@@ -585,27 +614,27 @@ export const Navbar: React.FC = () => {
 
       {/* ── Real-Time Notifications Modal / Popover Sheet ───────────────────── */}
       {showNotifPopover && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-start sm:justify-end p-0 sm:p-4 sm:pt-16 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-start sm:justify-end p-0 sm:p-4 sm:pt-16 animate-in fade-in duration-150">
           <div
-            className="w-full sm:max-w-md bg-[#f4f4f0] border-t-4 sm:border-4 border-black rounded-t-3xl sm:rounded-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.25)] sm:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-top-4 duration-200"
+            className="w-full sm:max-w-md bg-[#f4f4f0] dark:bg-[#0e0e11] border-t-4 sm:border-4 border-black dark:border-[#27272a] rounded-t-3xl sm:rounded-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.25)] sm:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-top-4 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 bg-white border-b-2 border-black flex items-center justify-between">
+            <div className="p-4 bg-white dark:bg-[#18181b] border-b-2 border-black dark:border-[#27272a] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-[#701a31] text-white flex items-center justify-center border border-black shadow-2xs">
                   <Bell className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-black text-black">Notifications</h3>
+                    <h3 className="text-base font-black text-black dark:text-white">Notifications</h3>
                     {unreadCount > 0 && (
                       <span className="text-[10px] font-black px-2 py-0.5 bg-[#ffc900] text-black rounded-full border border-black">
                         {unreadCount} new
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-gray-500 font-semibold">Campus wall reactions &amp; friend updates</p>
+                  <p className="text-[10px] text-gray-500 dark:text-neutral-400 font-semibold">Campus wall reactions &amp; friend updates</p>
                 </div>
               </div>
 
@@ -617,7 +646,7 @@ export const Navbar: React.FC = () => {
                       markWallNotificationsAsRead();
                       setHasNewConnectionNotif(false);
                     }}
-                    className="text-[11px] font-black text-[#701a31] hover:underline cursor-pointer"
+                    className="text-[11px] font-black text-[#701a31] dark:text-[#ff90e8] hover:underline cursor-pointer"
                   >
                     Mark read
                   </button>
@@ -625,7 +654,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowNotifPopover(false)}
-                  className="p-1.5 rounded-full bg-gray-100 hover:bg-black hover:text-white border border-black transition-all cursor-pointer"
+                  className="p-1.5 rounded-full bg-gray-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-black hover:text-white border border-black dark:border-white/20 transition-all cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -633,7 +662,7 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* Notification List */}
-            <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2.5 max-h-[60vh]">
+            <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2.5 max-h-[60vh] custom-scrollbar">
               {/* Active Friend Connection Card (only shown if not already present in list) */}
               {hasNewConnectionNotif && keptConnection && !displayNotifications.some((n) => n.type === 'friend_add' && n.actor_username?.toLowerCase() === keptConnection.username.toLowerCase() && !n.read) && (
                 <div
@@ -642,30 +671,30 @@ export const Navbar: React.FC = () => {
                     setShowNotifPopover(false);
                     setViewState('kept_connections');
                   }}
-                  className="p-3 bg-[#fff1f3] border-2 border-black rounded-2xl cursor-pointer hover:bg-[#ffe3e8] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px]"
+                  className="p-3 bg-[#fff1f3] dark:bg-[#271216] border-2 border-black dark:border-white/20 rounded-2xl cursor-pointer hover:bg-[#ffe3e8] dark:hover:bg-[#34181d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.15)] active:translate-x-[1px] active:translate-y-[1px]"
                 >
                   <div className="flex items-start gap-2.5">
                     <div className="relative shrink-0">
                       <img
                         src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
                         alt={keptConnection.username}
-                        className="w-10 h-10 rounded-full border-2 border-black object-cover bg-amber-50 shadow-xs"
+                        className="w-10 h-10 rounded-full border-2 border-black dark:border-white/20 object-cover bg-amber-50 shrink-0 shadow-xs"
                       />
-                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#701a31] text-white flex items-center justify-center text-[9px] border border-black shadow-2xs">
+                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#701a31] text-white flex items-center justify-center text-[9px] border border-black dark:border-white/20 shadow-2xs">
                         ✨
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <p className="text-xs font-black text-black">New Friend Connection</p>
+                        <p className="text-xs font-black text-black dark:text-white">New Friend Connection</p>
                         <span className="text-[9px] font-black px-1.5 py-0.2 bg-[#00e599] text-black rounded-full border border-black">
                           Connected
                         </span>
                       </div>
-                      <p className="text-xs text-gray-800 font-bold mt-0.5">
-                        <span className="text-[#701a31]">@{keptConnection.username}</span> added you as a friend!
+                      <p className="text-xs text-gray-800 dark:text-zinc-200 font-bold mt-0.5">
+                        <span className="text-[#701a31] dark:text-rose-400">@{keptConnection.username}</span> added you as a friend!
                       </p>
-                      <p className="text-[10px] text-gray-500 font-semibold mt-1">Tap to chat in direct messages →</p>
+                      <p className="text-[10px] text-gray-500 dark:text-zinc-400 font-semibold mt-1">Tap to chat in direct messages →</p>
                     </div>
                   </div>
                 </div>
@@ -699,8 +728,8 @@ export const Navbar: React.FC = () => {
                       }}
                       className={`p-3 rounded-2xl transition-all cursor-pointer relative ${
                         item.read
-                          ? 'bg-[#f4f4f6]/80 hover:bg-[#eaebee] border border-zinc-200/90 text-zinc-600 opacity-80 hover:opacity-100 shadow-none'
-                          : 'bg-[#fffdf5] hover:bg-[#fff9e6] border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black'
+                          ? 'bg-[#f4f4f6]/80 dark:bg-zinc-800/60 hover:bg-[#eaebee] dark:hover:bg-zinc-800 border border-zinc-200/90 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 opacity-80 hover:opacity-100 shadow-none'
+                          : 'bg-[#fffdf5] dark:bg-[#1f1f23] hover:bg-[#fff9e6] dark:hover:bg-zinc-800 border-2 border-black dark:border-white/20 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.1)] text-black dark:text-white'
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
@@ -708,14 +737,14 @@ export const Navbar: React.FC = () => {
                           <img
                             src={avatarUrl}
                             alt={displayName}
-                            className={`w-9 h-9 rounded-full border-2 border-black object-cover bg-amber-50 shadow-xs transition-opacity ${
+                            className={`w-9 h-9 rounded-full border-2 border-black dark:border-zinc-700 object-cover bg-amber-50 shadow-xs transition-opacity ${
                               item.read ? 'opacity-70 grayscale-[25%]' : 'opacity-100'
                             }`}
                             onError={(e) => {
                               (e.target as HTMLElement).setAttribute('src', getAvatarForPseudonym(rawUsername));
                             }}
                           />
-                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center text-[9px] border border-black shadow-2xs">
+                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white dark:bg-zinc-800 flex items-center justify-center text-[9px] border border-black dark:border-white/20 shadow-2xs">
                             {item.type === 'like' && '💖'}
                             {item.type === 'comment' && '💬'}
                             {item.type === 'friend_add' && '👥'}
@@ -727,7 +756,7 @@ export const Navbar: React.FC = () => {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                            <p className={`text-xs truncate ${item.read ? 'font-bold text-zinc-700' : 'font-black text-black'}`}>
+                            <p className={`text-xs truncate ${item.read ? 'font-bold text-zinc-700 dark:text-zinc-300' : 'font-black text-black dark:text-white'}`}>
                               {item.type === 'like' && `${displayName} reacted`}
                               {item.type === 'comment' && `${displayName} commented`}
                               {item.type === 'friend_add' && `${displayName} added you`}
@@ -738,7 +767,7 @@ export const Navbar: React.FC = () => {
                             </p>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {item.read ? (
-                                <span className="inline-flex items-center gap-0.5 text-[8.5px] font-extrabold text-zinc-500 bg-zinc-200/90 px-1.5 py-0.2 rounded-md border border-zinc-300">
+                                <span className="inline-flex items-center gap-0.5 text-[8.5px] font-extrabold text-zinc-500 dark:text-zinc-400 bg-zinc-200/90 dark:bg-zinc-700/80 px-1.5 py-0.2 rounded-md border border-zinc-300 dark:border-zinc-600">
                                   ✓ Read
                                 </span>
                               ) : (
@@ -747,12 +776,12 @@ export const Navbar: React.FC = () => {
                                   New
                                 </span>
                               )}
-                              <span className="text-[9px] text-gray-400 font-medium">
+                              <span className="text-[9px] text-gray-400 dark:text-zinc-500 font-medium">
                                 {formatRelativeTime(item.created_at)}
                               </span>
                             </div>
                           </div>
-                          <p className={`text-xs font-medium line-clamp-2 mt-0.5 ${item.read ? 'text-zinc-500' : 'text-zinc-800'}`}>
+                          <p className={`text-xs font-medium line-clamp-2 mt-0.5 ${item.read ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-800 dark:text-zinc-200'}`}>
                             {item.comment_text || item.admin_remark || item.message_snippet}
                           </p>
 
@@ -808,7 +837,7 @@ export const Navbar: React.FC = () => {
                                     message: `Declined request from @${displayName}.`,
                                   });
                                 }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[11px] font-bold rounded-xl border border-zinc-300 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-[11px] font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 shadow-2xs transition-all active:scale-95 cursor-pointer"
                               >
                                 <X className="w-3.5 h-3.5" />
                                 <span>Decline</span>
@@ -830,7 +859,7 @@ export const Navbar: React.FC = () => {
                                     message: `✓ Unfriended ${displayName}. Your 1 friend slot is now open!`,
                                   });
                                 }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-black rounded-xl border border-rose-300 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-[11px] font-black rounded-xl border border-rose-300 dark:border-rose-800 shadow-2xs transition-all active:scale-95 cursor-pointer"
                                 title="Unfriend back and clear connection"
                               >
                                 <UserMinus className="w-3.5 h-3.5" />
@@ -857,11 +886,11 @@ export const Navbar: React.FC = () => {
                 })
               ) : !hasNewConnectionNotif ? (
                 <div className="py-10 text-center flex flex-col items-center justify-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-white border-2 border-black flex items-center justify-center shadow-xs">
-                    <Bell className="w-6 h-6 text-gray-400" />
+                  <div className="w-12 h-12 rounded-full bg-white dark:bg-zinc-800 border-2 border-black dark:border-white/20 flex items-center justify-center shadow-xs">
+                    <Bell className="w-6 h-6 text-gray-400 dark:text-zinc-500" />
                   </div>
-                  <p className="text-xs font-black text-black">No notifications yet</p>
-                  <p className="text-[11px] text-gray-500 max-w-xs font-medium">
+                  <p className="text-xs font-black text-black dark:text-white">No notifications yet</p>
+                  <p className="text-[11px] text-gray-500 dark:text-zinc-400 max-w-xs font-medium">
                     When someone reacts to your confession on the Freedom Wall or adds you as a friend, updates will show up here in real time!
                   </p>
                 </div>
@@ -870,18 +899,18 @@ export const Navbar: React.FC = () => {
 
             {/* Bottom Actions */}
             {displayNotifications.length > 0 && (
-              <div className="p-3 bg-white border-t border-black/10 flex items-center justify-between">
+              <div className="p-3 bg-white dark:bg-[#18181b] border-t border-black/10 dark:border-white/10 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={clearWallNotifications}
-                  className="text-[10px] text-gray-500 hover:text-red-600 font-bold cursor-pointer"
+                  className="text-[10px] text-gray-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 font-bold cursor-pointer"
                 >
                   Clear all notifications
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowNotifPopover(false)}
-                  className="px-3 py-1 bg-black text-white text-xs font-black rounded-xl cursor-pointer"
+                  className="px-3 py-1 bg-black dark:bg-white text-white dark:text-black text-xs font-black rounded-xl cursor-pointer hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
                 >
                   Close
                 </button>
@@ -894,14 +923,14 @@ export const Navbar: React.FC = () => {
       {/* Hamburger Slide-out Drawer */}
       {showMenuDrawer && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-150">
-          <div className="bg-[#f4f4f0] border-l-4 border-black w-full max-w-sm h-full p-5 sm:p-6 flex flex-col justify-between shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+          <div className="bg-[#f4f4f0] dark:bg-[#18181b] border-l-4 border-black dark:border-white/20 w-full max-w-sm h-full p-5 sm:p-6 flex flex-col justify-between shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200 text-black dark:text-white">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b-2 border-black mb-5">
+              <div className="flex items-center justify-between pb-4 border-b-2 border-black dark:border-white/20 mb-5">
                 <div className="flex items-center gap-2">
                   <CoinMascot size={28} tiltAngle={-6} />
                   <div>
-                    <h3 className="text-xl font-extrabold text-black leading-tight">CapiTalk Navigation</h3>
-                    <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-0.5">
+                    <h3 className="text-xl font-extrabold text-black dark:text-white leading-tight">CapiTalk Navigation</h3>
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
                       {onlineCount} Students Online Now
                     </p>
@@ -910,19 +939,19 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowMenuDrawer(false)}
-                  className="p-1.5 rounded-full bg-white hover:bg-black hover:text-white border-2 border-black transition-all"
+                  className="p-1.5 rounded-full bg-white dark:bg-neutral-800 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black border-2 border-black dark:border-white/20 transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4 stroke-[2.5]" />
                 </button>
               </div>
 
-              {currentUser && (
-                <div className="mb-5 p-3.5 bg-white border-2 border-black rounded-2xl flex items-center justify-between shadow-xs">
+              {activeUser && (
+                <div className="mb-5 p-3.5 bg-white dark:bg-neutral-800/90 border-2 border-black dark:border-white/20 rounded-2xl flex items-center justify-between shadow-xs">
                   <div className="flex items-center gap-2.5 truncate">
                     <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                     <div className="truncate">
-                      <p className="text-sm font-extrabold text-black truncate">@{currentUser.username}</p>
-                      <p className="text-xs text-gray-600 font-semibold truncate">{currentUser.department.replace('College of ', '')}</p>
+                      <p className="text-sm font-extrabold text-black dark:text-white truncate">@{activeUser.username}</p>
+                      <p className="text-xs text-gray-600 dark:text-neutral-400 font-semibold truncate">{activeUser.department.replace('College of ', '')}</p>
                     </div>
                   </div>
                   <button
@@ -931,7 +960,7 @@ export const Navbar: React.FC = () => {
                       setViewState('register');
                       setShowMenuDrawer(false);
                     }}
-                    className="text-xs font-black text-black underline hover:text-[#701a31] shrink-0"
+                    className="text-xs font-black text-black dark:text-white underline hover:text-[#701a31] dark:hover:text-[#ff90e8] shrink-0"
                   >
                     Edit Profile
                   </button>
@@ -946,10 +975,10 @@ export const Navbar: React.FC = () => {
                     setViewState('freedom_wall');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
+                  className={`w-full p-3.5 rounded-2xl border-2 border-black dark:border-white/20 text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs cursor-pointer ${
                     viewState === 'freedom_wall' || viewState === 'add_note'
                       ? 'bg-[#701a31] text-white scale-[1.02]'
-                      : 'bg-white text-black hover:bg-[#fff1f3]'
+                      : 'bg-white dark:bg-neutral-800 text-black dark:text-white hover:bg-[#fff1f3] dark:hover:bg-neutral-700'
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
@@ -970,10 +999,10 @@ export const Navbar: React.FC = () => {
                     setViewState('music_wall');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
+                  className={`w-full p-3.5 rounded-2xl border-2 border-black dark:border-white/20 text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs cursor-pointer ${
                     viewState === 'music_wall' || viewState === 'dedicate_song'
                       ? 'bg-[#701a31] text-white scale-[1.02]'
-                      : 'bg-white text-black hover:bg-[#ffe3e8]'
+                      : 'bg-white dark:bg-neutral-800 text-black dark:text-white hover:bg-[#ffe3e8] dark:hover:bg-neutral-700'
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
@@ -993,10 +1022,10 @@ export const Navbar: React.FC = () => {
                     setViewState('queue');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
+                  className={`w-full p-3.5 rounded-2xl border-2 border-black dark:border-white/20 text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs cursor-pointer ${
                     viewState === 'queue'
                       ? 'bg-[#701a31] text-white scale-[1.02]'
-                      : 'bg-white text-black hover:bg-gray-100'
+                      : 'bg-white dark:bg-neutral-800 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-700'
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
@@ -1011,10 +1040,10 @@ export const Navbar: React.FC = () => {
                     setViewState('register');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3.5 rounded-2xl border-2 border-black text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs ${
+                  className={`w-full p-3.5 rounded-2xl border-2 border-black dark:border-white/20 text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs cursor-pointer ${
                     viewState === 'register'
                       ? 'bg-[#701a31] text-white scale-[1.02]'
-                      : 'bg-white text-black hover:bg-gray-100'
+                      : 'bg-white dark:bg-neutral-800 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-700'
                   }`}
                 >
                   <span className="flex items-center gap-2.5">
@@ -1028,10 +1057,10 @@ export const Navbar: React.FC = () => {
                     setViewState('terms');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3 rounded-2xl border border-black/20 text-left font-bold text-xs flex items-center justify-between transition-all ${
+                  className={`w-full p-3 rounded-2xl border border-black/20 dark:border-white/20 text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
                     viewState === 'terms'
-                      ? 'bg-[#fff1f3] text-[#701a31] border-black font-extrabold'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                      ? 'bg-[#fff1f3] dark:bg-[#701a31]/40 text-[#701a31] dark:text-[#ff90e8] border-black dark:border-white/30 font-extrabold'
+                      : 'bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
                   }`}
                 >
                   <span className="flex items-center gap-2">
@@ -1045,16 +1074,16 @@ export const Navbar: React.FC = () => {
                     setViewState('privacy');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3 rounded-2xl border border-black/20 text-left font-bold text-xs flex items-center justify-between transition-all ${
+                  className={`w-full p-3 rounded-2xl border border-black/20 dark:border-white/20 text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
                     viewState === 'privacy'
-                      ? 'bg-[#fff1f3] text-[#701a31] border-black font-extrabold'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                      ? 'bg-[#fff1f3] dark:bg-[#701a31]/40 text-[#701a31] dark:text-[#ff90e8] border-black dark:border-white/30 font-extrabold'
+                      : 'bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
                   }`}
                 >
                   <span className="flex items-center gap-2">
                     🛡️ Privacy &amp; Data Policy
                   </span>
-                  <span className="text-[10px] text-gray-500 font-semibold">Disclaimer</span>
+                  <span className="text-[10px] text-gray-500 dark:text-neutral-400 font-semibold">Disclaimer</span>
                 </button>
 
                 {/* Blocked Users Section */}
@@ -1064,14 +1093,14 @@ export const Navbar: React.FC = () => {
                     setViewState('blocked_users');
                     setShowMenuDrawer(false);
                   }}
-                  className={`w-full p-3 rounded-2xl border border-black/20 text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                  className={`w-full p-3 rounded-2xl border border-black/20 dark:border-white/20 text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
                     viewState === 'blocked_users'
                       ? 'bg-[#701a31] text-white font-extrabold shadow-xs'
-                      : 'bg-red-50 hover:bg-red-100 text-red-700 hover:border-black'
+                      : 'bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 hover:border-black'
                   }`}
                 >
                   <span className="flex items-center gap-2 font-black">
-                    <UserX className="w-3.5 h-3.5 text-red-600" />
+                    <UserX className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                     Blocked Users
                   </span>
                   {blockedUserIds.length > 0 ? (
@@ -1079,7 +1108,7 @@ export const Navbar: React.FC = () => {
                       {blockedUserIds.length} Blocked
                     </span>
                   ) : (
-                    <span className="text-[10px] text-gray-500 font-semibold">0 Blocked</span>
+                    <span className="text-[10px] text-gray-500 dark:text-neutral-400 font-semibold">0 Blocked</span>
                   )}
                 </button>
 
@@ -1088,7 +1117,7 @@ export const Navbar: React.FC = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setShowMenuDrawer(false)}
-                  className="w-full p-3 rounded-2xl border border-black/20 bg-[#1877f2]/10 hover:bg-[#1877f2]/20 text-[#1877f2] font-black text-xs flex items-center justify-between transition-all"
+                  className="w-full p-3 rounded-2xl border border-black/20 dark:border-white/20 bg-[#1877f2]/10 hover:bg-[#1877f2]/20 text-[#1877f2] font-black text-xs flex items-center justify-between transition-all"
                 >
                   <span className="flex items-center gap-2">
                     <FacebookIcon className="w-4 h-4 fill-[#1877f2]" />
@@ -1099,11 +1128,11 @@ export const Navbar: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-3 border-t-2 border-black/20 space-y-1">
-              <p className="text-[10px] text-center text-gray-500 font-bold">
+            <div className="pt-3 border-t-2 border-black/20 dark:border-white/20 space-y-1">
+              <p className="text-[10px] text-center text-gray-500 dark:text-neutral-400 font-bold">
                 CapiTalk — Capitol University Student Community
               </p>
-              <p className="text-[9px] text-center text-gray-400">
+              <p className="text-[9px] text-center text-gray-400 dark:text-neutral-500">
                 Independent platform • Not affiliated with Capitol University
               </p>
             </div>

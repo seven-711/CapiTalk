@@ -463,7 +463,7 @@ export const PostNotePage: React.FC = () => {
     : (currentUser?.avatar_url || getAvatarForPseudonym(currentAuthorAlias));
 
   return (
-    <div className="min-h-screen bg-[#f4f4f0] text-black font-sans pb-16">
+    <div className="min-h-screen bg-[#f4f4f0] dark:bg-[#0e0e11] text-black dark:text-[#f4f4f6] font-sans pb-16 transition-colors duration-200">
       {/* ── Main Composer Container ──────────────────────────────────────── */}
       <main className="max-w-2xl mx-auto px-0 sm:px-4 py-0 sm:py-6">
         {/* Error Alert */}
@@ -478,31 +478,31 @@ export const PostNotePage: React.FC = () => {
         )}
 
         {/* Composer Card with Modern Hairline Styling */}
-        <div className="bg-white border-y sm:border border-[#d1d5dc] sm:rounded-2xl p-4 sm:p-6 space-y-4">
+        <div className="bg-white dark:bg-[#18181b] border-y sm:border border-[#d1d5dc] dark:border-zinc-800 sm:rounded-2xl p-4 sm:p-6 space-y-4 shadow-xs">
           {/* Author Badge Info */}
-          <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100 dark:border-zinc-800">
             <div className="flex items-center gap-2.5 min-w-0">
               <img
                 src={previewAvatar}
                 alt={currentAuthorAlias}
-                className="w-9 h-9 rounded-full border border-[#d1d5dc] object-cover bg-amber-50 shrink-0"
+                className="w-9 h-9 rounded-full border border-[#d1d5dc] dark:border-zinc-700 object-cover bg-amber-50 shrink-0"
               />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-xs sm:text-sm text-black truncate">
+                  <span className="font-extrabold text-xs sm:text-sm text-black dark:text-white truncate">
                     {currentAuthorAlias}
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#fff1f3] text-[#701a31] rounded-md border border-[#701a31]/20 shrink-0">
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-[#fff1f3] dark:bg-[#271216] text-[#701a31] dark:text-rose-400 rounded-md border border-[#701a31]/20 dark:border-rose-900/40 shrink-0">
                     {currentAuthorDept.replace('College of ', '')}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-400 font-medium">Posting to Campus Wall</p>
+                <p className="text-[11px] text-gray-400 dark:text-zinc-500 font-medium">Posting to Campus Wall</p>
               </div>
             </div>
 
             {/* Admin Switcher */}
             {isAdminUser && (
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-[#701a31]">
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-[#701a31] dark:text-rose-400">
                 <input
                   type="checkbox"
                   checked={postAsAdmin}
@@ -521,7 +521,7 @@ export const PostNotePage: React.FC = () => {
           <div className="space-y-1">
             <div className={`transition-all rounded-xl ${
               messageRequiredError
-                ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40 p-2.5'
+                ? 'border-2 border-red-500 ring-2 ring-red-500/20 bg-red-50/40 dark:bg-red-950/20 p-2.5'
                 : 'p-1'
             }`}>
               <textarea
@@ -534,28 +534,28 @@ export const PostNotePage: React.FC = () => {
                 }}
                 maxLength={300}
                 placeholder={messageRequiredError ? "Please enter your message before publishing..." : "What's on your mind? Share confession, midterm notes, or campus vibe..."}
-                className="w-full text-sm sm:text-base text-black placeholder-gray-400 bg-transparent border-0 focus:ring-0 focus:outline-none resize-none leading-relaxed"
+                className="w-full text-sm sm:text-base text-black dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 bg-transparent border-0 focus:ring-0 focus:outline-none resize-none leading-relaxed"
                 autoFocus
               />
             </div>
             {messageRequiredError && (
-              <p className="text-xs font-bold text-red-600 px-1 flex items-center gap-1.5 animate-in fade-in duration-150">
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 px-1 flex items-center gap-1.5 animate-in fade-in duration-150">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
                 Please write your note before publishing.
               </p>
             )}
-            <div className="flex justify-end text-[11px] font-medium text-gray-400">
+            <div className="flex justify-end text-[11px] font-medium text-gray-400 dark:text-zinc-500">
               <span>{message.length}/300</span>
             </div>
           </div>
 
           {/* Attached Media Preview */}
           {attachedMedia && (
-            <div className="relative rounded-xl overflow-hidden border border-[#d1d5dc] bg-gray-50 max-w-md">
+            <div className="relative rounded-xl overflow-hidden border border-[#d1d5dc] dark:border-zinc-700 bg-gray-50 dark:bg-zinc-900 max-w-md">
               <img
                 src={attachedMedia.url}
                 alt="Media Preview"
-                className="w-full max-h-60 object-contain bg-black/5"
+                className="w-full max-h-60 object-contain bg-black/5 dark:bg-black/40"
               />
               <button
                 type="button"
@@ -570,10 +570,10 @@ export const PostNotePage: React.FC = () => {
 
           {/* Campus Poll Creator Form */}
           {showPollForm && (
-            <div className="p-3 sm:p-4 bg-[#fbfbfa] border border-[#d1d5dc] rounded-xl space-y-3 animate-in fade-in duration-150">
+            <div className="p-3 sm:p-4 bg-[#fbfbfa] dark:bg-zinc-900 border border-[#d1d5dc] dark:border-zinc-700 rounded-xl space-y-3 animate-in fade-in duration-150">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-black flex items-center gap-1.5">
-                  <BarChart2 className="w-4 h-4 text-[#701a31]" />
+                <span className="text-xs font-bold text-black dark:text-white flex items-center gap-1.5">
+                  <BarChart2 className="w-4 h-4 text-[#701a31] dark:text-rose-400" />
                   <span>Campus Poll</span>
                 </span>
                 <button
@@ -583,7 +583,7 @@ export const PostNotePage: React.FC = () => {
                     setPollQuestion('');
                     setPollOptions(['', '']);
                   }}
-                  className="text-xs text-gray-400 hover:text-rose-600 font-bold cursor-pointer"
+                  className="text-xs text-gray-400 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 font-bold cursor-pointer"
                 >
                   Remove
                 </button>
@@ -595,7 +595,7 @@ export const PostNotePage: React.FC = () => {
                 onChange={(e) => setPollQuestion(e.target.value)}
                 placeholder="Poll question / topic (optional)"
                 maxLength={100}
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black transition-colors"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-white dark:bg-zinc-800 border border-[#d1d5dc] dark:border-zinc-700 rounded-lg font-medium text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
 
               <div className="space-y-2">
@@ -607,7 +607,7 @@ export const PostNotePage: React.FC = () => {
                       onChange={(e) => handlePollOptionChange(idx, e.target.value)}
                       placeholder={`Option ${idx + 1}`}
                       maxLength={60}
-                      className="flex-1 px-3 py-1.5 text-xs sm:text-sm bg-white border border-[#d1d5dc] rounded-lg font-medium focus:outline-none focus:border-black transition-colors"
+                      className="flex-1 px-3 py-1.5 text-xs sm:text-sm bg-white dark:bg-zinc-800 border border-[#d1d5dc] dark:border-zinc-700 rounded-lg font-medium text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-white transition-colors"
                     />
                     {pollOptions.length > 2 && (
                       <button
@@ -627,7 +627,7 @@ export const PostNotePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddPollOption}
-                  className="text-xs font-bold text-[#701a31] hover:underline flex items-center gap-1 cursor-pointer pt-1"
+                  className="text-xs font-bold text-[#701a31] dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer pt-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Option ({pollOptions.length}/4)</span>
@@ -637,12 +637,12 @@ export const PostNotePage: React.FC = () => {
           )}
 
           {/* Color & Toolbar Actions + Bottom Buttons */}
-          <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="pt-3 border-t border-gray-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3">
             {/* Color Palette & Media Actions */}
             <div className="flex items-center gap-2 flex-wrap">
               {!postAsAdmin && (
                 <div className="flex items-center gap-1.5 mr-1">
-                  <span className="text-[11px] font-bold text-gray-400">Color:</span>
+                  <span className="text-[11px] font-bold text-gray-400 dark:text-zinc-400">Color:</span>
                   {POST_COLORS.map((c) => (
                     <button
                       key={c.hex}
@@ -651,7 +651,7 @@ export const PostNotePage: React.FC = () => {
                       style={{ backgroundColor: c.hex }}
                       className={`w-6 h-6 rounded-full border border-black/10 transition-all flex items-center justify-center cursor-pointer ${
                         selectedColor === c.hex
-                          ? 'ring-2 ring-black scale-110 shadow-xs'
+                          ? 'ring-2 ring-black dark:ring-white scale-110 shadow-xs'
                           : 'opacity-70 hover:opacity-100'
                       }`}
                       title={c.name}
@@ -678,11 +678,11 @@ export const PostNotePage: React.FC = () => {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessingMedia}
-                  className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-black transition-colors cursor-pointer"
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                   title="Attach Image"
                 >
                   {isProcessingMedia ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                    <RefreshCw className="w-4 h-4 animate-spin text-black dark:text-white" />
                   ) : (
                     <ImageIcon className="w-4 h-4" />
                   )}
@@ -691,7 +691,7 @@ export const PostNotePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowGifModal(true)}
-                  className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-black transition-colors cursor-pointer"
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                   title="Attach GIF"
                 >
                   <Film className="w-4 h-4" />
@@ -702,8 +702,8 @@ export const PostNotePage: React.FC = () => {
                   onClick={() => setShowPollForm(!showPollForm)}
                   className={`p-2 rounded-full transition-colors cursor-pointer ${
                     showPollForm
-                      ? 'bg-black text-white'
-                      : 'hover:bg-gray-100 text-gray-600 hover:text-black'
+                      ? 'bg-black dark:bg-white text-white dark:text-black'
+                      : 'hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300 hover:text-black dark:hover:text-white'
                   }`}
                   title={showPollForm ? 'Remove Poll' : 'Add Poll'}
                 >
@@ -717,7 +717,7 @@ export const PostNotePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => goBack()}
-                className="px-3.5 py-1.5 text-xs font-bold text-gray-500 hover:text-black transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-bold text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -726,7 +726,7 @@ export const PostNotePage: React.FC = () => {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting || (!postAsAdmin && (cooldownRemaining > 0 || dailyPostCount >= DAILY_MAX_POSTS)) || !message.trim()}
-                className="px-5 py-2 bg-black hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-black text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+                className="px-5 py-2 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-30 disabled:hover:bg-black dark:disabled:hover:bg-white text-white dark:text-black font-black text-xs sm:text-sm transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
               >
                 {isSubmitting ? (
                   <>
@@ -979,13 +979,13 @@ export const PostNotePage: React.FC = () => {
       {/* GIFs Modal */}
       {showGifModal && (
         <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-3 animate-in fade-in duration-150">
-          <div className="bg-white border border-[#d1d5dc] p-4 rounded-2xl max-w-md w-full text-left shadow-2xl relative max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-100 shrink-0">
-              <span className="text-sm font-bold text-black">Select a GIF</span>
+          <div className="bg-white dark:bg-[#18181b] border border-[#d1d5dc] dark:border-zinc-800 p-4 rounded-2xl max-w-md w-full text-left shadow-2xl relative max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-zinc-800 shrink-0">
+              <span className="text-sm font-bold text-black dark:text-white">Select a GIF</span>
               <button
                 type="button"
                 onClick={() => setShowGifModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-full text-gray-600 hover:text-black cursor-pointer"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -999,7 +999,7 @@ export const PostNotePage: React.FC = () => {
                   value={gifSearchTerm}
                   onChange={(e) => setGifSearchTerm(e.target.value)}
                   placeholder="Search GIFs..."
-                  className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-[#d1d5dc] rounded-lg bg-[#f4f4f0] text-black font-medium focus:outline-none focus:border-black"
+                  className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-[#d1d5dc] dark:border-zinc-700 rounded-lg bg-[#f4f4f0] dark:bg-zinc-800 text-black dark:text-white font-medium focus:outline-none focus:border-black dark:focus:border-white"
                 />
               </div>
             </div>
@@ -1012,8 +1012,8 @@ export const PostNotePage: React.FC = () => {
                   onClick={() => setGifCategory(cat.id)}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg border whitespace-nowrap cursor-pointer transition-colors ${
                     gifCategory === cat.id
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white hover:bg-gray-100 text-black border-[#d1d5dc]'
+                      ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
+                      : 'bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 text-black dark:text-white border-[#d1d5dc] dark:border-zinc-700'
                   }`}
                 >
                   {cat.name}
@@ -1034,7 +1034,7 @@ export const PostNotePage: React.FC = () => {
 
                 if (filteredGifs.length === 0) {
                   return (
-                    <div className="py-8 text-center text-xs text-gray-500 font-medium">
+                    <div className="py-8 text-center text-xs text-gray-500 dark:text-zinc-400 font-medium">
                       No GIFs found
                     </div>
                   );
@@ -1047,7 +1047,7 @@ export const PostNotePage: React.FC = () => {
                         key={`${gif.url}-${idx}`}
                         type="button"
                         onClick={() => handleSelectPresetGif(gif.url)}
-                        className="relative rounded-xl border border-[#d1d5dc] overflow-hidden bg-black/5 hover:border-black transition-all text-left cursor-pointer"
+                        className="relative rounded-xl border border-[#d1d5dc] dark:border-zinc-700 overflow-hidden bg-black/5 dark:bg-zinc-900 hover:border-black dark:hover:border-white transition-all text-left cursor-pointer"
                       >
                         <img
                           src={gif.url}
@@ -1055,7 +1055,7 @@ export const PostNotePage: React.FC = () => {
                           className="w-full h-28 object-cover"
                           loading="lazy"
                         />
-                        <div className="p-1 bg-white border-t border-[#d1d5dc] text-[10px] font-bold text-black truncate">
+                        <div className="p-1 bg-white dark:bg-zinc-800 border-t border-[#d1d5dc] dark:border-zinc-700 text-[10px] font-bold text-black dark:text-white truncate">
                           {gif.title}
                         </div>
                       </button>

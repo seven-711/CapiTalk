@@ -68,7 +68,7 @@ export const PrivacyPolicy: React.FC = () => {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-[#f4f4f0] py-4 sm:py-8 px-3 sm:px-6 font-sans text-black">
+    <div className="w-full min-h-screen bg-[#f4f4f0] dark:bg-[#0e0e11] py-4 sm:py-8 px-3 sm:px-6 font-sans text-black dark:text-[#f4f4f6] transition-colors duration-200">
       <div className="max-w-3xl mx-auto space-y-4">
         {/* ── UNIFIED SINGLE CONTAINER ────────────────────────────────────────── */}
         <div className="p-6 sm:p-10 shadow-xs space-y-8 text-left">
