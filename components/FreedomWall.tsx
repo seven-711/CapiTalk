@@ -424,6 +424,7 @@ export const FreedomWall: React.FC = () => {
   const [isFetchingComments, setIsFetchingComments] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; alias: string } | null>(null);
   const [expandedReplyCommentIds, setExpandedReplyCommentIds] = useState<Record<string, boolean>>({});
+  const [selectedCommentForReactors, setSelectedCommentForReactors] = useState<FreedomComment | null>(null);
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Sync registered user's username if updated
@@ -449,38 +450,88 @@ export const FreedomWall: React.FC = () => {
 
   const toggleLikeComment = async (comment: FreedomComment) => {
     const currentUid = currentUser ? currentUser.id : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
+    const currentUsername = currentUser?.username || 'You';
+    const currentDept = currentUser?.department || 'CU Student';
+    const currentAvatar = currentUser?.avatar_url || getAvatarForPseudonym(currentUsername);
 
-    setCommentsList((prevList) =>
-      prevList.map((c) => {
-        if (c.id !== comment.id) return c;
-        const likedUsers = c.liked_by_users || [];
-        const hasLiked = likedUsers.includes(currentUid);
-        const updatedUsers = hasLiked
-          ? likedUsers.filter((id) => id !== currentUid)
-          : [...likedUsers, currentUid];
-        const updatedCount = Math.max(0, (c.likes_count || 0) + (hasLiked ? -1 : 1));
-        return {
-          ...c,
-          likes_count: updatedCount,
-          liked_by_users: updatedUsers,
-        };
-      })
-    );
+    const likedUsers = comment.liked_by_users || [];
+    const hasLiked = likedUsers.includes(currentUid);
+    const updatedUsers = hasLiked
+      ? likedUsers.filter((id) => id !== currentUid)
+      : [...likedUsers, currentUid];
+    const updatedCount = Math.max(0, (comment.likes_count || 0) + (hasLiked ? -1 : 1));
 
+    const currentProfiles = comment.liked_by_profiles || {};
+    const updatedProfiles = { ...currentProfiles };
+    if (hasLiked) {
+      delete updatedProfiles[currentUid];
+    } else {
+      updatedProfiles[currentUid] = {
+        username: currentUsername,
+        department: currentDept,
+        avatar_url: currentAvatar,
+        reacted_at: Date.now(),
+      };
+    }
+
+    const updatedComment: FreedomComment = {
+      ...comment,
+      likes_count: updatedCount,
+      liked_by_users: updatedUsers,
+      liked_by_profiles: updatedProfiles,
+    };
+
+    setCommentsList((prevList) => {
+      const nextList = prevList.map((c) => (c.id === comment.id ? updatedComment : c));
+      if (selectedPostForComments && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`capitalk_comments_${selectedPostForComments.id}`, JSON.stringify(nextList));
+        } catch (e) {}
+      }
+      return nextList;
+    });
+
+    // Update open reactors modal if active
+    setSelectedCommentForReactors((prev) => (prev && prev.id === comment.id ? updatedComment : prev));
+
+    // Broadcast locally for instant multi-tab reflection
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('capitalk_global_realtime');
+        bc.postMessage({
+          type: 'FREEDOM_COMMENT_LIKE',
+          commentId: comment.id,
+          postId: comment.post_id,
+          likesCount: updatedCount,
+          likedByUsers: updatedUsers,
+          likedByProfiles: updatedProfiles,
+        });
+      } catch (e) {}
+    }
+
+    // Persist to Supabase Database & Broadcast across devices
     if (supabase && isSupabaseConfigured) {
       try {
-        const likedUsers = comment.liked_by_users || [];
-        const hasLiked = likedUsers.includes(currentUserId);
-        const updatedUsers = hasLiked
-          ? likedUsers.filter((id) => id !== currentUserId)
-          : [...likedUsers, currentUserId];
-        const updatedCount = Math.max(0, (comment.likes_count || 0) + (hasLiked ? -1 : 1));
-
         await supabase
           .from('freedom_comments')
           .update({ likes_count: updatedCount, liked_by_users: updatedUsers })
           .eq('id', comment.id);
-      } catch (e) {}
+
+        const wallChan = supabase.channel('capitalk_global_wall_events');
+        wallChan.send({
+          type: 'broadcast',
+          event: 'FREEDOM_COMMENT_LIKE',
+          payload: {
+            commentId: comment.id,
+            postId: comment.post_id,
+            likesCount: updatedCount,
+            likedByUsers: updatedUsers,
+            likedByProfiles: updatedProfiles,
+          },
+        }).then(() => {}, () => {});
+      } catch (e) {
+        console.warn('Could not persist comment like to Supabase:', e);
+      }
     }
   };
 
@@ -561,6 +612,86 @@ export const FreedomWall: React.FC = () => {
     setCommentsList(localComments);
     setIsFetchingComments(false);
   };
+
+  // Real-time synchronization for comments & comment likes across devices
+  React.useEffect(() => {
+    if (!selectedPostForComments) return;
+    const postId = selectedPostForComments.id;
+
+    const refreshComments = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('freedom_comments')
+            .select('*')
+            .eq('post_id', postId)
+            .order('created_at', { ascending: true });
+
+          if (data && !error) {
+            setCommentsList((prev) => {
+              const dbMap = new Map(data.map((c: any) => [c.id, c]));
+              const updated = prev.map((localC) => (dbMap.has(localC.id) ? (dbMap.get(localC.id) as FreedomComment) : localC));
+              data.forEach((dbC: any) => {
+                if (!prev.some((p) => p.id === dbC.id)) {
+                  updated.push(dbC as FreedomComment);
+                }
+              });
+              return updated.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            });
+          }
+        } catch (e) {}
+      }
+    };
+
+    // Polling interval every 2.5s for live multi-device reflection
+    const pollTimer = setInterval(refreshComments, 2500);
+
+    // Supabase Realtime channel
+    let channel: any = null;
+    if (supabase && isSupabaseConfigured) {
+      try {
+        channel = supabase
+          .channel(`freedom_comments_${postId}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'freedom_comments', filter: `post_id=eq.${postId}` },
+            () => {
+              refreshComments();
+            }
+          )
+          .subscribe();
+      } catch (e) {}
+    }
+
+    // BroadcastChannel listener for instant cross-tab sync
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('capitalk_global_realtime');
+        bc.onmessage = (e) => {
+          if (e.data?.type === 'FREEDOM_COMMENT_LIKE' && e.data.postId === postId) {
+            setCommentsList((prev) =>
+              prev.map((c) =>
+                c.id === e.data.commentId
+                  ? { ...c, likes_count: e.data.likesCount, liked_by_users: e.data.likedByUsers }
+                  : c
+              )
+            );
+          }
+        };
+      } catch (e) {}
+    }
+
+    return () => {
+      clearInterval(pollTimer);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+      if (bc) {
+        bc.close();
+      }
+    };
+  }, [selectedPostForComments]);
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1822,61 +1953,80 @@ export const FreedomWall: React.FC = () => {
                             </button>
 
                             <div className="flex-1 min-w-0">
-                              {/* Thin Compact Bubble */}
-                              <div className={`rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-2xs space-y-0.5 inline-block max-w-[92%] sm:max-w-[85%] transition-all ${
-                                isCmAdmin
-                                  ? 'bg-gradient-to-br from-[#701a31]/10 via-[#fff8f9] to-[#701a31]/5 border border-[#701a31]/35 ring-1 ring-[#701a31]/20 shadow-xs'
-                                  : 'bg-white border border-[#e4e6eb]'
-                              }`}>
-                                <div className="flex items-center gap-1 leading-tight flex-wrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewingProfile({
-                                      username: cm.author_alias,
-                                      department: cm.department || (isCmAdmin ? 'Admin' : 'General'),
-                                      avatar_url: cm.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(cm.author_alias)),
-                                      bio: cm.author_bio,
-                                      author_id: cm.author_id,
-                                      is_admin: isCmAdmin,
-                                    })}
-                                    className={`font-bold text-[12px] sm:text-[12.5px] hover:underline cursor-pointer truncate ${
-                                      isCmAdmin ? 'text-[#701a31] font-black' : 'text-[#050505]'
-                                    }`}
-                                  >
-                                    @{cm.author_alias}
-                                  </button>
-                                  {isCmAdmin ? (
-                                    <span className="px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider rounded-full bg-[#701a31] text-white flex items-center gap-0.5 shadow-2xs shrink-0">
-                                      <span>Official</span>
-                                    </span>
-                                  ) : (
-                                    cm.department && (
-                                      <span className="text-[10px] text-[#65676b] font-normal">
-                                        · {cm.department.replace('College of ', '')}
+                              {/* Thin Compact Bubble with Relative Position for Reaction Indicator */}
+                              <div className="relative inline-block max-w-[92%] sm:max-w-[85%] group/bubble">
+                                <div className={`rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-2xs space-y-0.5 transition-all ${
+                                  isCmAdmin
+                                    ? 'bg-gradient-to-br from-[#701a31]/10 via-[#fff8f9] to-[#701a31]/5 border border-[#701a31]/35 ring-1 ring-[#701a31]/20 shadow-xs'
+                                    : 'bg-white border border-[#e4e6eb]'
+                                }`}>
+                                  <div className="flex items-center gap-1 leading-tight flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewingProfile({
+                                        username: cm.author_alias,
+                                        department: cm.department || (isCmAdmin ? 'Admin' : 'General'),
+                                        avatar_url: cm.author_avatar || (isCmAdmin ? '/avatars/coin-left.jpg' : getAvatarForPseudonym(cm.author_alias)),
+                                        bio: cm.author_bio,
+                                        author_id: cm.author_id,
+                                        is_admin: isCmAdmin,
+                                      })}
+                                      className={`font-bold text-[12px] sm:text-[12.5px] hover:underline cursor-pointer truncate ${
+                                        isCmAdmin ? 'text-[#701a31] font-black' : 'text-[#050505]'
+                                      }`}
+                                    >
+                                      @{cm.author_alias}
+                                    </button>
+                                    {isCmAdmin ? (
+                                      <span className="px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider rounded-full bg-[#701a31] text-white flex items-center gap-0.5 shadow-2xs shrink-0">
+                                        <span>Official</span>
                                       </span>
-                                    )
-                                  )}
+                                    ) : (
+                                      cm.department && (
+                                        <span className="text-[10px] text-[#65676b] font-normal">
+                                          · {cm.department.replace('College of ', '')}
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
+
+                                  <p className={`text-[12.5px] sm:text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+                                    isCmAdmin ? 'text-[#1a050b] font-medium' : 'text-[#050505]'
+                                  }`}>
+                                    {cm.message}
+                                  </p>
                                 </div>
 
-                                <p className={`text-[12.5px] sm:text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
-                                  isCmAdmin ? 'text-[#1a050b] font-medium' : 'text-[#050505]'
-                                }`}>
-                                  {cm.message}
-                                </p>
+                                {/* Facebook Reaction Heart Indicator Badge attached to Comment Bubble */}
+                                {likesCount > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedCommentForReactors(cm);
+                                    }}
+                                    className="absolute -bottom-2 -right-1.5 sm:-right-2 bg-white px-1.5 py-0.5 rounded-full shadow-xs border border-[#e4e6eb] flex items-center gap-1 text-[10px] sm:text-[10.5px] font-bold text-[#65676b] select-none animate-in zoom-in-75 duration-150 z-10 hover:scale-105 active:scale-95 transition-all cursor-pointer group/pill"
+                                    title={`${likesCount} ${likesCount === 1 ? 'person reacted with love' : 'people reacted with love'} (Click to see who reacted)`}
+                                  >
+                                    <div className="w-3.5 h-3.5 rounded-full bg-[#f33e5b] flex items-center justify-center text-white shadow-2xs group-hover/pill:scale-110 transition-transform">
+                                      <Heart className="w-2 h-2 fill-white text-white" />
+                                    </div>
+                                    <span className="text-zinc-700 font-semibold">{likesCount}</span>
+                                  </button>
+                                )}
                               </div>
 
                               {/* Footer action links */}
-                              <div className="flex items-center gap-2.5 sm:gap-3 px-2 pt-0.5 text-[10.5px] sm:text-[11px] text-[#65676b] font-bold leading-none">
+                              <div className="flex items-center gap-2.5 sm:gap-3 px-2 pt-1 text-[10.5px] sm:text-[11px] text-[#65676b] font-bold leading-none">
                                 <span>{formatRelativeTime(cm.created_at, now)}</span>
                                 <button
                                   type="button"
                                   onClick={() => toggleLikeComment(cm)}
-                                  className={`hover:underline cursor-pointer flex items-center gap-0.5 ${
-                                    hasLiked ? 'text-[#f33e5b] font-bold' : ''
+                                  className={`hover:underline cursor-pointer flex items-center gap-1 transition-colors active:scale-95 ${
+                                    hasLiked ? 'text-[#f33e5b] font-bold' : 'text-[#65676b] hover:text-[#f33e5b]'
                                   }`}
                                 >
                                   <span>{hasLiked ? 'Liked' : 'Like'}</span>
-                                  {likesCount > 0 && <span>({likesCount})</span>}
                                 </button>
                                 <button
                                   type="button"
@@ -2197,6 +2347,107 @@ export const FreedomWall: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── COMMENT REACTORS MODAL (FACEBOOK STYLE BOTTOM SHEET / POPUP) ──────── */}
+      {selectedCommentForReactors && (() => {
+        const cm = selectedCommentForReactors;
+        const profiles = cm.liked_by_profiles || {};
+        const likedUserIds = cm.liked_by_users || Object.keys(profiles);
+        const reactorsList = likedUserIds.map((uid) => {
+          const prof = profiles[uid];
+          return {
+            id: uid,
+            username: prof?.username || (currentUser && currentUser.id === uid ? currentUser.username : (uid.length > 8 ? `Student #${uid.slice(-4)}` : uid)),
+            department: prof?.department?.replace('College of ', '') || (currentUser && currentUser.id === uid ? currentUser.department.replace('College of ', '') : 'CU Student'),
+            avatar_url: prof?.avatar_url || (prof?.username ? getAvatarForPseudonym(prof.username) : getAvatarForPseudonym(uid)),
+            reacted_at: prof?.reacted_at,
+          };
+        });
+
+        return (
+          <div
+            className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
+            onClick={() => setSelectedCommentForReactors(null)}
+          >
+            <div
+              className="bg-white border-t-2 sm:border border-[#e4e6eb] rounded-t-3xl sm:rounded-2xl max-w-sm w-full shadow-2xl flex flex-col max-h-[75vh] sm:max-h-[70vh] overflow-hidden animate-in slide-in-from-bottom duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Grab Bar on Mobile */}
+              <div className="pt-2.5 pb-1 flex flex-col items-center justify-center sm:hidden shrink-0 bg-white">
+                <div className="w-12 h-1 bg-zinc-300 rounded-full" />
+              </div>
+
+              {/* Header */}
+              <div className="px-4 py-3 sm:py-3.5 border-b border-[#e4e6eb] flex items-center justify-between shrink-0 bg-white">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-[#f33e5b] flex items-center justify-center text-white shadow-2xs">
+                    <Heart className="w-3.5 h-3.5 fill-white text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-[#050505] tracking-tight leading-tight">
+                      People who reacted
+                    </h3>
+                    <p className="text-[11px] text-[#65676b] font-medium">
+                      {reactorsList.length} {reactorsList.length === 1 ? 'reaction' : 'reactions'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCommentForReactors(null)}
+                  className="p-1.5 hover:bg-gray-100 rounded-full text-zinc-400 hover:text-black transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
+
+              {/* Reactors List */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 divide-y divide-[#f0f2f5] overscroll-contain">
+                {reactorsList.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-[#65676b] font-medium">
+                    No reactions yet.
+                  </div>
+                ) : (
+                  reactorsList.map((user) => (
+                    <div key={user.id} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="relative shrink-0">
+                          <img
+                            src={user.avatar_url || getAvatarForPseudonym(user.username)}
+                            alt={user.username}
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#e4e6eb] bg-amber-50 shadow-2xs"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
+                            }}
+                          />
+                          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#f33e5b] border-2 border-white flex items-center justify-center text-[8px] text-white shadow-2xs">
+                            <Heart className="w-2 h-2 fill-white text-white" />
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs sm:text-sm text-[#050505] truncate">
+                            {user.username}
+                          </p>
+                          <p className="text-[11px] text-[#65676b] font-medium truncate">
+                            {user.department}
+                          </p>
+                        </div>
+                      </div>
+                      {user.reacted_at && (
+                        <span className="text-[10px] text-zinc-400 font-medium shrink-0">
+                          {formatRelativeTime(user.reacted_at, now)}
+                        </span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Fullscreen Image / GIF Lightbox Modal */}
       {zoomedImage && (

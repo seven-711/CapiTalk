@@ -98,6 +98,7 @@ export interface FreedomComment {
   reply_to_alias?: string;
   likes_count?: number;
   liked_by_users?: string[];
+  liked_by_profiles?: Record<string, { username: string; department?: string; avatar_url?: string; reacted_at?: number }>;
   is_admin?: boolean;
   created_at: string;
 }
