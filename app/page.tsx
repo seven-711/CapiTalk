@@ -766,7 +766,7 @@ export default function Home() {
                 {/* Higalaay Festival Facebook Post Card */}
                 <article
                   id="higalaay-banner-post"
-                  className="overflow-hidden text-left w-full max-w-xl mx-auto bg-white dark:bg-[#18181b] border-2 border-black dark:border-[#27272a] rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]"
+                  className="overflow-hidden text-left w-full max-w-xl mx-auto rounded-3xl"
                 >
                   {/* Post Header */}
                   <div className="p-3 sm:p-3.5 flex items-center justify-between">
