@@ -1277,9 +1277,6 @@ export const MusicWall: React.FC = () => {
                     <div className="space-y-3 animate-in fade-in duration-150">
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 bg-[#701a31] text-white text-[10px] font-black rounded-full uppercase tracking-wider">
-                            YouTube Music
-                          </span>
                           <span className="text-xs font-bold text-neutral-500 truncate max-w-[180px]">
                             {post.song_title}
                           </span>
