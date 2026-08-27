@@ -889,7 +889,6 @@ export const MusicWall: React.FC = () => {
                 }}
                 className="inline-flex items-center gap-2 bg-white/10 text-white font-black text-sm px-6 py-3 rounded-xl border-2 border-white/30 hover:bg-white/20 hover:border-white/50 transition-all backdrop-blur-sm"
               >
-                <Music className="w-4 h-4" />
                 Browse Songs
               </a>
             </div>
@@ -976,35 +975,6 @@ export const MusicWall: React.FC = () => {
       {/* ──────────────────────────────────────────────────────── */}
 
       <div id="recent-songs" className="flex-1 max-w-[1200px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-8 space-y-4">
-        {/* Prominent "Dedicate a Song" Composer Card */}
-        <div className="sm:rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setViewState('register')}
-            className="shrink-0 relative group/avatar cursor-pointer"
-            title={currentUser ? `@${currentUser.username}` : 'Profile'}
-          >
-            <img
-              src={currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg')}
-              alt={currentUser?.username || 'You'}
-              className="w-10 h-10 rounded-full object-cover border border-[#d1d5dc] bg-[#3a3b3c] group-hover/avatar:opacity-90 transition-opacity"
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewState('dedicate_song')}
-            className="flex-1 bg-[#f0f2f5] hover:bg-[#e4e6eb] border border-[#e4e6eb] hover:border-[#ccd0d5] transition-all rounded-full px-4 py-2.5 text-left text-[#65676b] hover:text-black text-[14px] sm:text-[15px] font-medium truncate cursor-pointer flex items-center justify-between gap-2 shadow-2xs group"
-          >
-            <span className="truncate flex items-center gap-2">
-              <span>Dedicate a song, {currentUser?.username || 'Capitolian'}...</span>
-            </span>
-            <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-            </div>
-          </button>
-        </div>
-
         {/* Song Cards Grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-4 md:gap-5">
           {filteredPosts.map((post) => renderPostCard(post))}

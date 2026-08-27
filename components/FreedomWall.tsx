@@ -1474,7 +1474,7 @@ export const FreedomWall: React.FC = () => {
       {/* ── Main Feed Column (Matching MidtermSzn max-w-[620px]) ────────────── */}
       <main className="flex-1 max-w-[620px] mx-auto w-full space-y-3 sm:space-y-4">
         {/* ── Prominent "What's on your mind?" Composer Card ──────────────────── */}
-        <div className="bg-white border-y sm:border border-[#e4e6eb] sm:rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all flex items-center gap-3">
+        <div className="px-3 transition-all flex items-center gap-3">
           {/* User Avatar (Outside of the input element) */}
           <button
             type="button"
@@ -1508,7 +1508,7 @@ export const FreedomWall: React.FC = () => {
         </div>
 
         {/* ── Filter Tabs & Search Bar ────────────────────────────────────────── */}
-        <div className="bg-white border-y sm:border border-[#e4e6eb] sm:rounded-xl p-2 sm:p-2.5 shadow-xs transition-all">
+        <div className="p-2 transition-all">
           {isSearchExpanded || searchQuery ? (
             <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
               <div className="relative flex-1 min-w-0">
@@ -1538,7 +1538,7 @@ export const FreedomWall: React.FC = () => {
                   setSearchQuery('');
                   setIsSearchExpanded(false);
                 }}
-                className="px-3 py-1.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold rounded-lg border border-[#e4e6eb] shrink-0 cursor-pointer transition-colors"
+                className="px-3 py-2.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold rounded-lg border border-[#e4e6eb] shrink-0 cursor-pointer transition-colors"
               >
                 Cancel
               </button>
@@ -1606,7 +1606,7 @@ export const FreedomWall: React.FC = () => {
                     setIsSearchExpanded(true);
                     setTimeout(() => searchInputRef.current?.focus(), 50);
                   }}
-                  className="px-2.5 py-1.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] border border-[#e4e6eb] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   title="Search campus notes"
                 >
                   <Search className="w-3.5 h-3.5" />
@@ -1616,17 +1616,17 @@ export const FreedomWall: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowDeptModal(true)}
-                  className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer border relative ${
+                  className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer relative ${
                     departmentFilter !== 'all'
                       ? 'bg-black text-white border-black'
-                      : 'bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505] border-[#e4e6eb]'
+                      : 'bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#65676b] hover:text-[#050505]'
                   }`}
                   title={departmentFilter === 'all' ? 'Filter by department' : `Filtering by ${departmentFilter.replace('College of ', '')}`}
                   aria-label="Filter by department"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                   {departmentFilter !== 'all' && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#f33e5b] ring-2 ring-white" />
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-white" />
                   )}
                 </button>
               </div>
