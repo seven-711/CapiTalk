@@ -197,7 +197,9 @@ export const DedicateSongPage: React.FC = () => {
       try {
         const res = await fetch(`/api/music/search?q=${encodeURIComponent(songSearchQuery)}`);
         const data = await res.json();
-        if (data.results?.trackmatches?.track) {
+        if (Array.isArray(data.tracks) && data.tracks.length > 0) {
+          setSongSearchResults(data.tracks);
+        } else if (data.results?.trackmatches?.track) {
           setSongSearchResults(data.results.trackmatches.track);
         } else {
           setSongSearchResults([]);
@@ -463,7 +465,7 @@ export const DedicateSongPage: React.FC = () => {
                       const img = track.image_url || (track.image?.[1]?.['#text'] && !track.image[1]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f') ? track.image[1]['#text'] : null);
                       return (
                         <div
-                          key={i}
+                          key={`song-result-${track.id || track.name}-${i}`}
                           onClick={() => {
                             setSelectedSong(track);
                             setSongSearchResults([]);
@@ -473,17 +475,25 @@ export const DedicateSongPage: React.FC = () => {
                           className="flex items-center gap-3 p-2.5 hover:bg-[#fff1f3] cursor-pointer transition-colors"
                         >
                           {img ? (
-                            <img src={img} alt="" referrerPolicy="no-referrer" className="w-9 h-9 rounded-lg border border-black/10 object-cover shrink-0" />
+                            <img src={img} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-lg border border-black/10 object-cover shrink-0" />
                           ) : (
-                            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center border border-black/10 shrink-0 text-xs">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center border border-black/10 shrink-0 text-xs">
                               🎵
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs sm:text-sm font-extrabold truncate text-black">{track.name}</div>
-                            <div className="text-[11px] font-semibold text-gray-500 truncate">{track.artist}</div>
+                            <div className="text-xs sm:text-sm font-extrabold truncate text-black">{track.name || track.title}</div>
+                            <div className="text-[11px] font-semibold text-gray-500 truncate flex items-center gap-1.5">
+                              <span>{track.artist}</span>
+                              {track.duration && (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-gray-400 font-mono text-[10px]">{track.duration}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-black text-white rounded-full shrink-0">
+                          <span className="text-[10px] font-bold px-2.5 py-1 bg-black text-white rounded-full shrink-0 shadow-2xs hover:bg-[#701a31] transition-colors">
                             Select
                           </span>
                         </div>

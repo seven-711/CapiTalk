@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter, Geist } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
-const inter = Inter({
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["300"],
+  variable: "--font-poppins",
   display: "swap",
+  fallback: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
 });
 
 export const metadata: Metadata = {
@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("h-full", "antialiased", inter.variable, "font-sans", geist.variable)} suppressHydrationWarning>
+    <html lang="en" className={cn("h-full", "antialiased", poppins.variable, "font-sans")} suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-[#f4f4f0] text-[#000000] selection:bg-[#ff90e8] selection:text-[#000000]">
         {children}
         <SpeedInsights />

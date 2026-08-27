@@ -77,7 +77,7 @@ export const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, class
 
   const togglePlay = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !src) return;
 
     if (isPlaying) {
       audio.pause();
@@ -85,7 +85,14 @@ export const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, class
       if (hasEnded) {
         audio.currentTime = 0;
       }
-      audio.play().catch((err) => console.error('Audio playback error:', err));
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.warn('Audio playback notice:', err);
+          }
+        });
+      }
     }
   };
 
@@ -112,6 +119,10 @@ export const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src, class
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  if (!src) {
+    return null;
+  }
 
   return (
     <div className={`bg-white border-2 border-black rounded-lg sm:rounded-xl p-2 sm:p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all ${className}`}>

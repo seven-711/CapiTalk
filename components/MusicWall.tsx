@@ -165,9 +165,18 @@ export const MusicWall: React.FC = () => {
     if (playingPostId === post.id) {
       if (activeAudioRef.current) {
         if (activeAudioRef.current.paused) {
-          activeAudioRef.current.play().catch(console.error);
+          const p = activeAudioRef.current.play();
+          if (p !== undefined) {
+            p.catch((err) => {
+              if (err.name !== 'AbortError') {
+                console.warn('Audio play notice:', err);
+              }
+            });
+          }
         } else {
-          activeAudioRef.current.pause();
+          try {
+            activeAudioRef.current.pause();
+          } catch (e) {}
           setPlayingPostId(null);
         }
       }
@@ -176,7 +185,9 @@ export const MusicWall: React.FC = () => {
 
     // If another song is playing, pause it first
     if (activeAudioRef.current) {
-      activeAudioRef.current.pause();
+      try {
+        activeAudioRef.current.pause();
+      } catch (e) {}
       activeAudioRef.current = null;
     }
 
@@ -188,7 +199,9 @@ export const MusicWall: React.FC = () => {
     if (!previewUrl && post.song_title && post.song_artist) {
       try {
         setAudioLoadingPostId(post.id);
-        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(post.song_artist + ' ' + post.song_title)}&entity=song&limit=1`);
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(post.song_artist + ' ' + post.song_title)}&entity=song&limit=1`, {
+          signal: AbortSignal.timeout(3000),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.results && data.results.length > 0 && data.results[0].previewUrl) {
@@ -197,13 +210,13 @@ export const MusicWall: React.FC = () => {
           }
         }
       } catch (err) {
-        console.warn('Failed to fetch preview audio:', err);
+        // Ignore iTunes preview fetch error
       } finally {
         setAudioLoadingPostId(null);
       }
     }
 
-    if (!previewUrl) {
+    if (!previewUrl || !previewUrl.trim()) {
       setSelectedPostForDetail(post);
       return;
     }
@@ -221,9 +234,16 @@ export const MusicWall: React.FC = () => {
         setPlayingPostId(null);
       };
 
-      await audio.play();
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.warn('Audio playback notice:', err);
+          }
+          setPlayingPostId(null);
+        });
+      }
     } catch (err) {
-      console.error('Audio playback failed:', err);
       setPlayingPostId(null);
     }
   };
