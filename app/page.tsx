@@ -20,6 +20,7 @@ import { KeptConnectionsPage } from '../components/KeptConnectionsPage';
 import { DedicateSongPage } from '../components/DedicateSongPage';
 import { StreakModal } from '../components/StreakModal';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import { getAvatarForPseudonym } from '../lib/constants';
 import {
   Sparkles,
   ShieldCheck,
@@ -37,7 +38,40 @@ import {
   Heart,
   MessageCircle,
   Flame,
+  Globe,
+  Send,
 } from 'lucide-react';
+
+interface BannerComment {
+  id: string;
+  author: string;
+  department: string;
+  avatarUrl?: string;
+  text: string;
+  createdAt: number;
+  likes: number;
+  isLiked?: boolean;
+}
+
+
+const formatRelativeTime = (timestamp?: number | string | null, currentNow: number = Date.now()): string => {
+  if (!timestamp) return 'Just now';
+  const numTimestamp = typeof timestamp === 'string' ? Number(timestamp) || Date.parse(timestamp) : timestamp;
+  if (!numTimestamp || isNaN(numTimestamp)) return 'Just now';
+
+  const diffSeconds = Math.max(0, Math.floor((currentNow - numTimestamp) / 1000));
+  if (diffSeconds < 45) return 'Just now';
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 4) return `${diffWeeks}w ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+};
 
 const FacebookIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -76,6 +110,135 @@ export default function Home() {
 
   const [transitionPhase, setTransitionPhase] = React.useState<'idle' | 'in' | 'out'>('idle');
   const dotLottieRef = React.useRef<any>(null);
+  const [isHeroHearted, setIsHeroHearted] = React.useState(false);
+  const [heroHeartCount, setHeroHeartCount] = React.useState(0);
+  const [isCommentsModalOpen, setIsCommentsModalOpen] = React.useState(false);
+  const [commentsList, setCommentsList] = React.useState<BannerComment[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('higalaay_banner_comments_v2');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [newCommentInput, setNewCommentInput] = React.useState('');
+  const [modalDragY, setModalDragY] = React.useState(0);
+  const [isModalDragging, setIsModalDragging] = React.useState(false);
+  const dragStartYRef = React.useRef<number | null>(null);
+  const commentsContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('higalaay_banner_comments_v2', JSON.stringify(commentsList));
+      } catch (e) {}
+    }
+  }, [commentsList]);
+
+  const handleToggleHeroHeart = () => {
+    if (isHeroHearted) {
+      setIsHeroHearted(false);
+      setHeroHeartCount((c) => Math.max(0, c - 1));
+    } else {
+      setIsHeroHearted(true);
+      setHeroHeartCount((c) => c + 1);
+    }
+  };
+
+  const handlePostBannerComment = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newCommentInput.trim()) return;
+
+    const newComment: BannerComment = {
+      id: 'h_' + Date.now(),
+      author: currentUser?.username || 'Capitolian_' + Math.floor(Math.random() * 899 + 100),
+      department: currentUser?.department?.replace('College of ', '') || 'CU Student',
+      avatarUrl: currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg'),
+      text: newCommentInput.trim(),
+      createdAt: Date.now(),
+      likes: 0,
+      isLiked: false,
+    };
+
+    setCommentsList((prev) => [newComment, ...prev]);
+    setNewCommentInput('');
+    if (commentsContainerRef.current) {
+      commentsContainerRef.current.scrollTop = 0;
+    }
+  };
+
+  const handleToggleCommentLike = (commentId: string) => {
+    setCommentsList((prev) =>
+      prev.map((c) => {
+        if (c.id === commentId) {
+          const isLiked = !c.isLiked;
+          return {
+            ...c,
+            isLiked,
+            likes: isLiked ? c.likes + 1 : Math.max(0, c.likes - 1),
+          };
+        }
+        return c;
+      })
+    );
+  };
+
+  // Slide Back Gestures (Touch & Pointer for Mobile + Desktop)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    dragStartYRef.current = e.touches[0].clientY;
+    setIsModalDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (dragStartYRef.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - dragStartYRef.current;
+    if (deltaY > 0) {
+      setModalDragY(deltaY);
+    } else {
+      setModalDragY(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (modalDragY > 75) {
+      setIsCommentsModalOpen(false);
+    }
+    setModalDragY(0);
+    setIsModalDragging(false);
+    dragStartYRef.current = null;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    dragStartYRef.current = e.clientY;
+    setIsModalDragging(true);
+    try {
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    } catch (err) {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isModalDragging || dragStartYRef.current === null) return;
+    const deltaY = e.clientY - dragStartYRef.current;
+    if (deltaY > 0) {
+      setModalDragY(deltaY);
+    } else {
+      setModalDragY(0);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (modalDragY > 75) {
+      setIsCommentsModalOpen(false);
+    }
+    setModalDragY(0);
+    setIsModalDragging(false);
+    dragStartYRef.current = null;
+    try {
+      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch (err) {}
+  };
 
   const isMatchmakingTimedOut = showQueueTimeoutModal || (viewState === 'queue' && !isSearching && searchingTimeSeconds >= 35);
   const shouldHideNavAndFooter = viewState === 'chat' || viewState === 'kept_connections' || (viewState === 'queue' && isSearching) || isMatchmakingTimedOut || viewState === 'midterm_szn' || transitionPhase !== 'idle';
@@ -275,7 +438,7 @@ export default function Home() {
           src="/animated-assets/green_splash_transition.lottie"
           autoplay={false}
           loop={false}
-          dotLottieRefCallback={(ref) => {
+          dotLottieRefCallback={(ref: any) => {
             dotLottieRef.current = ref;
           }}
           className="w-full h-full object-cover"
@@ -368,39 +531,114 @@ export default function Home() {
         {viewState === 'landing' && (
           <div className="w-full text-black font-sans">
             {/* ── HERO SECTION ──────────────────────────────────────────────── */}
-            <section className="pt-3 pb-8 sm:pt-6 sm:pb-12 px-3 sm:px-6 max-w-[1100px] mx-auto">
+            <section className="sm:pt-6 sm:pb-12 sm:px-6 max-w-[1100px] mx-auto">
               <div className="text-center max-w-3xl mx-auto space-y-6">
-                {/* Midterm Season Spotlight Banner */}
-                <button
-                  id="midterm-banner-btn"
-                  type="button"
-                  onClick={handleMidtermBannerClick}
-                  className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all duration-200 cursor-pointer text-left block"
+                {/* Higalaay Festival Facebook Post Card */}
+                <article
+                  id="higalaay-banner-post"
+                  className="overflow-hidden text-left w-full max-w-xl mx-auto"
                 >
-                  <div className="relative w-full aspect-[16/6] sm:aspect-[16/4.5] overflow-hidden bg-[#0d2a0d]">
-                    <img
-                      src="/images/banner.webp"
-                      alt="Midterm Season — Ready naka?"
-                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                      draggable={false}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-                    <div className="absolute inset-0 flex flex-col justify-center pl-5 sm:pl-8">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#ffc900] text-black text-[10px] sm:text-xs font-black rounded-full border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] w-fit mb-2 uppercase tracking-wider">
-                        Midterm Season
-                      </span>
-                      <h2 className="text-white font-black text-lg sm:text-2xl md:text-3xl leading-tight tracking-tight drop-shadow-md">
-                        Midterm na! Ready naka?
-                      </h2>
-                      <p className="text-white/90 text-xs sm:text-sm font-semibold mt-1 drop-shadow">
-                        React and let the campus know how you feel &rarr;
-                      </p>
+                  {/* Post Header */}
+                  <div className="p-3 sm:p-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      {/* Avatar */}
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#701a31] to-[#4d0d1f] flex items-center justify-center text-white font-black text-xs sm:text-sm border border-black shadow-xs">
+                          CT
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#1877f2] border-2 border-white flex items-center justify-center text-[9px] text-white font-bold">
+                          ✓
+                        </div>
+                      </div>
+
+                      {/* Author Meta */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 leading-snug">
+                          <span className="font-bold text-sm sm:text-[15px] text-[#050505] truncate">
+                            CapiTalk
+                          </span>
+                          <span className="text-[11px] text-zinc-500 font-medium shrink-0">· Official</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[11px] sm:text-xs text-zinc-500 font-medium">
+                          <span>Fiesta Season</span>
+                          <span>·</span>
+                          <Globe className="w-3 h-3 text-zinc-500" />
+                          <span>Public</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </button>
+
+                  {/* Post Caption */}
+                  <div className="px-3 sm:px-3.5 pb-2.5 text-xs sm:text-sm text-[#050505] leading-relaxed">
+                    <p>
+                      Happy Higalaay Festival, Cagayan de Oro! 🎉✨ Viva Señor San Agustin! Wishing all Capitolians, friends, and higalas a joyous, safe, and festive celebration! 💛🎺🥁
+                    </p>
+                  </div>
+
+                  {/* Pubmat Image */}
+                  <div className="relative w-full bg-[#f8a81d] overflow-hidden border-y border-black/10">
+                    <img
+                      src="/images/higalaay_banner.webp"
+                      alt="Happy Higalaay Festival — Cagayan de Oro"
+                      className="w-full h-auto object-cover max-h-[460px] mx-auto block select-none"
+                      draggable={false}
+                    />
+                  </div>
+
+                  {/* Reaction Summary Bar */}
+                  <div className="px-3 sm:px-3.5 py-2 flex items-center justify-between text-xs text-zinc-500 border-b border-zinc-100">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 flex items-center justify-center text-xs text-white shadow-2xs">
+                        ❤️
+                      </span>
+                      <span className="font-semibold text-zinc-700 text-xs sm:text-[13px]">
+                        {heroHeartCount.toLocaleString()}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCommentsModalOpen(true)}
+                      className="text-[11px] sm:text-xs text-zinc-500 hover:text-black font-medium hover:underline cursor-pointer"
+                    >
+                      {commentsList.length} {commentsList.length === 1 ? 'comment' : 'comments'}
+                    </button>
+                  </div>
+
+                  {/* Post Action Buttons: Only Heart Reaction and Comments Button (No Share) */}
+                  <div className="p-1 sm:p-1.5 grid grid-cols-2 gap-1.5">
+                    {/* 1. Heart Reaction Button */}
+                    <button
+                      type="button"
+                      onClick={handleToggleHeroHeart}
+                      className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                        isHeroHearted
+                          ? 'text-[#f33e5b] bg-[#f33e5b]/10 hover:bg-[#f33e5b]/15'
+                          : 'text-zinc-600 hover:text-[#f33e5b] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <Heart
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isHeroHearted ? 'fill-[#f33e5b] text-[#f33e5b] scale-110' : ''
+                        }`}
+                      />
+                      <span>{isHeroHearted ? 'Loved' : 'Love'}</span>
+                    </button>
+
+                    {/* 2. Comments Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsCommentsModalOpen(true)}
+                      className="py-2 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-zinc-600 hover:text-black hover:bg-zinc-100 transition-all cursor-pointer select-none active:scale-95"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Comments</span>
+                    </button>
+                  </div>
+                </article>
 
                 {/* 3 Uniform Feature Quick-Jump Cards */}
-                <div className="grid grid-cols-3 gap-2.5 sm:gap-4 max-w-lg mx-auto w-full pt-1">
+                <div className="grid grid-cols-3 gap-2.5 sm:gap-4 max-w-lg mx-auto w-full px-4 pt-1">
                   {/* 1. Live 1-on-1 Chat */}
                   <button
                     type="button"
@@ -455,7 +693,7 @@ export default function Home() {
                 </div>
 
                 {/* Primary CTA Button */}
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <div className="pt-2 px-4 flex flex-col sm:flex-row items-center justify-center gap-3">
                   {currentUser ? (
                     <button
                       type="button"
@@ -735,6 +973,155 @@ export default function Home() {
             </div>
           </div>
         </footer>
+      )}
+
+      {/* ── HIGALAAY COMMENTS BOTTOM-TO-TOP SHEET MODAL WITH SLIDE BACK GESTURE ── */}
+      {isCommentsModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex flex-col justify-end sm:justify-center items-center animate-in fade-in duration-200"
+          onClick={() => {
+            setIsCommentsModalOpen(false);
+            setModalDragY(0);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${modalDragY}px)`,
+              transition: isModalDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl border-t-2 sm:border-2 border-black shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom duration-300 ease-out font-sans"
+          >
+            {/* Grab Handle & Slide-back Drag Area */}
+            <div
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className="pt-2.5 pb-1 flex flex-col items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none bg-white hover:bg-zinc-50/80 transition-colors border-b border-zinc-100 shrink-0"
+              title="Drag down to close"
+            >
+              <div className="w-12 h-1.5 bg-zinc-300 rounded-full mb-1.5" />
+              <div className="w-full px-4 pb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-sm sm:text-base text-[#050505] tracking-tight">
+                    Comments
+                  </h3>
+                  <span className="px-2 py-0.5 bg-[#f0f2f5] text-zinc-600 text-[11px] font-bold rounded-full">
+                    {commentsList.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCommentsModalOpen(false)}
+                  className="p-1 rounded-full text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer"
+                  aria-label="Close comments"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Comments Feed */}
+            <div
+              ref={commentsContainerRef}
+              className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#f8f9fa] overscroll-contain"
+            >
+              {/* Comments List */}
+              {commentsList.length === 0 ? (
+                <div className="text-center py-14 px-4 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-xl mb-2.5 text-zinc-400">
+                    💬
+                  </div>
+                  <p className="font-bold text-sm text-[#050505]">No comments yet</p>
+                  <p className="text-xs text-zinc-500 mt-1 max-w-xs leading-relaxed">
+                    Be the first to share a thought or greeting for Higalaay Festival!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {commentsList.map((c) => (
+                    <div key={c.id} className="flex items-start gap-2.5">
+                      <img
+                        src={c.avatarUrl || (c.author ? getAvatarForPseudonym(c.author) : '/avatars/coin-left.jpg')}
+                        alt={c.author}
+                        className="w-8 h-8 rounded-full object-cover border border-black/15 shrink-0 mt-0.5 bg-amber-50 shadow-2xs"
+                        onError={(e) => {
+                          (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="inline-block bg-white border border-zinc-200 rounded-2xl px-3.5 py-2 text-xs sm:text-[13px] shadow-2xs max-w-full">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="font-bold text-[#050505] text-[12px] sm:text-xs">
+                              {c.author}
+                            </span>
+                            {c.department && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-[#f0f2f5] text-zinc-600 rounded-md">
+                                {c.department}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-zinc-800 leading-snug break-words">
+                            {c.text}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 px-2 mt-1 text-[11px] text-zinc-500 font-semibold">
+                          <span>{formatRelativeTime(c.createdAt)}</span>
+                          <span>·</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCommentLike(c.id)}
+                            className={`flex items-center gap-1 hover:underline cursor-pointer ${
+                              c.isLiked ? 'text-[#f33e5b] font-bold' : 'text-zinc-500'
+                            }`}
+                          >
+                            <Heart className={`w-3 h-3 ${c.isLiked ? 'fill-[#f33e5b]' : ''}`} />
+                            <span>{c.likes > 0 ? c.likes : 'Like'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sticky Bottom Comment Composer */}
+            <div className="p-2.5 sm:p-3 bg-white border-t border-zinc-200 shrink-0">
+              <form onSubmit={handlePostBannerComment} className="flex items-center gap-2">
+                <img
+                  src={currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg')}
+                  alt={currentUser?.username || 'You'}
+                  className="w-8 h-8 rounded-full object-cover border border-black/15 shrink-0 bg-amber-50 shadow-2xs"
+                  onError={(e) => {
+                    (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
+                  }}
+                />
+                <div className="flex-1 relative flex items-center">
+                  <input
+                    type="text"
+                    value={newCommentInput}
+                    onChange={(e) => setNewCommentInput(e.target.value)}
+                    placeholder="Write a festival greeting..."
+                    className="w-full bg-[#f0f2f5] hover:bg-[#ebedf0] focus:bg-white text-xs sm:text-[13px] text-[#050505] placeholder-[#65676b] px-3.5 py-2 pr-9 rounded-full border border-transparent focus:border-[#701a31] focus:outline-none transition-all"
+                  />
+                  {newCommentInput.trim() && (
+                    <button
+                      type="submit"
+                      className="absolute right-2 p-1 text-[#701a31] hover:text-[#521323] transition-colors cursor-pointer"
+                      title="Post comment"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Daily Streak Flame Celebration Modal */}
