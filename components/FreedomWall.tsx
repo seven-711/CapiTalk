@@ -1164,15 +1164,13 @@ export const FreedomWall: React.FC = () => {
               }`}>
                 {!isPostAdmin && post.department && (
                   <>
-                    <span className="font-normal truncate max-w-[130px] sm:max-w-[180px]">
+                    <span className="font-normal text-[11px] truncate max-w-[130px] sm:max-w-[180px]">
                       {post.department.replace('College of ', '')}
                     </span>
                     <span>·</span>
                   </>
                 )}
-                <span>{formatRelativeTime(post.created_at, now)}</span>
-                <span>·</span>
-                <Globe className={`w-3 h-3 shrink-0 ${isDark ? 'text-white/80' : 'text-[#65676b]'}`} />
+                <span className='text-[11px]'>{formatRelativeTime(post.created_at, now)}</span>
               </div>
             </div>
           </div>
@@ -1413,7 +1411,7 @@ export const FreedomWall: React.FC = () => {
             className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
           >
             {renderStackedReactionBadges(hasLiked, post.likes_count)}
-            <span className={`font-medium text-[13px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}>
+            <span className={`font-medium text-[11px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}>
               {post.likes_count > 0 ? `${post.likes_count} ${post.likes_count === 1 ? 'reaction' : 'reactions'}` : 'Be the first to react'}
             </span>
           </button>
@@ -1421,7 +1419,7 @@ export const FreedomWall: React.FC = () => {
           <button
             type="button"
             onClick={() => openCommentsModal(post)}
-            className={`hover:underline cursor-pointer font-medium text-[13px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}
+            className={`hover:underline cursor-pointer font-medium text-[11px] ${isDark ? 'text-white/90' : 'text-[#65676b]'}`}
           >
             {commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}
           </button>
@@ -1452,7 +1450,6 @@ export const FreedomWall: React.FC = () => {
             title="Tap to like · Hold to see who liked"
           >
             <Heart className={`w-4 h-4 ${hasLiked ? (isDark ? 'fill-rose-300 text-rose-300' : 'fill-[#f33e5b] text-[#f33e5b]') : ''}`} />
-            <span>{hasLiked ? 'Liked' : 'Like'}</span>
           </button>
 
           {/* Comment Button */}
@@ -1466,7 +1463,6 @@ export const FreedomWall: React.FC = () => {
             }`}
           >
             <FbCommentSvg className="w-4 h-4" />
-            <span>Comment</span>
           </button>
         </div>
       </article>
