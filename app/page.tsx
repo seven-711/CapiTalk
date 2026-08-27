@@ -53,6 +53,14 @@ interface BannerComment {
   isLiked?: boolean;
 }
 
+interface ReactedUser {
+  id: string;
+  username: string;
+  department?: string;
+  avatarUrl?: string;
+  reactedAt: number;
+}
+
 
 const formatRelativeTime = (timestamp?: number | string | null, currentNow: number = Date.now()): string => {
   if (!timestamp) return 'Just now';
@@ -110,8 +118,37 @@ export default function Home() {
 
   const [transitionPhase, setTransitionPhase] = React.useState<'idle' | 'in' | 'out'>('idle');
   const dotLottieRef = React.useRef<any>(null);
-  const [isHeroHearted, setIsHeroHearted] = React.useState(false);
-  const [heroHeartCount, setHeroHeartCount] = React.useState(0);
+  const [isReactedUsersModalOpen, setIsReactedUsersModalOpen] = React.useState(false);
+  const [reactedModalDragY, setReactedModalDragY] = React.useState(0);
+  const [isReactedModalDragging, setIsReactedModalDragging] = React.useState(false);
+  const reactedDragStartYRef = React.useRef<number | null>(null);
+
+  const [reactedUsersList, setReactedUsersList] = React.useState<ReactedUser[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('higalaay_banner_reacted_users_v1');
+        if (saved) return JSON.parse(saved);
+        const wasHearted = localStorage.getItem('higalaay_banner_hearted') === 'true';
+        if (wasHearted) {
+          return [{
+            id: 'me',
+            username: 'You',
+            department: 'CU Student',
+            avatarUrl: '/avatars/coin-left.jpg',
+            reactedAt: Date.now(),
+          }];
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const isHeroHearted = React.useMemo(() => {
+    const myId = currentUser?.id || currentUser?.username || 'me';
+    const myName = currentUser?.username || 'You';
+    return reactedUsersList.some((u) => u.id === myId || u.username === myName || u.id === 'me');
+  }, [reactedUsersList, currentUser]);
+
   const [isCommentsModalOpen, setIsCommentsModalOpen] = React.useState(false);
   const [commentsList, setCommentsList] = React.useState<BannerComment[]>(() => {
     if (typeof window !== 'undefined') {
@@ -131,18 +168,38 @@ export default function Home() {
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
+        localStorage.setItem('higalaay_banner_reacted_users_v1', JSON.stringify(reactedUsersList));
+        localStorage.setItem('higalaay_banner_hearted', String(isHeroHearted));
+        localStorage.setItem('higalaay_banner_heart_count', String(reactedUsersList.length));
+      } catch (e) {}
+    }
+  }, [reactedUsersList, isHeroHearted]);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
         localStorage.setItem('higalaay_banner_comments_v2', JSON.stringify(commentsList));
       } catch (e) {}
     }
   }, [commentsList]);
 
   const handleToggleHeroHeart = () => {
+    const myId = currentUser?.id || currentUser?.username || 'me';
+    const myName = currentUser?.username || 'You';
+    const myDept = currentUser?.department?.replace('College of ', '') || 'CU Student';
+    const myAvatar = currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg');
+
     if (isHeroHearted) {
-      setIsHeroHearted(false);
-      setHeroHeartCount((c) => Math.max(0, c - 1));
+      setReactedUsersList((prev) => prev.filter((u) => u.id !== myId && u.username !== myName && u.id !== 'me'));
     } else {
-      setIsHeroHearted(true);
-      setHeroHeartCount((c) => c + 1);
+      const newReactedUser: ReactedUser = {
+        id: myId,
+        username: myName,
+        department: myDept,
+        avatarUrl: myAvatar,
+        reactedAt: Date.now(),
+      };
+      setReactedUsersList((prev) => [newReactedUser, ...prev.filter((u) => u.id !== myId && u.username !== myName && u.id !== 'me')]);
     }
   };
 
@@ -588,14 +645,19 @@ export default function Home() {
 
                   {/* Reaction Summary Bar */}
                   <div className="px-3 sm:px-3.5 py-2 flex items-center justify-between text-xs text-zinc-500 border-b border-zinc-100">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-5 h-5 flex items-center justify-center text-xs text-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setIsReactedUsersModalOpen(true)}
+                      className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group"
+                      title="View who reacted"
+                    >
+                      <span className="w-5 h-5 flex items-center justify-center text-xs text-white group-hover:scale-110 transition-transform">
                         ❤️
                       </span>
-                      <span className="font-semibold text-zinc-700 text-xs sm:text-[13px]">
-                        {heroHeartCount.toLocaleString()}
+                      <span className="font-semibold text-zinc-700 text-xs sm:text-[13px] group-hover:underline">
+                        {reactedUsersList.length.toLocaleString()}
                       </span>
-                    </div>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsCommentsModalOpen(true)}
@@ -973,6 +1035,118 @@ export default function Home() {
             </div>
           </div>
         </footer>
+      )}
+
+      {/* ── WHO REACTED MODAL (FACEBOOK STYLE BOTTOM SHEET / DIALOG) ──────── */}
+      {isReactedUsersModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex flex-col justify-end sm:justify-center items-center animate-in fade-in duration-200"
+          onClick={() => {
+            setIsReactedUsersModalOpen(false);
+            setReactedModalDragY(0);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${reactedModalDragY}px)`,
+              transition: isReactedModalDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl border-t-2 sm:border-2 border-black shadow-2xl flex flex-col max-h-[75vh] sm:max-h-[70vh] overflow-hidden animate-in slide-in-from-bottom duration-300 ease-out font-sans"
+          >
+            {/* Grab Handle & Header */}
+            <div
+              onTouchStart={(e) => {
+                reactedDragStartYRef.current = e.touches[0].clientY;
+                setIsReactedModalDragging(true);
+              }}
+              onTouchMove={(e) => {
+                if (reactedDragStartYRef.current === null) return;
+                const delta = e.touches[0].clientY - reactedDragStartYRef.current;
+                if (delta > 0) setReactedModalDragY(delta);
+              }}
+              onTouchEnd={() => {
+                if (reactedModalDragY > 75) setIsReactedUsersModalOpen(false);
+                setReactedModalDragY(0);
+                setIsReactedModalDragging(false);
+                reactedDragStartYRef.current = null;
+              }}
+              className="pt-2.5 pb-1 flex flex-col items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none bg-white border-b border-zinc-100 shrink-0"
+              title="Drag down to close"
+            >
+              <div className="w-12 h-1.5 bg-zinc-300 rounded-full mb-2" />
+              <div className="w-full px-4 pb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-sm sm:text-base text-[#050505] tracking-tight">
+                    People who reacted
+                  </h3>
+                  <span className="px-2 py-0.5 bg-[#f0f2f5] text-zinc-600 text-[11px] font-bold rounded-full">
+                    {reactedUsersList.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsReactedUsersModalOpen(false)}
+                  className="p-1 rounded-full text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Reacted Users List */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-white overscroll-contain">
+              {reactedUsersList.length === 0 ? (
+                <div className="text-center py-10 px-4 flex flex-col items-center justify-center">
+                  <span className="text-3xl mb-2">❤️</span>
+                  <p className="font-bold text-sm text-[#050505]">No reactions yet</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">Be the first to react with love!</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-100">
+                  {reactedUsersList.map((user) => (
+                    <div key={user.id} className="py-2.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Avatar with Love Badge Overlay */}
+                        <div className="relative shrink-0">
+                          <img
+                            src={user.avatarUrl || (user.username ? getAvatarForPseudonym(user.username) : '/avatars/coin-left.jpg')}
+                            alt={user.username}
+                            className="w-10 h-10 rounded-full object-cover border border-black/15 bg-amber-50 shadow-2xs"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
+                            }}
+                          />
+                          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 flex items-center justify-center text-[8px] text-white shadow-2xs">
+                            ❤️
+                          </span>
+                        </div>
+
+                        {/* Name & Department */}
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs sm:text-sm text-[#050505] truncate">
+                            {user.username}
+                          </p>
+                          {user.department && (
+                            <p className="text-[11px] text-zinc-500 font-medium truncate">
+                              {user.department}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Relative time */}
+                      <span className="text-[10px] text-zinc-400 font-medium shrink-0">
+                        {formatRelativeTime(user.reactedAt)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── HIGALAAY COMMENTS BOTTOM-TO-TOP SHEET MODAL WITH SLIDE BACK GESTURE ── */}
