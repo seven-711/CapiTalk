@@ -37,7 +37,6 @@ import {
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
-import { CustomAudioPlayer } from './CustomAudioPlayer';
 import { getOrCreatePersistentUUID } from '../lib/utils/uuid';
 import {
   getAdminToken,
@@ -200,6 +199,12 @@ export const MusicWall: React.FC = () => {
 
   useEffect(() => {
     if (selectedPostForDetail) {
+      if (activeAudioRef.current) {
+        try {
+          activeAudioRef.current.pause();
+        } catch (e) {}
+        setPlayingPostId(null);
+      }
       setDetailModalTab('player');
       setCopiedLyrics(false);
       fetchLyrics(selectedPostForDetail);
@@ -1122,7 +1127,7 @@ export const MusicWall: React.FC = () => {
                     }`}
                   >
                     <Music className="w-3.5 h-3.5" />
-                    <span>Dedication</span>
+                    <span>Dedication & Music</span>
                   </button>
 
                   <button
@@ -1145,26 +1150,11 @@ export const MusicWall: React.FC = () => {
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
                     )}
                   </button>
-
-                  {videoId && (
-                    <button
-                      type="button"
-                      onClick={() => setDetailModalTab('video')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                        detailModalTab === 'video'
-                          ? 'bg-[#c41e3a] text-white shadow-2xs'
-                          : 'bg-white text-neutral-600 hover:bg-neutral-200/60 border border-black/10'
-                      }`}
-                    >
-                      <Tv className="w-3.5 h-3.5" />
-                      <span>Watch Video</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* Modal Body */}
                 <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4">
-                  {/* ── TAB 1: DEDICATION & PLAYER ── */}
+                  {/* ── TAB 1: DEDICATION & AUTO-PLAYING FULL MUSIC ── */}
                   {detailModalTab === 'player' && (
                     <div className="space-y-4 animate-in fade-in duration-150">
                       {/* Track Card with Spinning Vinyl */}
@@ -1218,7 +1208,6 @@ export const MusicWall: React.FC = () => {
                       {post.message && post.message.trim() && !post.message.startsWith('🎵 ') && (
                         <div className="bg-[#fffdf7] border-2 border-black rounded-2xl p-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
                           <div className="text-[10px] font-black text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-[#ffc900]" />
                             <span>Dedication Message</span>
                           </div>
                           <p className="text-xs sm:text-sm text-neutral-900 font-medium leading-relaxed whitespace-pre-wrap break-words italic">
@@ -1227,24 +1216,40 @@ export const MusicWall: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Audio Preview Player */}
-                      {post.song_preview_url ? (
-                        <div className="w-full">
-                          <div className="text-[11px] font-bold text-neutral-500 mb-1.5 flex items-center justify-between">
-                            <span>30-Second Audio Preview</span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-neutral-100 rounded-md">Instant</span>
-                          </div>
-                          <CustomAudioPlayer src={post.song_preview_url} />
+                      {/* Full Track Auto-playing YouTube Music Player */}
+                      {videoId ? (
+                        <div className="w-full aspect-video rounded-2xl overflow-hidden border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-black">
+                          <iframe
+                            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`}
+                            title={post.song_title || 'YouTube Music'}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            className="w-full h-full border-0"
+                          />
                         </div>
                       ) : (
-                        <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-center">
-                          <p className="text-xs font-semibold text-neutral-600">
-                            Listen to the full track on YouTube Music or check the Live Lyrics!
-                          </p>
+                        <div className="p-4 bg-neutral-900 text-white rounded-2xl border-2 border-black flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-[#ffc900] flex items-center justify-center text-black font-black animate-spin shrink-0">
+                              <Music className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-black truncate">{post.song_title || 'Playing Music...'}</p>
+                              <p className="text-[10px] text-neutral-400 font-semibold truncate">Connecting YouTube Music stream</p>
+                            </div>
+                          </div>
+                          <a
+                            href={post.song_link || `https://www.youtube.com/results?search_query=${encodeURIComponent((post.song_artist || '') + ' ' + (post.song_title || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 bg-white text-black hover:bg-neutral-100 rounded-xl text-xs font-black shrink-0 transition-colors"
+                          >
+                            Open
+                          </a>
                         </div>
                       )}
 
-                      {/* Action Buttons: Lyrics & YouTube Links */}
+                      {/* Action Buttons: Lyrics & External Link */}
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <button
                           type="button"
@@ -1255,26 +1260,14 @@ export const MusicWall: React.FC = () => {
                           <span>View Lyrics</span>
                         </button>
 
-                        {videoId ? (
-                          <button
-                            type="button"
-                            onClick={() => setDetailModalTab('video')}
-                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-[#ffc900] hover:bg-[#ffbe00] text-xs font-black text-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
-                          >
-                            <Tv className="w-3.5 h-3.5" />
-                            <span>Watch Video</span>
-                          </button>
-                        ) : (
-                          <a
-                            href={post.song_link || `https://www.youtube.com/results?search_query=${encodeURIComponent((post.song_artist || '') + ' ' + (post.song_title || ''))}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-white hover:bg-neutral-50 text-xs font-bold text-neutral-800 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
-                          >
-                            <span>YouTube</span>
-                            <ExternalLink className="w-3.5 h-3.5 text-neutral-500" />
-                          </a>
-                        )}
+                        <a
+                          href={videoId ? `https://www.youtube.com/watch?v=${videoId}` : (post.song_link || `https://www.youtube.com/results?search_query=${encodeURIComponent((post.song_artist || '') + ' ' + (post.song_title || ''))}`)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-[#ffc900] hover:bg-[#ffbe00] text-xs font-black text-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-black" />
+                        </a>
                       </div>
                     </div>
                   )}
@@ -1349,33 +1342,6 @@ export const MusicWall: React.FC = () => {
                           </button>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* ── TAB 3: WATCH YOUTUBE EMBED ── */}
-                  {detailModalTab === 'video' && videoId && (
-                    <div className="space-y-3 animate-in fade-in duration-150">
-                      <div className="w-full aspect-video rounded-2xl overflow-hidden border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-black">
-                        <iframe
-                          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
-                          title={post.song_title || 'YouTube Music'}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          className="w-full h-full border-0"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-bold text-neutral-500 px-1">
-                        <span>Full Playback Mode</span>
-                        <a
-                          href={`https://www.youtube.com/watch?v=${videoId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[#c41e3a] hover:underline flex items-center gap-1"
-                        >
-                          <span>Open in YouTube</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
                     </div>
                   )}
                 </div>
