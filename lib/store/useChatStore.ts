@@ -2703,7 +2703,7 @@ export const useChatStore = create<ChatStoreState>()(
             room_id: newRoom.id,
             sender_id: 'system',
             sender_username: 'CapiTalk System',
-            message: `🎉 Connected! You are now chatting with ${partner.username} from ${partner.department}. Say hi!`,
+            message: `You are now connected to ${partner.username} from ${partner.department}`,
             created_at: new Date().toISOString(),
           };
 
@@ -2783,16 +2783,16 @@ export const useChatStore = create<ChatStoreState>()(
                 let leftReason: 'inactivity' | 'left' | 'disconnected' | 'exited' | 'skipped' = 'left';
 
                 if (isInactive) {
-                  msgText = '⏱️ Your partner has been disconnected due to inactivity.';
+                  msgText = 'Your partner has been disconnected due to inactivity.';
                   leftReason = 'inactivity';
                 } else if (isDisconnected) {
-                  msgText = '🔌 Connection lost: Your partner has disconnected.';
+                  msgText = 'Connection lost: Your partner has disconnected.';
                   leftReason = 'disconnected';
                 } else if (isExited) {
-                  msgText = '🚪 Your partner has exited the chat.';
+                  msgText = 'Your partner has exited the chat.';
                   leftReason = 'exited';
                 } else if (isSkipped) {
-                  msgText = '⏭️ Your partner skipped to another chat.';
+                  msgText = 'Your partner skipped to another chat.';
                   leftReason = 'skipped';
                 }
 
@@ -2809,37 +2809,6 @@ export const useChatStore = create<ChatStoreState>()(
             },
             matchmakingEngine.getWebSocket() // reuse the matchmaking WS connection
           );
-
-          // If matched with a bot partner, send an active greeting so the bot is responsive immediately
-          if (partner.id.startsWith('bot_')) {
-            setTimeout(() => {
-              set({ partnerTyping: true });
-            }, 1000);
-
-            setTimeout(() => {
-              set({ partnerTyping: false });
-              const greetings = [
-                `Hey! How's your day going?`,
-                `Hello! What year are you in?`,
-                `Sup! Nice to connect with you on CapiTalk!`,
-                `Hey there! How are your classes today?`,
-                `Hi! What's up?`,
-              ];
-              const greeting = greetings[Math.floor(Math.random() * greetings.length)];
-              const botGreetingMsg: ChatMessage = {
-                id: 'msg_bot_greet_' + Date.now(),
-                room_id: match.roomId,
-                sender_id: partner.id,
-                sender_username: partner.username,
-                message: greeting,
-                created_at: new Date().toISOString(),
-              };
-              set((state) => ({
-                messages: [...state.messages, botGreetingMsg],
-              }));
-              roomManager.persistMessage(botGreetingMsg);
-            }, 2400);
-          }
         });
 
         matchmakingEngine.joinQueue(currentUser, queueFilter);
