@@ -21,6 +21,7 @@ import { DedicateSongPage } from '../components/DedicateSongPage';
 import { StreakModal } from '../components/StreakModal';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { getAvatarForPseudonym } from '../lib/constants';
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import {
   Sparkles,
   ShieldCheck,
@@ -165,6 +166,98 @@ export default function Home() {
   const dragStartYRef = React.useRef<number | null>(null);
   const commentsContainerRef = React.useRef<HTMLDivElement | null>(null);
 
+  // Fetch reactions from Supabase DB / API for cross-device persistence
+  const fetchHigalaayReactions = React.useCallback(async () => {
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase
+          .from('midterm_reactions')
+          .select('user_id, user_name, updated_at')
+          .eq('post_id', 'higalaay_banner_post_1')
+          .order('updated_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          const list: ReactedUser[] = data.map((row: any) => ({
+            id: row.user_id,
+            username: row.user_name || 'Capitolian',
+            department: 'CU Student',
+            avatarUrl: getAvatarForPseudonym(row.user_name || 'Anon'),
+            reactedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+          }));
+          setReactedUsersList(list);
+          try {
+            localStorage.setItem('higalaay_banner_reacted_users_v1', JSON.stringify(list));
+            localStorage.setItem('higalaay_banner_heart_count', String(list.length));
+          } catch (e) {}
+          return;
+        }
+      }
+
+      // Fallback API route
+      const res = await fetch('/api/higalaay-reactions');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.users)) {
+          setReactedUsersList(json.users);
+          try {
+            localStorage.setItem('higalaay_banner_reacted_users_v1', JSON.stringify(json.users));
+            localStorage.setItem('higalaay_banner_heart_count', String(json.users.length));
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  // Multi-Device Realtime & Polling Sync
+  React.useEffect(() => {
+    fetchHigalaayReactions();
+
+    // Background interval to refresh total reactions across devices
+    const syncTimer = setInterval(() => {
+      fetchHigalaayReactions();
+    }, 3500);
+
+    // Supabase Realtime channel subscription
+    let channel: any = null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        channel = supabase
+          .channel('higalaay_reactions_channel')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'midterm_reactions', filter: 'post_id=eq.higalaay_banner_post_1' },
+            () => {
+              fetchHigalaayReactions();
+            }
+          )
+          .subscribe();
+      } catch (e) {}
+    }
+
+    // BroadcastChannel for instant local cross-tab sync
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('capitalk_higalaay_reactions');
+        bc.onmessage = (e) => {
+          if (e.data?.type === 'SYNC_REACTIONS' && Array.isArray(e.data.users)) {
+            setReactedUsersList(e.data.users);
+          }
+        };
+      } catch (e) {}
+    }
+
+    return () => {
+      clearInterval(syncTimer);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+      if (bc) {
+        bc.close();
+      }
+    };
+  }, [fetchHigalaayReactions]);
+
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -183,14 +276,29 @@ export default function Home() {
     }
   }, [commentsList]);
 
-  const handleToggleHeroHeart = () => {
-    const myId = currentUser?.id || currentUser?.username || 'me';
-    const myName = currentUser?.username || 'You';
+  const handleToggleHeroHeart = async () => {
+    let deviceId = 'anon_dev';
+    if (typeof window !== 'undefined') {
+      try {
+        let storedId = localStorage.getItem('capitalk_device_id_v1');
+        if (!storedId) {
+          storedId = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+          localStorage.setItem('capitalk_device_id_v1', storedId);
+        }
+        deviceId = storedId;
+      } catch (e) {}
+    }
+
+    const myId = currentUser?.id || currentUser?.username || deviceId;
+    const myName = currentUser?.username || 'Capitolian';
     const myDept = currentUser?.department?.replace('College of ', '') || 'CU Student';
     const myAvatar = currentUser?.avatar_url || (currentUser?.username ? getAvatarForPseudonym(currentUser.username) : '/avatars/coin-left.jpg');
 
-    if (isHeroHearted) {
-      setReactedUsersList((prev) => prev.filter((u) => u.id !== myId && u.username !== myName && u.id !== 'me'));
+    const willHeart = !isHeroHearted;
+    let nextList: ReactedUser[] = [];
+
+    if (!willHeart) {
+      nextList = reactedUsersList.filter((u) => u.id !== myId && u.username !== myName && u.id !== 'me');
     } else {
       const newReactedUser: ReactedUser = {
         id: myId,
@@ -199,7 +307,56 @@ export default function Home() {
         avatarUrl: myAvatar,
         reactedAt: Date.now(),
       };
-      setReactedUsersList((prev) => [newReactedUser, ...prev.filter((u) => u.id !== myId && u.username !== myName && u.id !== 'me')]);
+      nextList = [newReactedUser, ...reactedUsersList.filter((u) => u.id !== myId && u.username !== myName && u.id !== 'me')];
+    }
+
+    // Optimistic local state update
+    setReactedUsersList(nextList);
+
+    // Cross-tab broadcast
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('capitalk_higalaay_reactions');
+        bc.postMessage({ type: 'SYNC_REACTIONS', users: nextList });
+        bc.close();
+      } catch (e) {}
+    }
+
+    // Persist to Supabase Database and Server API for cross-device reflection
+    try {
+      if (isSupabaseConfigured && supabase) {
+        if (!willHeart) {
+          await supabase
+            .from('midterm_reactions')
+            .delete()
+            .eq('post_id', 'higalaay_banner_post_1')
+            .eq('user_id', myId);
+        } else {
+          await supabase
+            .from('midterm_reactions')
+            .upsert({
+              post_id: 'higalaay_banner_post_1',
+              user_id: myId,
+              user_name: myName,
+              reaction_type: 'heart',
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'post_id,user_id' });
+        }
+      } else {
+        await fetch('/api/higalaay-reactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: myId,
+            username: myName,
+            department: myDept,
+            avatarUrl: myAvatar,
+            action: willHeart ? 'add' : 'remove',
+          }),
+        });
+      }
+    } catch (err) {
+      console.warn('Cross-device reaction sync error:', err);
     }
   };
 
