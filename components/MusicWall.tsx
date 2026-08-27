@@ -1248,27 +1248,6 @@ export const MusicWall: React.FC = () => {
                           </a>
                         </div>
                       )}
-
-                      {/* Action Buttons: Lyrics & External Link */}
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setDetailModalTab('lyrics')}
-                          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-[#fff1f3] hover:bg-[#ffe4e8] text-xs font-black text-[#701a31] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
-                        >
-                          <Mic2 className="w-3.5 h-3.5 text-[#701a31]" />
-                          <span>View Lyrics</span>
-                        </button>
-
-                        <a
-                          href={videoId ? `https://www.youtube.com/watch?v=${videoId}` : (post.song_link || `https://www.youtube.com/results?search_query=${encodeURIComponent((post.song_artist || '') + ' ' + (post.song_title || ''))}`)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-[#ffc900] hover:bg-[#ffbe00] text-xs font-black text-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-black" />
-                        </a>
-                      </div>
                     </div>
                   )}
 
