@@ -29,6 +29,11 @@ import {
   MessageSquare,
   Users,
   ExternalLink,
+  Mic2,
+  Tv,
+  Sparkles,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { ReportNoteModal } from './ReportNoteModal';
 import { DeleteNoteModal } from './DeleteNoteModal';
@@ -39,6 +44,12 @@ import {
   verifyAdminSession,
   purgeLegacyAdminKeys,
 } from '../lib/auth/adminAuth';
+
+function extractYoutubeId(url?: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+  return match ? match[1] : null;
+}
 
 const isColorDark = (hexColor?: string | null): boolean => {
   if (!hexColor) return false;
@@ -143,6 +154,57 @@ export const MusicWall: React.FC = () => {
   const [selectedPostForDelete, setSelectedPostForDelete] = useState<FreedomPost | null>(null);
   const [reactorsPost, setReactorsPost] = useState<FreedomPost | null>(null);
   const [selectedPostForDetail, setSelectedPostForDetail] = useState<FreedomPost | null>(null);
+
+  // Modal Tab & Lyrics State
+  const [detailModalTab, setDetailModalTab] = useState<'player' | 'lyrics' | 'video'>('player');
+  const [copiedLyrics, setCopiedLyrics] = useState(false);
+  const [lyricsData, setLyricsData] = useState<{
+    loading: boolean;
+    lyrics: string | null;
+    videoId?: string | null;
+    error?: string | null;
+  }>({ loading: false, lyrics: null });
+
+  const fetchLyrics = async (post: FreedomPost) => {
+    setLyricsData({ loading: true, lyrics: null, error: null });
+    try {
+      const vid = extractYoutubeId(post.song_link);
+      const url = vid
+        ? `/api/music/lyrics?id=${vid}&title=${encodeURIComponent(post.song_title || '')}&artist=${encodeURIComponent(post.song_artist || '')}`
+        : `/api/music/lyrics?title=${encodeURIComponent(post.song_title || '')}&artist=${encodeURIComponent(post.song_artist || '')}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success && data.lyrics) {
+        setLyricsData({
+          loading: false,
+          lyrics: data.lyrics,
+          videoId: data.videoId || vid,
+        });
+      } else {
+        setLyricsData({
+          loading: false,
+          lyrics: null,
+          videoId: data.videoId || vid,
+          error: data.message || 'No official lyrics available for this track on YouTube Music.',
+        });
+      }
+    } catch (e: any) {
+      setLyricsData({
+        loading: false,
+        lyrics: null,
+        error: 'Unable to load lyrics right now. Please try again.',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedPostForDetail) {
+      setDetailModalTab('player');
+      setCopiedLyrics(false);
+      fetchLyrics(selectedPostForDetail);
+    }
+  }, [selectedPostForDetail?.id]);
 
   // Global Audio Playback State for CD Discs
   const [playingPostId, setPlayingPostId] = useState<string | null>(null);
@@ -987,224 +1049,433 @@ export const MusicWall: React.FC = () => {
            </div>
         )}
       </div>
-      
+
       {/* Full Music Dedication Detail Modal */}
       {selectedPostForDetail && (() => {
-        const post = freedomPosts.find((p) => p.id === selectedPostForDetail.id) || selectedPostForDetail;
-        const currentUserId = currentUser
-          ? currentUser.id
-          : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
-        const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
-        const isPostAdmin = Boolean(post.is_admin);
-        const isPinned = isPinnedActive(post);
-        const allMyAliases = Array.from(new Set([
-          ...(myPseudonyms || []),
-          ...(currentUser?.username ? [currentUser.username] : []),
-        ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
-        const cleanPostAlias = post.author_alias?.replace(/^@/, '').trim().toLowerCase();
-        const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId) || (cleanPostAlias && allMyAliases.includes(cleanPostAlias));
+          const post = freedomPosts.find((p) => p.id === selectedPostForDetail.id) || selectedPostForDetail;
+          const currentUserId = currentUser
+            ? currentUser.id
+            : (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') || getOrCreatePersistentUUID() : 'anon');
+          const hasLiked = currentUserId ? post.liked_by_users?.includes(currentUserId) : false;
+          const isPostAdmin = Boolean(post.is_admin);
+          const isPinned = isPinnedActive(post);
+          const allMyAliases = Array.from(new Set([
+            ...(myPseudonyms || []),
+            ...(currentUser?.username ? [currentUser.username] : []),
+          ])).map((p) => p.replace(/^@/, '').trim().toLowerCase()).filter(Boolean);
+          const cleanPostAlias = post.author_alias?.replace(/^@/, '').trim().toLowerCase();
+          const isMyPost = (myPostIds || []).includes(post.id) || (post.author_id && post.author_id === currentUserId) || (cleanPostAlias && allMyAliases.includes(cleanPostAlias));
+          
+          const videoId = lyricsData.videoId || extractYoutubeId(post.song_link);
 
-        return (
-          <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
-            onClick={() => setSelectedPostForDetail(null)}
-          >
+          return (
             <div
-              className="bg-white border border-[#d1d5dc] rounded-2xl w-full max-w-md shadow-2xl relative my-auto max-h-[90vh] flex flex-col text-neutral-900 animate-in zoom-in-95 duration-150 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+              onClick={() => setSelectedPostForDetail(null)}
             >
-              {/* Header Bar */}
-              <div className="p-3.5 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
-                <div className="flex items-center gap-2 truncate">
-                  {post.dedicated_to ? (
-                    <span className="px-2.5 py-0.5 bg-rose-50 text-rose-600 text-xs font-bold rounded-full border border-rose-100 flex items-center gap-1">
-                      <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
-                      <span className="truncate">For: {post.dedicated_to}</span>
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
-                      {post.department ? post.department.replace('College of ', '') : 'Music Wall'}
-                    </span>
-                  )}
-                  {isPinned && (
-                    <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
-                      Pinned
-                    </span>
-                  )}
-                  {post.status === 'pending' && (
-                    <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
-                      Pending Review
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedPostForDetail(null)}
-                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-black transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4">
-                {/* Track Card */}
-                <div className="flex items-center gap-3 p-3 bg-neutral-50 border border-neutral-200/70 rounded-xl">
-                  <div className="w-14 h-14 rounded-xl border border-neutral-200 overflow-hidden bg-white shrink-0 shadow-2xs">
-                    {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
-                      <img
-                        src={post.song_image_url}
-                        alt={post.song_title}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
+              <div
+                className="bg-white border-2 border-black rounded-3xl w-full max-w-lg shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] relative my-auto max-h-[92vh] flex flex-col text-neutral-900 animate-in zoom-in-95 duration-150 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Top Header Bar */}
+                <div className="p-3.5 sm:p-4 border-b-2 border-black flex justify-between items-center bg-[#fff8f9] shrink-0">
+                  <div className="flex items-center gap-2 truncate">
+                    {post.dedicated_to ? (
+                      <span className="px-3 py-1 bg-rose-100 text-rose-700 text-xs font-black rounded-full border border-black/10 flex items-center gap-1.5 shadow-2xs">
+                        <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                        <span className="truncate">For: {post.dedicated_to}</span>
+                      </span>
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
-                        <Music className="w-6 h-6" />
-                      </div>
+                      <span className="px-3 py-1 bg-white text-gray-800 text-xs font-extrabold rounded-full border border-black/15 shadow-2xs">
+                        {post.department ? post.department.replace('College of ', '') : 'Music Wall'}
+                      </span>
+                    )}
+                    {isPinned && (
+                      <span className="px-2.5 py-0.5 bg-[#ffc900] text-black text-[10px] font-black rounded-full border border-black shadow-2xs">
+                        📌 Pinned
+                      </span>
+                    )}
+                    {post.status === 'pending' && (
+                      <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded-full border border-amber-300">
+                        Pending Review
+                      </span>
                     )}
                   </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm sm:text-base text-neutral-900 truncate leading-snug" title={post.song_title}>
-                      {post.song_title}
-                    </h3>
-                    <p className="text-xs text-neutral-500 font-medium truncate mt-0.5" title={post.song_artist}>
-                      {post.song_artist}
-                    </p>
-                    <p className="text-[11px] text-neutral-400 font-medium mt-1 truncate">
-                      Dedicated by @{post.author_alias || 'Anon Student'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Dedication Message (Clean Quote Card) */}
-                {post.message && post.message.trim() && !post.message.startsWith('🎵 ') && (
-                  <div className="bg-white border border-neutral-200/80 rounded-xl p-3.5 shadow-2xs">
-                    <p className="text-xs sm:text-sm text-neutral-800 font-normal leading-relaxed whitespace-pre-wrap break-words">
-                      &ldquo;{post.message.trim()}&rdquo;
-                    </p>
-                  </div>
-                )}
-
-                {/* Audio Preview Player */}
-                {post.song_preview_url && (
-                  <div className="w-full">
-                    <CustomAudioPlayer src={post.song_preview_url} />
-                  </div>
-                )}
-
-                {/* Full Song Link */}
-                {post.song_link && (
-                  <a
-                    href={post.song_link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-neutral-700 transition-colors shadow-2xs"
-                  >
-                    <span>Listen on Last.fm</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
-                  </a>
-                )}
-              </div>
-
-              {/* Clean Minimalist Footer */}
-              <div className="p-3 sm:p-4 border-t border-neutral-100 bg-white shrink-0 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      likeFreedomPost(post.id);
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors cursor-pointer ${
-                      hasLiked
-                        ? 'bg-rose-50 text-rose-600 border-rose-200'
-                        : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                    onClick={() => setSelectedPostForDetail(null)}
+                    className="p-1.5 hover:bg-black/5 rounded-full text-black transition-colors cursor-pointer border border-transparent hover:border-black/10"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Navigation Tabs */}
+                <div className="px-3.5 sm:px-4 pt-2.5 pb-1 border-b border-black/10 bg-neutral-50 flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDetailModalTab('player')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                      detailModalTab === 'player'
+                        ? 'bg-black text-white shadow-2xs'
+                        : 'bg-white text-neutral-600 hover:bg-neutral-200/60 border border-black/10'
                     }`}
                   >
-                    <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500' : ''}`} />
-                    <span>{post.likes_count || 0}</span>
+                    <Music className="w-3.5 h-3.5" />
+                    <span>Dedication</span>
                   </button>
-
-                  {(post.likes_count || 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setReactorsPost(post)}
-                      className="w-8 h-8 rounded-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50 flex items-center justify-center transition-colors cursor-pointer"
-                      title="View likes"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                    </button>
-                  )}
 
                   <button
                     type="button"
-                    onClick={() => openCommentsModal(post)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition-colors text-xs font-bold cursor-pointer"
+                    onClick={() => {
+                      setDetailModalTab('lyrics');
+                      if (!lyricsData.lyrics && !lyricsData.loading) {
+                        fetchLyrics(post);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer relative ${
+                      detailModalTab === 'lyrics'
+                        ? 'bg-[#701a31] text-white shadow-2xs'
+                        : 'bg-white text-neutral-600 hover:bg-neutral-200/60 border border-black/10'
+                    }`}
                   >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>{commentsCountMap[post.id] || 0}</span>
+                    <Mic2 className="w-3.5 h-3.5" />
+                    <span>Live Lyrics</span>
+                    {lyricsData.loading && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                    )}
                   </button>
+
+                  {videoId && (
+                    <button
+                      type="button"
+                      onClick={() => setDetailModalTab('video')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                        detailModalTab === 'video'
+                          ? 'bg-[#c41e3a] text-white shadow-2xs'
+                          : 'bg-white text-neutral-600 hover:bg-neutral-200/60 border border-black/10'
+                      }`}
+                    >
+                      <Tv className="w-3.5 h-3.5" />
+                      <span>Watch Video</span>
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPostForReport(post)}
-                    className="w-8 h-8 rounded-full border border-neutral-200 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Report"
-                  >
-                    <Flag className="w-3.5 h-3.5" />
-                  </button>
+                {/* Modal Body */}
+                <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4">
+                  {/* ── TAB 1: DEDICATION & PLAYER ── */}
+                  {detailModalTab === 'player' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      {/* Track Card with Spinning Vinyl */}
+                      <div className="flex items-center gap-3.5 p-3.5 bg-neutral-900 text-white rounded-2xl border-2 border-black shadow-md relative overflow-hidden">
+                        {/* Ambient Glow */}
+                        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-[#ff90e8]/20 rounded-full blur-2xl pointer-events-none" />
 
-                  {isAdminUser && post.status === 'pending' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        approveFreedomPost(post.id);
-                        setSelectedPostForDetail(null);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer"
-                      title="Approve post"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      <span>Approve</span>
-                    </button>
+                        {/* Spinning Vinyl CD */}
+                        <div
+                          className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-neutral-950 via-neutral-800 to-neutral-900 border border-white/20 shadow-xl relative flex items-center justify-center shrink-0 animate-spin"
+                          style={{ animationDuration: '6s', animationTimingFunction: 'linear' }}
+                        >
+                          <div className="absolute inset-1 rounded-full border border-white/10" />
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-white/40 relative flex items-center justify-center bg-black shrink-0">
+                            {post.song_image_url && !post.song_image_url.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
+                              <img
+                                src={post.song_image_url}
+                                alt={post.song_title}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Music className="w-3.5 h-3.5 text-[#ffc900]" />
+                            )}
+                            <div className="absolute w-2 h-2 rounded-full bg-white/80 border border-black" />
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0 z-10">
+                          <h3 className="font-black text-sm sm:text-base text-white truncate leading-snug" title={post.song_title}>
+                            {post.song_title}
+                          </h3>
+                          <p className="text-xs text-neutral-300 font-semibold truncate mt-0.5" title={post.song_artist}>
+                            {post.song_artist}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-neutral-400 font-medium">
+                            <span className="truncate">by @{post.author_alias || 'Anon'}</span>
+                            {post.department && (
+                              <>
+                                <span>•</span>
+                                <span className="text-[#ff90e8] font-bold truncate">
+                                  {post.department.replace('College of ', '')}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dedication Message (Quote Card) */}
+                      {post.message && post.message.trim() && !post.message.startsWith('🎵 ') && (
+                        <div className="bg-[#fffdf7] border-2 border-black rounded-2xl p-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                          <div className="text-[10px] font-black text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-[#ffc900]" />
+                            <span>Dedication Message</span>
+                          </div>
+                          <p className="text-xs sm:text-sm text-neutral-900 font-medium leading-relaxed whitespace-pre-wrap break-words italic">
+                            &ldquo;{post.message.trim()}&rdquo;
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Audio Preview Player */}
+                      {post.song_preview_url ? (
+                        <div className="w-full">
+                          <div className="text-[11px] font-bold text-neutral-500 mb-1.5 flex items-center justify-between">
+                            <span>30-Second Audio Preview</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-neutral-100 rounded-md">Instant</span>
+                          </div>
+                          <CustomAudioPlayer src={post.song_preview_url} />
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-center">
+                          <p className="text-xs font-semibold text-neutral-600">
+                            Listen to the full track on YouTube Music or check the Live Lyrics!
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Action Buttons: Lyrics & YouTube Links */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setDetailModalTab('lyrics')}
+                          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-[#fff1f3] hover:bg-[#ffe4e8] text-xs font-black text-[#701a31] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+                        >
+                          <Mic2 className="w-3.5 h-3.5 text-[#701a31]" />
+                          <span>View Lyrics</span>
+                        </button>
+
+                        {videoId ? (
+                          <button
+                            type="button"
+                            onClick={() => setDetailModalTab('video')}
+                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-[#ffc900] hover:bg-[#ffbe00] text-xs font-black text-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+                          >
+                            <Tv className="w-3.5 h-3.5" />
+                            <span>Watch Video</span>
+                          </button>
+                        ) : (
+                          <a
+                            href={post.song_link || `https://www.youtube.com/results?search_query=${encodeURIComponent((post.song_artist || '') + ' ' + (post.song_title || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-black bg-white hover:bg-neutral-50 text-xs font-bold text-neutral-800 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                          >
+                            <span>YouTube</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-neutral-500" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   )}
 
-                  {isAdminUser && (
+                  {/* ── TAB 2: LIVE LYRICS ── */}
+                  {detailModalTab === 'lyrics' && (
+                    <div className="space-y-3 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 bg-[#701a31] text-white text-[10px] font-black rounded-full uppercase tracking-wider">
+                            YouTube Music
+                          </span>
+                          <span className="text-xs font-bold text-neutral-500 truncate max-w-[180px]">
+                            {post.song_title}
+                          </span>
+                        </div>
+
+                        {lyricsData.lyrics && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (lyricsData.lyrics) {
+                                navigator.clipboard.writeText(lyricsData.lyrics);
+                                setCopiedLyrics(true);
+                                setTimeout(() => setCopiedLyrics(false), 2000);
+                              }
+                            }}
+                            className="px-2.5 py-1 bg-white border border-black/15 hover:border-black rounded-lg text-xs font-bold text-neutral-700 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                          >
+                            {copiedLyrics ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span className="text-emerald-600">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      {lyricsData.loading ? (
+                        <div className="p-8 text-center bg-neutral-50 border-2 border-dashed border-neutral-300 rounded-2xl flex flex-col items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-[#701a31]/10 flex items-center justify-center text-[#701a31] mb-3 animate-bounce">
+                            <Mic2 className="w-5 h-5" />
+                          </div>
+                          <p className="text-sm font-extrabold text-neutral-800">Fetching lyrics...</p>
+                          <p className="text-xs text-neutral-500 mt-1">Connecting to YouTube Music</p>
+                        </div>
+                      ) : lyricsData.lyrics ? (
+                        <div className="p-4 sm:p-5 bg-gradient-to-b from-neutral-900 to-neutral-950 text-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] max-h-72 overflow-y-auto custom-scrollbar">
+                          <p className="text-xs sm:text-sm font-medium leading-relaxed whitespace-pre-wrap break-words text-neutral-200">
+                            {lyricsData.lyrics}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center bg-neutral-50 border-2 border-neutral-200 rounded-2xl">
+                          <Mic2 className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-neutral-700">
+                            {lyricsData.error || 'No official lyrics found for this song.'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => fetchLyrics(post)}
+                            className="mt-3 px-3 py-1.5 bg-black text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Retry</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── TAB 3: WATCH YOUTUBE EMBED ── */}
+                  {detailModalTab === 'video' && videoId && (
+                    <div className="space-y-3 animate-in fade-in duration-150">
+                      <div className="w-full aspect-video rounded-2xl overflow-hidden border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-black">
+                        <iframe
+                          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+                          title={post.song_title || 'YouTube Music'}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full border-0"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs font-bold text-neutral-500 px-1">
+                        <span>Full Playback Mode</span>
+                        <a
+                          href={`https://www.youtube.com/watch?v=${videoId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#c41e3a] hover:underline flex items-center gap-1"
+                        >
+                          <span>Open in YouTube</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Clean Minimalist Footer */}
+                <div className="p-3 sm:p-4 border-t-2 border-black bg-white shrink-0 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => togglePinFreedomPost(post.id)}
-                      className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
-                        post.is_pinned ? 'bg-amber-100 text-amber-800 border-amber-300' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        likeFreedomPost(post.id);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-2 border-black text-xs font-extrabold transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer ${
+                        hasLiked
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-white text-neutral-800 hover:bg-neutral-50'
                       }`}
-                      title={post.is_pinned ? 'Unpin' : 'Pin'}
                     >
-                      <Pin className="w-3.5 h-3.5" />
+                      <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                      <span>{post.likes_count || 0}</span>
                     </button>
-                  )}
 
-                  {(isAdminUser || isMyPost) && (
+                    {(post.likes_count || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setReactorsPost(post)}
+                        className="w-8 h-8 rounded-full border-2 border-black text-neutral-700 hover:bg-neutral-50 flex items-center justify-center transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                        title="View likes"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedPostForDetail(null);
-                        setSelectedPostForDelete(post);
-                      }}
-                      className="w-8 h-8 rounded-full border border-neutral-200 text-neutral-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center justify-center transition-colors cursor-pointer"
-                      title="Delete"
+                      onClick={() => openCommentsModal(post)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-2 border-black bg-white text-neutral-800 hover:bg-neutral-50 transition-all text-xs font-extrabold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>{commentsCountMap[post.id] || 0}</span>
                     </button>
-                  )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPostForReport(post)}
+                      className="w-8 h-8 rounded-full border border-neutral-300 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center transition-colors cursor-pointer"
+                      title="Report"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                    </button>
+
+                    {isAdminUser && post.status === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          approveFreedomPost(post.id);
+                          setSelectedPostForDetail(null);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-colors cursor-pointer shadow-xs"
+                        title="Approve post"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Approve</span>
+                      </button>
+                    )}
+
+                    {isAdminUser && (
+                      <button
+                        type="button"
+                        onClick={() => togglePinFreedomPost(post.id)}
+                        className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
+                          isPinned
+                            ? 'bg-[#ffc900] text-black border-black'
+                            : 'border-neutral-300 text-neutral-400 hover:text-black hover:border-black'
+                        }`}
+                        title={isPinned ? 'Unpin note' : 'Pin note'}
+                      >
+                        <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current' : ''}`} />
+                      </button>
+                    )}
+
+                    {(isAdminUser || isMyPost) && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPostForDelete(post)}
+                        className="w-8 h-8 rounded-full border border-neutral-300 text-neutral-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {selectedPostForReport && (
         <ReportNoteModal
@@ -1471,7 +1742,23 @@ export const MusicWall: React.FC = () => {
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPostForDetail(activePlayingPost);
+                  setDetailModalTab('lyrics');
+                  if (!lyricsData.lyrics && !lyricsData.loading) {
+                    fetchLyrics(activePlayingPost);
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer border border-white/20 active:scale-95"
+                title="View Live Lyrics"
+              >
+                <Mic2 className="w-3 h-3 text-[#ff90e8]" />
+                <span>Lyrics</span>
+              </button>
+
               <button
                 type="button"
                 onClick={(e) => handleTogglePlaySong(e, activePlayingPost)}

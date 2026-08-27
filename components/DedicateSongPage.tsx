@@ -285,6 +285,8 @@ export const DedicateSongPage: React.FC = () => {
         (selectedSong.image?.[3]?.['#text'] && !selectedSong.image[3]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f') ? selectedSong.image[3]['#text'] :
         (selectedSong.image?.[2]?.['#text'] && !selectedSong.image[2]['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f') ? selectedSong.image[2]['#text'] : ''));
 
+      const songLink = selectedSong.url || selectedSong.song_link || (selectedSong.id ? `https://www.youtube.com/watch?v=${selectedSong.id}` : `https://www.youtube.com/results?search_query=${encodeURIComponent(selectedSong.artist + ' ' + selectedSong.name)}`);
+
       const success = await addFreedomPost({
         id: newPostId,
         author_alias: authorAlias,
@@ -294,11 +296,11 @@ export const DedicateSongPage: React.FC = () => {
         message: message.trim(),
         color: postAsAdmin ? '#701a31' : selectedColor,
         is_admin: postAsAdmin,
-        song_title: selectedSong.name,
+        song_title: selectedSong.name || selectedSong.title,
         song_artist: selectedSong.artist,
         song_image_url: songImage,
         song_preview_url: selectedSong.preview_url || '',
-        song_link: selectedSong.url || `https://www.last.fm/search?q=${encodeURIComponent(selectedSong.artist + ' ' + selectedSong.name)}`,
+        song_link: songLink,
         dedicated_to: dedicatedTo.trim() || undefined,
       }, honeypot, deviceId);
 
