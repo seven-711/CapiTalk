@@ -118,20 +118,21 @@ export const MatchmakingScreen: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   if (isTimedOut) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300 font-sans text-black">
-        <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300 font-sans text-black dark:text-white">
+        <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+          <div className="absolute inset-2 sm:inset-3 rounded-full bg-white/80 dark:bg-white/10 border border-black/5 dark:border-white/10 shadow-xs pointer-events-none" />
           <DotLottieReact
             src="/animated-assets/nobodyOnline.lottie"
             loop={true}
             autoplay={true}
-            className="w-full h-full"
+            className="w-full h-full relative z-10"
           />
         </div>
 
-        <h2 className="text-lg font-extrabold text-black mt-2">
+        <h2 className="text-lg font-extrabold text-black dark:text-white mt-2">
           No Match Found
         </h2>
-        <p className="text-xs text-gray-500 mt-1 max-w-xs leading-relaxed">
+        <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1 max-w-xs leading-relaxed">
           No students are currently active in this queue. Try broadening your filter or check back in a few moments.
         </p>
 
@@ -142,7 +143,7 @@ export const MatchmakingScreen: React.FC = () => {
               setShowQueueTimeoutModal(false);
               startSearch();
             }}
-            className="flex-1 py-2.5 bg-black hover:bg-zinc-800 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+            className="flex-1 py-2.5 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
           >
             Try Again
           </button>
@@ -153,7 +154,7 @@ export const MatchmakingScreen: React.FC = () => {
               setShowQueueTimeoutModal(false);
               setViewState('freedom_wall');
             }}
-            className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-black text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            className="px-4 py-2.5 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-black dark:text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
           >
            Campus Wall
           </button>
@@ -162,7 +163,7 @@ export const MatchmakingScreen: React.FC = () => {
         <button
           type="button"
           onClick={() => setShowPreferenceModal(true)}
-          className="mt-3 text-xs font-bold text-[#701a31] hover:underline cursor-pointer"
+          className="mt-3 text-xs font-bold text-[#701a31] dark:text-[#ff90e8] hover:underline cursor-pointer"
         >
           Change match filter
         </button>
@@ -177,20 +178,21 @@ export const MatchmakingScreen: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   if (isSearching) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300 font-sans text-black">
-        <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 text-center max-w-sm mx-auto animate-in fade-in duration-300 font-sans text-black dark:text-white">
+        <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+          <div className="absolute inset-2 sm:inset-3 rounded-full bg-white/80 dark:bg-white/100 dark:blur-[20px] border border-black/5 dark:border-white/10 shadow-xs pointer-events-none" />
           <DotLottieReact
             src="/animated-assets/waiting.lottie"
             loop={true}
             autoplay={true}
-            className="w-full h-full"
+            className="w-full h-full relative z-10"
           />
         </div>
 
-        <h2 className="text-lg font-extrabold text-black mt-2">
+        <h2 className="text-lg font-extrabold text-black dark:text-white mt-2">
           Finding a match...
         </h2>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">
           {queueFilter === 'anyone'
             ? 'Matching with any student'
             : queueFilter === 'same'
@@ -200,7 +202,7 @@ export const MatchmakingScreen: React.FC = () => {
             : `Matching with ${queueFilter.replace('College of ', '')}`}
         </p>
 
-        <span className="mt-2 text-xs font-mono font-bold text-gray-400">
+        <span className="mt-2 text-xs font-mono font-bold text-gray-400 dark:text-zinc-500">
           {formatSeconds(searchingTimeSeconds)}
         </span>
 
@@ -208,7 +210,7 @@ export const MatchmakingScreen: React.FC = () => {
           <button
             type="button"
             onClick={cancelSearch}
-            className="w-full py-2.5 bg-black hover:bg-zinc-800 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer active:scale-95 shadow-xs"
+            className="w-full py-2.5 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black text-xs font-extrabold rounded-xl transition-all cursor-pointer active:scale-95 shadow-xs"
           >
             Cancel Search
           </button>
@@ -216,7 +218,7 @@ export const MatchmakingScreen: React.FC = () => {
           <button
             type="button"
             onClick={() => setViewState('freedom_wall')}
-            className="w-full py-2 text-xs text-gray-600 hover:text-black font-bold transition-colors cursor-pointer"
+            className="w-full py-2 text-xs text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white font-bold transition-colors cursor-pointer"
           >
             Campus Wall
           </button>
@@ -229,31 +231,31 @@ export const MatchmakingScreen: React.FC = () => {
   // STATE 3: CLEAN MODERN MATCHMAKING LOBBY
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="w-full max-w-lg mx-auto py-2 sm:py-6 px-3 sm:px-4 font-sans text-black">
-      <div className="bg-white border-y sm:border border-[#d1d5dc] sm:rounded-2xl p-4 sm:p-6 space-y-5">
+    <div className="w-full max-w-lg mx-auto py-2 sm:py-6 px-3 sm:px-4 font-sans text-black dark:text-white">
+      <div className="bg-white dark:bg-[#18181b] border-y sm:border border-[#d1d5dc] dark:border-zinc-800 sm:rounded-2xl p-4 sm:p-6 space-y-5 shadow-xs">
         {/* User Identity Chip */}
         {currentUser && (
-          <div className="flex items-center justify-between gap-3 p-2.5 bg-[#fbfbfa] border border-[#d1d5dc] rounded-xl">
+          <div className="flex items-center justify-between gap-3 p-2.5 bg-[#fbfbfa] dark:bg-zinc-900/70 border border-[#d1d5dc] dark:border-zinc-800 rounded-xl">
             <div className="flex items-center gap-2.5 min-w-0">
               <img
                 src={currentUser.avatar_url}
                 alt={currentUser.username}
-                className="w-9 h-9 rounded-full border border-[#d1d5dc] object-cover bg-amber-50 shrink-0"
+                className="w-9 h-9 rounded-full border border-[#d1d5dc] dark:border-zinc-700 object-cover bg-amber-50 shrink-0"
               />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-xs sm:text-sm text-black truncate">
+                  <span className="font-extrabold text-xs sm:text-sm text-black dark:text-white truncate">
                     @{currentUser.username}
                   </span>
                 </div>
-                <p className="text-[10px] text-gray-400 font-medium">Ready to match</p>
+                <p className="text-[10px] text-gray-400 dark:text-zinc-500 font-medium">Ready to match</p>
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => setViewState('register')}
-              className="text-xs font-bold text-gray-600 hover:text-black px-2.5 py-1 rounded-lg hover:bg-gray-100 transition-colors shrink-0 cursor-pointer"
+              className="text-xs font-bold text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white px-2.5 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer"
             >
               Edit
             </button>
@@ -263,7 +265,7 @@ export const MatchmakingScreen: React.FC = () => {
         {/* Match Filter Selector Card */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1">
+            <label className="text-xs font-bold text-gray-700 dark:text-zinc-300 uppercase tracking-wide flex items-center gap-1">
               <span>Matching with</span>
             </label>
           </div>
@@ -272,23 +274,23 @@ export const MatchmakingScreen: React.FC = () => {
             type="button"
             disabled={isSearching}
             onClick={() => setShowPreferenceModal(true)}
-            className="w-full bg-[#fbfbfa] hover:bg-gray-50 border border-[#d1d5dc] rounded-xl p-3 text-left transition-colors flex items-center justify-between gap-2.5 cursor-pointer group"
+            className="w-full bg-[#fbfbfa] dark:bg-zinc-900/70 hover:bg-gray-50 dark:hover:bg-zinc-800/80 border border-[#d1d5dc] dark:border-zinc-800 rounded-xl p-3 text-left transition-colors flex items-center justify-between gap-2.5 cursor-pointer group"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-[#fff1f3] text-[#701a31] border border-[#701a31]/20 flex items-center justify-center shrink-0 shadow-2xs">
-                {getPreferenceIconElement(queueFilter, 'w-4 h-4 text-[#701a31]')}
+              <div className="w-8 h-8 rounded-lg bg-[#fff1f3] dark:bg-[#271216] text-[#701a31] dark:text-[#ff90e8] border border-[#701a31]/20 dark:border-rose-900/40 flex items-center justify-center shrink-0 shadow-2xs">
+                {getPreferenceIconElement(queueFilter, 'w-4 h-4 text-[#701a31] dark:text-[#ff90e8]')}
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-extrabold text-black truncate">
+                <p className="text-xs sm:text-sm font-extrabold text-black dark:text-white truncate">
                   {getPreferenceTitle(queueFilter, currentUser?.department)}
                 </p>
-                <p className="text-[11px] text-gray-500 font-medium truncate">
+                <p className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium truncate">
                   {getPreferenceSubtitle(queueFilter, currentUser?.department)}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-xs font-bold text-[#701a31] shrink-0">
+            <div className="flex items-center gap-1 text-xs font-bold text-[#701a31] dark:text-[#ff90e8] shrink-0">
               <span>Change</span>
             </div>
           </button>
@@ -297,10 +299,10 @@ export const MatchmakingScreen: React.FC = () => {
         {/* Hero CTA Block */}
         <div className="pt-2 text-center space-y-3">
           <div className="space-y-1">
-            <h2 className="text-base sm:text-lg font-extrabold text-black">
+            <h2 className="text-base sm:text-lg font-extrabold text-black dark:text-white">
               Anonymous Campus Matchmaking
             </h2>
-            <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+            <p className="text-xs text-gray-500 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
               Meet fellow Capitol University students anonymously in real time.
             </p>
           </div>
@@ -310,7 +312,7 @@ export const MatchmakingScreen: React.FC = () => {
             <button
               type="button"
               onClick={startSearch}
-              className="w-full sm:flex-1 py-3 bg-black hover:bg-zinc-800 text-white font-extrabold text-sm rounded-xl transition-all cursor-pointer shadow-xs active:scale-98 flex items-center justify-center gap-1.5"
+              className="w-full sm:flex-1 py-3 bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black font-extrabold text-sm rounded-xl transition-all cursor-pointer shadow-xs active:scale-98 flex items-center justify-center gap-1.5"
             >
               <span>Start Matching</span>
             </button>
@@ -318,7 +320,7 @@ export const MatchmakingScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewState('freedom_wall')}
-              className="w-full sm:w-auto px-4 py-3 bg-gray-100 hover:bg-gray-200 text-black font-bold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-4 py-3 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-black dark:text-white font-bold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer"
             >
              Campus Wall
             </button>
@@ -326,8 +328,8 @@ export const MatchmakingScreen: React.FC = () => {
         </div>
 
         {/* Tip Row */}
-        <div className="pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5 text-center text-[11px] text-gray-500">
-          <HelpCircle className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        <div className="pt-2 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-center gap-1.5 text-center text-[11px] text-gray-500 dark:text-zinc-400">
+          <HelpCircle className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500 shrink-0" />
           <span className="font-medium truncate">{MATCHMAKING_TIPS[tipIndex]}</span>
         </div>
       </div>
@@ -347,26 +349,26 @@ export const MatchmakingScreen: React.FC = () => {
         onClick={() => setShowPreferenceModal(false)}
       >
         <div
-          className="bg-white border-2 border-black rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col overflow-hidden text-left font-sans text-black"
+          className="bg-white dark:bg-[#18181b] border-2 border-black dark:border-white/20 rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)] animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col overflow-hidden text-left font-sans text-black dark:text-white"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-gray-200 shrink-0">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-zinc-800 shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#fff1f3] text-[#701a31] flex items-center justify-center border border-[#701a31]/20">
+              <div className="w-7 h-7 rounded-lg bg-[#fff1f3] dark:bg-[#271216] text-[#701a31] dark:text-[#ff90e8] flex items-center justify-center border border-[#701a31]/20 dark:border-rose-900/40">
                 <Target className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-black text-black">
+                <h3 className="text-sm sm:text-base font-black text-black dark:text-white">
                   Match Preferences
                 </h3>
-                <p className="text-[11px] text-gray-500 font-medium">Choose who you want to connect with in chat</p>
+                <p className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Choose who you want to connect with in chat</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setShowPreferenceModal(false)}
-              className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -376,7 +378,7 @@ export const MatchmakingScreen: React.FC = () => {
           <div className="overflow-y-auto py-3 space-y-4 custom-scrollbar pr-1 flex-1">
             {/* General Scope */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block px-1">
+              <span className="text-[11px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-wider block px-1">
                 General Scope
               </span>
 
@@ -386,22 +388,22 @@ export const MatchmakingScreen: React.FC = () => {
                 onClick={() => handleSelectPreference('anyone')}
                 className={`w-full p-2.5 rounded-xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
                   queueFilter === 'anyone'
-                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31] shadow-xs'
-                    : 'bg-white border-gray-200 hover:border-black hover:bg-gray-50 text-black'
+                    ? 'bg-[#fff1f3] dark:bg-[#271216] border-[#701a31] dark:border-rose-500 text-[#701a31] dark:text-[#ff90e8] shadow-xs'
+                    : 'bg-white dark:bg-zinc-900/60 border-gray-200 dark:border-zinc-700 hover:border-black dark:hover:border-zinc-500 hover:bg-gray-50 dark:hover:bg-zinc-800 text-black dark:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    queueFilter === 'anyone' ? 'bg-[#701a31] text-white' : 'bg-gray-100 text-gray-700'
+                    queueFilter === 'anyone' ? 'bg-[#701a31] text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300'
                   }`}>
                     <Globe className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-black truncate">Anyone (All Departments)</p>
-                    <p className="text-[10px] text-gray-500 font-medium">Open to all active students</p>
+                    <p className="text-[10px] text-gray-500 dark:text-zinc-400 font-medium">Open to all active students</p>
                   </div>
                 </div>
-                {queueFilter === 'anyone' && <Check className="w-4 h-4 text-[#701a31] stroke-[2.5]" />}
+                {queueFilter === 'anyone' && <Check className="w-4 h-4 text-[#701a31] dark:text-[#ff90e8] stroke-[2.5]" />}
               </button>
 
               {/* Same Department */}
@@ -410,13 +412,13 @@ export const MatchmakingScreen: React.FC = () => {
                 onClick={() => handleSelectPreference('same')}
                 className={`w-full p-2.5 rounded-xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
                   queueFilter === 'same'
-                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31] shadow-xs'
-                    : 'bg-white border-gray-200 hover:border-black hover:bg-gray-50 text-black'
+                    ? 'bg-[#fff1f3] dark:bg-[#271216] border-[#701a31] dark:border-rose-500 text-[#701a31] dark:text-[#ff90e8] shadow-xs'
+                    : 'bg-white dark:bg-zinc-900/60 border-gray-200 dark:border-zinc-700 hover:border-black dark:hover:border-zinc-500 hover:bg-gray-50 dark:hover:bg-zinc-800 text-black dark:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    queueFilter === 'same' ? 'bg-[#701a31] text-white' : 'bg-gray-100 text-gray-700'
+                    queueFilter === 'same' ? 'bg-[#701a31] text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300'
                   }`}>
                     <GraduationCap className="w-4 h-4" />
                   </div>
@@ -424,10 +426,10 @@ export const MatchmakingScreen: React.FC = () => {
                     <p className="text-xs font-black truncate">
                       Same Department ({currentUser?.department.replace('College of ', '') || 'My College'})
                     </p>
-                    <p className="text-[10px] text-gray-500 font-medium">Match only within your college</p>
+                    <p className="text-[10px] text-gray-500 dark:text-zinc-400 font-medium">Match only within your college</p>
                   </div>
                 </div>
-                {queueFilter === 'same' && <Check className="w-4 h-4 text-[#701a31] stroke-[2.5]" />}
+                {queueFilter === 'same' && <Check className="w-4 h-4 text-[#701a31] dark:text-[#ff90e8] stroke-[2.5]" />}
               </button>
 
               {/* Different Department */}
@@ -436,30 +438,30 @@ export const MatchmakingScreen: React.FC = () => {
                 onClick={() => handleSelectPreference('different')}
                 className={`w-full p-2.5 rounded-xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
                   queueFilter === 'different'
-                    ? 'bg-[#fff1f3] border-[#701a31] text-[#701a31] shadow-xs'
-                    : 'bg-white border-gray-200 hover:border-black hover:bg-gray-50 text-black'
+                    ? 'bg-[#fff1f3] dark:bg-[#271216] border-[#701a31] dark:border-rose-500 text-[#701a31] dark:text-[#ff90e8] shadow-xs'
+                    : 'bg-white dark:bg-zinc-900/60 border-gray-200 dark:border-zinc-700 hover:border-black dark:hover:border-zinc-500 hover:bg-gray-50 dark:hover:bg-zinc-800 text-black dark:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    queueFilter === 'different' ? 'bg-[#701a31] text-white' : 'bg-gray-100 text-gray-700'
+                    queueFilter === 'different' ? 'bg-[#701a31] text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300'
                   }`}>
                     <Shuffle className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-black truncate">Different Department</p>
-                    <p className="text-[10px] text-gray-500 font-medium">
+                    <p className="text-[10px] text-gray-500 dark:text-zinc-400 font-medium">
                       Match outside {currentUser?.department.replace('College of ', '') || 'your college'}
                     </p>
                   </div>
                 </div>
-                {queueFilter === 'different' && <Check className="w-4 h-4 text-[#701a31] stroke-[2.5]" />}
+                {queueFilter === 'different' && <Check className="w-4 h-4 text-[#701a31] dark:text-[#ff90e8] stroke-[2.5]" />}
               </button>
             </div>
 
             {/* Specific College Section */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block px-1">
+              <span className="text-[11px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-wider block px-1">
                 Filter by College
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -473,12 +475,12 @@ export const MatchmakingScreen: React.FC = () => {
                       className={`p-2 rounded-xl border transition-all flex items-center justify-between text-left cursor-pointer ${
                         isSelected
                           ? 'bg-[#701a31] text-white border-[#701a31] font-black shadow-xs'
-                          : 'bg-white text-black border-gray-200 hover:border-black hover:bg-gray-50 font-semibold'
+                          : 'bg-white dark:bg-zinc-900/60 text-black dark:text-white border-gray-200 dark:border-zinc-700 hover:border-black dark:hover:border-zinc-500 hover:bg-gray-50 dark:hover:bg-zinc-800 font-semibold'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
-                          isSelected ? 'text-white' : 'text-gray-600'
+                          isSelected ? 'text-white' : 'text-gray-600 dark:text-zinc-400'
                         }`}>
                           {getDepartmentIcon(dept, 'w-3.5 h-3.5')}
                         </div>
@@ -493,11 +495,11 @@ export const MatchmakingScreen: React.FC = () => {
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-3 border-t border-gray-200 flex justify-end shrink-0">
+          <div className="pt-3 border-t border-gray-200 dark:border-zinc-800 flex justify-end shrink-0">
             <button
               type="button"
               onClick={() => setShowPreferenceModal(false)}
-              className="px-5 py-2 rounded-xl text-xs font-black bg-black hover:bg-zinc-800 text-white transition-all cursor-pointer shadow-xs active:scale-95"
+              className="px-5 py-2 rounded-xl text-xs font-black bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black transition-all cursor-pointer shadow-xs active:scale-95"
             >
               Done
             </button>

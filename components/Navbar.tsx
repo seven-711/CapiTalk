@@ -322,8 +322,7 @@ export const Navbar: React.FC = () => {
                 className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white dark:bg-[#18181b] text-black dark:text-white hover:bg-[#fff1f3] dark:hover:bg-[#271216] border border-gray-200 dark:border-[#27272a] relative"
                 title="Your Kept Connection & Messages"
               >
-                <Heart className="w-3 h-3 text-[#ff90e8]" />
-                <span>Kept Contact</span>
+                <span>Contact</span>
                 {hasUnreadFriendMessage && (
                   <span className="flex h-2.5 w-2.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e02424] opacity-75"></span>
