@@ -300,10 +300,10 @@ export const MatchmakingScreen: React.FC = () => {
         <div className="pt-2 text-center space-y-3">
           <div className="space-y-1">
             <h2 className="text-base sm:text-lg font-extrabold text-black dark:text-white">
-              Anonymous Campus Matchmaking
+              Anonymous Matchmaking
             </h2>
             <p className="text-xs text-gray-500 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
-              Meet fellow Capitol University students anonymously in real time.
+              Meet fellow Capitolians anonymously in real time.
             </p>
           </div>
 

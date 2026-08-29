@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo, KeptConnection, PendingFriendRequest, PendingOutgoingConnection } from '../types';
+import { UserProfile, ChatRoom, ChatMessage, QueueFilter, UserReport, FreedomPost, UserFeedback, WallNotification, ViewState, BlockedUserInfo, KeptConnection, PendingFriendRequest, PendingOutgoingConnection, LoudspeakerBooking } from '../types';
 import { BOT_PARTNERS, BOT_RESPONSES, DepartmentType, getAvatarForPseudonym } from '../constants';
 import { matchmakingEngine } from '../realtime/matchmakingEngine';
 import { roomManager } from '../realtime/roomManager';
@@ -10,6 +10,7 @@ import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { checkProfanity } from '../utils/profanityFilter';
 import { getOrCreatePersistentUUID } from '../utils/uuid';
 import { getAdminToken, purgeLegacyAdminKeys } from '../auth/adminAuth';
+import { playLoudspeakerChime } from '../utils/audioChime';
 
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -17,6 +18,36 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
     broadcastChannel = new BroadcastChannel('capitalk_global_realtime');
   } catch (e) {}
 }
+
+let activeSupabaseAnnChannel: any = null;
+
+export function broadcastGlobalRealtime(event: string, payload: any) {
+  if (!supabase || !isSupabaseConfigured) return;
+  try {
+    if (activeSupabaseAnnChannel) {
+      activeSupabaseAnnChannel.send({
+        type: 'broadcast',
+        event,
+        payload,
+      });
+    } else {
+      const chan = supabase.channel('capitalk_global_announcements_v1');
+      chan.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          activeSupabaseAnnChannel = chan;
+          chan.send({
+            type: 'broadcast',
+            event,
+            payload,
+          });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[Global Realtime Broadcast Error]', e);
+  }
+}
+
 
 
 interface ChatStoreState {
@@ -57,6 +88,15 @@ interface ChatStoreState {
   addPseudonym: (pseudonym: string) => void;
   targetPostId: string | null;
   setTargetPostId: (id: string | null) => void;
+
+  loudspeakerBookings: LoudspeakerBooking[];
+  activeLoudspeaker: LoudspeakerBooking | null;
+  showLoudspeakerModal: boolean;
+  setShowLoudspeakerModal: (show: boolean) => void;
+  loudspeakerReactionBursts: { id: string; emoji: 'fire' | 'heart' | 'clap' | 'horn'; timestamp: number }[];
+  bookLoudspeakerSlot: (booking: Omit<LoudspeakerBooking, 'id' | 'status' | 'created_at' | 'reaction_counts'>) => void;
+  cancelLoudspeakerBooking: (bookingId: string) => void;
+  reactToLoudspeaker: (emoji: 'fire' | 'heart' | 'clap' | 'horn') => void;
 
   actionToast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error' | 'info'; message: string } | null;
   setActionToast: (toast: { type: 'block' | 'report' | 'announcement' | 'ban' | 'error' | 'info'; message: string } | null) => void;
@@ -1214,6 +1254,12 @@ export const useChatStore = create<ChatStoreState>()(
       bayotCount: 0,
       freedomPosts: [],
 
+      loudspeakerBookings: [],
+      activeLoudspeaker: null,
+      showLoudspeakerModal: false,
+      setShowLoudspeakerModal: (show: boolean) => set({ showLoudspeakerModal: show }),
+      loudspeakerReactionBursts: [],
+
       actionToast: null,
       systemAnnouncement: null,
       showQueueTimeoutModal: false,
@@ -1347,6 +1393,11 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
 
+        // Connect to WebSocket server immediately so live loudspeaker broadcasts & platform updates are always received
+        if (typeof window !== 'undefined') {
+          matchmakingEngine.connect();
+        }
+
         // Initial real-time ban check via API
         get().checkBanStatus();
 
@@ -1371,10 +1422,21 @@ export const useChatStore = create<ChatStoreState>()(
             const rawAnnouncement = localStorage.getItem('capitalk_shared_announcement_v5');
             const loadedAnnouncement = rawAnnouncement ? JSON.parse(rawAnnouncement) : null;
 
+            const rawLoudspeaker = localStorage.getItem('capitalk_shared_loudspeaker_v1');
+            const loadedLoudspeaker: LoudspeakerBooking[] = (rawLoudspeaker ? JSON.parse(rawLoudspeaker) : []).filter(
+              (b: any) => b.id !== 'ls_sample_1'
+            );
+
             const rawFreedom = localStorage.getItem('capitalk_freedom_wall_v1');
             const loadedFreedom: FreedomPost[] = rawFreedom ? JSON.parse(rawFreedom) : DEMO_FREEDOM_POSTS;
 
-            set({ reports: mergedReports, bannedUserIds: mergedBans, systemAnnouncement: loadedAnnouncement, freedomPosts: loadedFreedom });
+            set({
+              reports: mergedReports,
+              bannedUserIds: mergedBans,
+              systemAnnouncement: loadedAnnouncement,
+              freedomPosts: loadedFreedom,
+              loudspeakerBookings: loadedLoudspeaker.length > 0 ? loadedLoudspeaker : (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1'),
+            });
             localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(mergedReports));
             localStorage.setItem('capitalk_shared_bans_v5', JSON.stringify(mergedBans));
             if (!rawFreedom) {
@@ -1394,6 +1456,59 @@ export const useChatStore = create<ChatStoreState>()(
                       const loadedFromDb: FreedomPost[] = data.map((row: any) => mapDbRowToPost(row, localMap.get(row.id)));
                       set({ freedomPosts: loadedFromDb });
                       localStorage.setItem('capitalk_freedom_wall_v1', JSON.stringify(loadedFromDb));
+                    }
+                  }, () => {});
+              } catch (e) {}
+
+              // Sync Loudspeaker Bookings from Supabase Database for cross-device & persistent consistency
+              try {
+                supabase
+                  .from('loudspeaker_bookings')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                  .limit(50)
+                  .then(({ data, error }) => {
+                    if (data && data.length > 0 && !error) {
+                      const dbBookings: LoudspeakerBooking[] = data
+                        .filter((row: any) => row.id !== 'ls_sample_1')
+                        .map((row: any) => ({
+                          id: row.id,
+                          user_id: row.user_id || 'anon',
+                          author_alias: row.author_alias || 'Anonymous Student',
+                          department: row.department || 'College of Arts and Sciences',
+                          message: row.message,
+                          theme_color: row.theme_color || '#701a31',
+                          song_title: row.song_title || undefined,
+                          song_artist: row.song_artist || undefined,
+                          scheduled_at: row.scheduled_at,
+                          slot_label: row.slot_label || 'Broadcast Slot',
+                          duration_seconds: row.duration_seconds || 30,
+                          status: row.status || 'scheduled',
+                          reaction_counts: row.reaction_counts || { fire: 0, heart: 0, clap: 0, horn: 0 },
+                          created_at: row.created_at || new Date().toISOString(),
+                        }));
+
+                      const localBookings = (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1');
+                      const bookingMap = new Map<string, LoudspeakerBooking>();
+                      localBookings.forEach((b) => bookingMap.set(b.id, b));
+                      dbBookings.forEach((b) => bookingMap.set(b.id, b));
+                      const mergedBookings = Array.from(bookingMap.values());
+
+                      const now = Date.now();
+                      const currentlyLive = mergedBookings.find((b) => {
+                        if (b.status === 'cancelled' || b.status === 'completed') return false;
+                        const schedTime = new Date(b.scheduled_at).getTime();
+                        const durMs = (b.duration_seconds || 30) * 1000;
+                        return schedTime <= now && (schedTime + durMs) > now;
+                      });
+
+                      set({
+                        loudspeakerBookings: mergedBookings,
+                        activeLoudspeaker: currentlyLive ? { ...currentlyLive, status: 'live' } : null,
+                      });
+                      try {
+                        localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(mergedBookings));
+                      } catch (e) {}
                     }
                   }, () => {});
               } catch (e) {}
@@ -1566,6 +1681,13 @@ export const useChatStore = create<ChatStoreState>()(
                   });
                 } else if (event.data?.type === 'FREEDOM_WALL_UPDATE') {
                   set({ freedomPosts: event.data.posts });
+                } else if (event.data?.type === 'LOUDSPEAKER_BOOKINGS_UPDATED') {
+                  set({ loudspeakerBookings: event.data.bookings });
+                } else if (event.data?.type === 'LOUDSPEAKER_LIVE_START') {
+                  playLoudspeakerChime();
+                  set({ activeLoudspeaker: event.data.booking });
+                } else if (event.data?.type === 'LOUDSPEAKER_LIVE_END') {
+                  set({ activeLoudspeaker: null });
                 } else if (event.data?.type === 'WALL_NOTIFICATIONS_UPDATE') {
                   set({ wallNotifications: event.data.notifications });
                 } else if (event.data?.type === 'USER_BANNED') {
@@ -1959,8 +2081,66 @@ export const useChatStore = create<ChatStoreState>()(
             // Supabase Realtime Global Announcement Channel (for Vercel & cross-device real-time sync)
             if (supabase && isSupabaseConfigured) {
               try {
-                const annChannel = supabase.channel('capitalk_global_announcements_v1');
+                const annChannel = supabase.channel('capitalk_global_announcements_v1', {
+                  config: {
+                    broadcast: { self: true },
+                  },
+                });
+                activeSupabaseAnnChannel = annChannel;
+
                 annChannel
+                  .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'loudspeaker_bookings' },
+                    (payload: any) => {
+                      const newRow = payload?.new;
+                      if (!newRow || newRow.id === 'ls_sample_1') return;
+
+                      const formattedBooking: LoudspeakerBooking = {
+                        id: newRow.id,
+                        user_id: newRow.user_id || 'anon',
+                        author_alias: newRow.author_alias || 'Anonymous Student',
+                        department: newRow.department || 'College of Arts and Sciences',
+                        message: newRow.message,
+                        theme_color: newRow.theme_color || '#701a31',
+                        song_title: newRow.song_title || undefined,
+                        song_artist: newRow.song_artist || undefined,
+                        scheduled_at: newRow.scheduled_at,
+                        slot_label: newRow.slot_label || 'Broadcast Slot',
+                        duration_seconds: newRow.duration_seconds || 30,
+                        status: newRow.status || 'scheduled',
+                        reaction_counts: newRow.reaction_counts || { fire: 0, heart: 0, clap: 0, horn: 0 },
+                        created_at: newRow.created_at || new Date().toISOString(),
+                      };
+
+                      const currentBookings = (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1');
+                      const existingIndex = currentBookings.findIndex((b) => b.id === formattedBooking.id);
+                      let updatedBookings: LoudspeakerBooking[];
+                      if (existingIndex >= 0) {
+                        updatedBookings = currentBookings.map((b) => b.id === formattedBooking.id ? formattedBooking : b);
+                      } else {
+                        updatedBookings = [...currentBookings, formattedBooking];
+                      }
+
+                      const now = Date.now();
+                      const schedTime = new Date(formattedBooking.scheduled_at).getTime();
+                      const durMs = (formattedBooking.duration_seconds || 30) * 1000;
+                      const isLiveNow = (formattedBooking.status === 'live' || (schedTime <= now && (schedTime + durMs) > now)) && formattedBooking.status !== 'cancelled';
+
+                      set({
+                        loudspeakerBookings: updatedBookings,
+                        activeLoudspeaker: isLiveNow ? { ...formattedBooking, status: 'live' } : get().activeLoudspeaker,
+                      });
+
+                      if (isLiveNow && (!get().activeLoudspeaker || get().activeLoudspeaker?.id !== formattedBooking.id)) {
+                        try { playLoudspeakerChime(); } catch (e) {}
+                      }
+
+                      try {
+                        localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(updatedBookings));
+                      } catch (e) {}
+                    }
+                  )
                   .on('broadcast', { event: 'announcement' }, (payload: any) => {
                     const announcement = payload?.payload;
                     if (announcement) {
@@ -1992,6 +2172,57 @@ export const useChatStore = create<ChatStoreState>()(
                       if (typeof window !== 'undefined') {
                         localStorage.setItem('capitalk_shared_announcement_v5', JSON.stringify(announcement));
                       }
+                    }
+                  })
+                  .on('broadcast', { event: 'loudspeaker_live_start' }, ({ payload }: any) => {
+                    const booking = payload;
+                    if (booking) {
+                      try { playLoudspeakerChime(); } catch (e) {}
+                      set({ activeLoudspeaker: booking });
+                    }
+                  })
+                  .on('broadcast', { event: 'loudspeaker_live_end' }, () => {
+                    set({ activeLoudspeaker: null });
+                  })
+                  .on('broadcast', { event: 'loudspeaker_reaction' }, ({ payload }: any) => {
+                    const validEmoji = payload?.emoji as 'fire' | 'heart' | 'clap' | 'horn';
+                    if (validEmoji && ['fire', 'heart', 'clap', 'horn'].includes(validEmoji)) {
+                      const burst = {
+                        id: 'burst_' + Math.random().toString(36).substring(2, 9),
+                        emoji: validEmoji,
+                        timestamp: Date.now(),
+                      };
+                      const current = get().loudspeakerReactionBursts || [];
+                      const active = get().activeLoudspeaker;
+                      const updatedActive = active ? {
+                        ...active,
+                        reaction_counts: {
+                          ...active.reaction_counts,
+                          [validEmoji]: ((active.reaction_counts as any)[validEmoji] || 0) + 1,
+                        },
+                      } : null;
+                      set({
+                        activeLoudspeaker: updatedActive || active,
+                        loudspeakerReactionBursts: [...current.slice(-20), burst],
+                      });
+                    }
+                  })
+                  .on('broadcast', { event: 'loudspeaker_book' }, ({ payload }: any) => {
+                    if (payload) {
+                      const current = (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1');
+                      if (!current.some((b) => b.id === payload.id)) {
+                        const updated = [...current, payload];
+                        set({ loudspeakerBookings: updated });
+                        try { localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(updated)); } catch (e) {}
+                      }
+                    }
+                  })
+                  .on('broadcast', { event: 'loudspeaker_cancel' }, ({ payload }: any) => {
+                    if (payload?.bookingId) {
+                      const current = (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1');
+                      const updated = current.map((b) => b.id === payload.bookingId ? { ...b, status: 'cancelled' as const } : b);
+                      set({ loudspeakerBookings: updated });
+                      try { localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(updated)); } catch (e) {}
                     }
                   })
                   .on('broadcast', { event: 'connection_added_two_way' }, ({ payload }: any) => {
@@ -2026,59 +2257,44 @@ export const useChatStore = create<ChatStoreState>()(
                             sender_username: sender.username,
                             sender_department: sender.department,
                             sender_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
-                            sender_bio: sender.bio,
                             created_at: new Date().toISOString(),
                           };
-                          const existingRequests = (store.pendingIncomingRequests || []).filter((r) => r.sender_id !== sender.id);
-                          const updatedPending = [newPendingReq, ...existingRequests];
-                          set({
-                            pendingIncomingRequests: updatedPending,
-                            hasNewConnectionNotif: true,
-                          });
-                          try {
-                            localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updatedPending));
-                            localStorage.setItem('capitalk_has_new_conn_notif', 'true');
-                          } catch (e) {}
+                          const currentPending = store.pendingIncomingRequests || [];
+                          if (!currentPending.some((r) => r.sender_id === sender.id)) {
+                            const updated = [newPendingReq, ...currentPending];
+                            set({ pendingIncomingRequests: updated, hasNewConnectionNotif: true });
+                            try { localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(updated)); } catch (e) {}
+                            store.addWallNotification({
+                              post_id: 'req_' + Date.now(),
+                              type: 'friend_add',
+                              actor_alias: `@${sender.username}`,
+                              actor_username: sender.username,
+                              actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
+                              actor_department: sender.department,
+                              message_snippet: `✨ @${sender.username} wants to connect, but your 1 friend slot is full (@${currentKept.username}).`,
+                            });
 
-                          store.addWallNotification({
-                            post_id: 'req_' + Date.now(),
-                            type: 'friend_request_pending',
-                            actor_alias: `@${sender.username}`,
-                            actor_username: sender.username,
-                            actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
-                            actor_department: sender.department,
-                            message_snippet: `✨ @${sender.username} wants to connect, but your 1 friend slot is full (@${currentKept.username}).`,
-                          });
+                            store.setActionToast({
+                              type: 'info',
+                              message: `✨ @${sender.username} wants to connect (Your 1 slot is used by @${currentKept.username})`,
+                            });
 
-                          store.setActionToast({
-                            type: 'info',
-                            message: `✨ @${sender.username} wants to connect (Your 1 slot is used by @${currentKept.username})`,
-                          });
-
-                          // Notify requester that target's slot is currently full
-                          const currentUser = store.currentUser;
-                          if (currentUser) {
-                            const slotFullPayload = {
-                              type: 'CONNECTION_TARGET_SLOT_FULL',
-                              senderId: currentUser.id,
-                              senderUsername: currentUser.username,
-                              senderDepartment: currentUser.department,
-                              senderAvatar: currentUser.avatar_url,
-                              targetUserId: sender.id,
-                              timestamp: Date.now(),
-                            };
-                            if (broadcastChannel) {
-                              try { broadcastChannel.postMessage(slotFullPayload); } catch (e) {}
-                            }
-                            if (supabase && isSupabaseConfigured) {
-                              try {
-                                const chan = supabase.channel('capitalk_global_announcements_v1');
-                                chan.send({
-                                  type: 'broadcast',
-                                  event: 'connection_target_slot_full',
-                                  payload: slotFullPayload,
-                                });
-                              } catch (e) {}
+                            // Notify requester that target's slot is currently full
+                            const currentUser = store.currentUser;
+                            if (currentUser) {
+                              const slotFullPayload = {
+                                type: 'CONNECTION_TARGET_SLOT_FULL',
+                                senderId: currentUser.id,
+                                senderUsername: currentUser.username,
+                                senderDepartment: currentUser.department,
+                                senderAvatar: currentUser.avatar_url,
+                                targetUserId: sender.id,
+                                timestamp: Date.now(),
+                              };
+                              if (broadcastChannel) {
+                                try { broadcastChannel.postMessage(slotFullPayload); } catch (e) {}
+                              }
+                              broadcastGlobalRealtime('connection_target_slot_full', slotFullPayload);
                             }
                           }
                         }
@@ -2105,9 +2321,20 @@ export const useChatStore = create<ChatStoreState>()(
                         try {
                           localStorage.setItem('capitalk_pending_outgoing_v1', JSON.stringify(pendingOutgoing));
                         } catch (e) {}
+
+                        store.addWallNotification({
+                          post_id: 'slot_full_' + Date.now(),
+                          type: 'friend_add',
+                          actor_alias: `@${senderUsername || 'Student'}`,
+                          actor_username: senderUsername || 'Student',
+                          actor_avatar: senderAvatar || getAvatarForPseudonym(senderUsername || 'Student'),
+                          actor_department: senderDepartment || 'General',
+                          message_snippet: `✨ @${senderUsername || 'Student'}'s 1 friend slot is currently full. Your request is pending in their inbox!`,
+                        });
+
                         store.setActionToast({
                           type: 'info',
-                          message: `⏳ @${senderUsername}'s 1 friend slot is full. Your request is pending!`,
+                          message: `@${senderUsername || 'Student'}'s 1 connection slot is currently full. Your request is pending!`,
                         });
                       }
                     }
@@ -2118,27 +2345,15 @@ export const useChatStore = create<ChatStoreState>()(
                       const store = get();
                       const myUserId = store.currentUser?.id;
                       if (myUserId && targetUserId === myUserId && sender) {
-                        const newConn: KeptConnection = {
-                          id: 'kc_' + Date.now(),
-                          user_id: sender.id,
-                          username: sender.username,
-                          department: sender.department,
-                          avatar_url: sender.avatar_url,
-                          bio: sender.bio,
-                          added_at: new Date().toISOString(),
-                          last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                        };
-                        set({
-                          keptConnection: newConn,
-                          pendingOutgoingConnection: null,
-                          hasNewConnectionNotif: true,
-                        });
+                        store.keepPartner(sender, true);
+                        set({ pendingOutgoingConnection: null, hasNewConnectionNotif: true });
                         try {
                           localStorage.removeItem('capitalk_pending_outgoing_v1');
                           localStorage.setItem('capitalk_has_new_conn_notif', 'true');
                         } catch (e) {}
+
                         store.addWallNotification({
-                          post_id: 'conn_' + Date.now(),
+                          post_id: 'accepted_' + Date.now(),
                           type: 'friend_add',
                           actor_alias: `@${sender.username}`,
                           actor_username: sender.username,
@@ -2237,7 +2452,65 @@ export const useChatStore = create<ChatStoreState>()(
                       }
                     }
                   })
-                  .subscribe();
+                  .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                      activeSupabaseAnnChannel = annChannel;
+                    }
+                  });
+
+                // ── Client-Side Realtime Loudspeaker Airtime Ticker (every 1s) ───────────────
+                if (typeof window !== 'undefined') {
+                  if ((window as any).__loudspeakerTicker) {
+                    clearInterval((window as any).__loudspeakerTicker);
+                  }
+                  (window as any).__loudspeakerTicker = setInterval(() => {
+                    const store = get();
+                    const now = Date.now();
+                    const currentActive = store.activeLoudspeaker;
+
+                    // 1. Dismiss broadcast when 30-second duration expires
+                    if (currentActive) {
+                      const startTime = new Date(currentActive.scheduled_at).getTime();
+                      const durMs = (currentActive.duration_seconds || 30) * 1000;
+                      if (now >= startTime + durMs) {
+                        set({ activeLoudspeaker: null });
+                        try {
+                          roomManager.sendLoudspeakerEvent('end', {});
+                        } catch (e) {}
+                      }
+                    }
+
+                    // 2. Automatically trigger live broadcast if any booking is due right now
+                    if (!currentActive) {
+                      const due = (store.loudspeakerBookings || []).find((b) => {
+                        if (b.status === 'cancelled' || b.status === 'completed' || b.id === 'ls_sample_1') return false;
+                        const schedTime = new Date(b.scheduled_at).getTime();
+                        const durMs = (b.duration_seconds || 30) * 1000;
+                        return (schedTime - 1000) <= now && (schedTime + durMs) > now;
+                      });
+
+                      if (due) {
+                        try { playLoudspeakerChime(); } catch (e) {}
+                        const liveBooking: LoudspeakerBooking = { ...due, status: 'live' };
+                        set({ activeLoudspeaker: liveBooking });
+
+                        // Broadcast across active room, other open tabs, and Supabase channel!
+                        try {
+                          roomManager.sendLoudspeakerEvent('start', { booking: liveBooking });
+                        } catch (e) {}
+                        if (broadcastChannel) {
+                          try {
+                            broadcastChannel.postMessage({
+                              type: 'LOUDSPEAKER_LIVE_START',
+                              booking: liveBooking,
+                            });
+                          } catch (e) {}
+                        }
+                        broadcastGlobalRealtime('loudspeaker_live_start', liveBooking);
+                      }
+                    }
+                  }, 1000);
+                }
 
                 const wallChannel = supabase.channel('capitalk_global_wall_events');
                 wallChannel
@@ -4226,6 +4499,217 @@ export const useChatStore = create<ChatStoreState>()(
                 rating: newFeedback.rating,
                 message: newFeedback.message,
               })
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+      },
+
+      bookLoudspeakerSlot: (bookingInput) => {
+        const id = 'ls_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+        const isInstant = bookingInput.scheduled_at === 'instant' || new Date(bookingInput.scheduled_at).getTime() <= Date.now() + 1500;
+        const scheduledTime = isInstant
+          ? new Date().toISOString()
+          : bookingInput.scheduled_at;
+
+        const newBooking: LoudspeakerBooking = {
+          ...bookingInput,
+          id,
+          scheduled_at: scheduledTime,
+          status: isInstant ? 'live' : 'scheduled',
+          reaction_counts: { fire: 0, heart: 0, clap: 0, horn: 0 },
+          created_at: new Date().toISOString(),
+        };
+
+        const currentBookings = (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1');
+        const updated = [...currentBookings, newBooking];
+
+        set({
+          loudspeakerBookings: updated,
+          activeLoudspeaker: isInstant ? newBooking : get().activeLoudspeaker,
+          showLoudspeakerModal: false,
+          actionToast: {
+            type: 'announcement',
+            message: isInstant
+              ? `Broadcast live right now across the campus!`
+              : `Loudspeaker broadcast booked for ${newBooking.slot_label || 'your chosen slot'}!`,
+          },
+        });
+
+        if (isInstant) {
+          try { playLoudspeakerChime(); } catch (e) {}
+        }
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        // 1. Send to local WebSocket server
+        matchmakingEngine.sendWs({
+          type: 'LOUDSPEAKER_BOOK',
+          booking: newBooking,
+        });
+
+        // 2. Broadcast across open browser tabs
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({
+              type: 'LOUDSPEAKER_BOOKINGS_UPDATED',
+              bookings: updated,
+            });
+            if (isInstant) {
+              broadcastChannel.postMessage({
+                type: 'LOUDSPEAKER_LIVE_START',
+                booking: newBooking,
+              });
+            }
+          } catch (e) {}
+        }
+
+        // 3. Broadcast to Supabase Realtime channel for ALL devices/browsers
+        broadcastGlobalRealtime('loudspeaker_book', newBooking);
+        if (isInstant) {
+          broadcastGlobalRealtime('loudspeaker_live_start', newBooking);
+          try {
+            roomManager.sendLoudspeakerEvent('start', { booking: newBooking });
+          } catch (e) {}
+        }
+
+        // 4. Persist to PostgreSQL database for cross-device consistency
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('loudspeaker_bookings')
+              .upsert({
+                id: newBooking.id,
+                user_id: newBooking.user_id,
+                author_alias: newBooking.author_alias,
+                department: newBooking.department,
+                message: newBooking.message,
+                theme_color: newBooking.theme_color,
+                song_title: newBooking.song_title || null,
+                song_artist: newBooking.song_artist || null,
+                scheduled_at: newBooking.scheduled_at,
+                slot_label: newBooking.slot_label || null,
+                duration_seconds: newBooking.duration_seconds || 30,
+                status: newBooking.status,
+                reaction_counts: newBooking.reaction_counts,
+                created_at: newBooking.created_at,
+              })
+              .then(({ error }) => {
+                if (error) {
+                  console.warn('[Loudspeaker DB Error]', error.message);
+                }
+              }, (err) => console.warn('[Loudspeaker DB Error]', err));
+          } catch (e) {}
+        }
+      },
+
+      cancelLoudspeakerBooking: (bookingId: string) => {
+        const currentBookings = (get().loudspeakerBookings || []).filter((b) => b.id !== 'ls_sample_1');
+        const updated = currentBookings.map((b) =>
+          b.id === bookingId ? { ...b, status: 'cancelled' as const } : b
+        );
+
+        set({
+          loudspeakerBookings: updated,
+          actionToast: { type: 'info', message: 'Loudspeaker broadcast reservation cancelled.' },
+        });
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(updated));
+          } catch (e) {}
+        }
+
+        matchmakingEngine.sendWs({
+          type: 'LOUDSPEAKER_CANCEL',
+          bookingId,
+        });
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({
+              type: 'LOUDSPEAKER_BOOKINGS_UPDATED',
+              bookings: updated,
+            });
+          } catch (e) {}
+        }
+
+        broadcastGlobalRealtime('loudspeaker_cancel', { bookingId });
+        try {
+          roomManager.sendLoudspeakerEvent('end', {});
+        } catch (e) {}
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('loudspeaker_bookings')
+              .update({ status: 'cancelled' })
+              .eq('id', bookingId)
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+      },
+
+      reactToLoudspeaker: (emoji: 'fire' | 'heart' | 'clap' | 'horn') => {
+        const active = get().activeLoudspeaker;
+        if (!active) return;
+
+        const burst = {
+          id: 'burst_' + Math.random().toString(36).substring(2, 9),
+          emoji,
+          timestamp: Date.now(),
+        };
+
+        const currentBursts = get().loudspeakerReactionBursts || [];
+        const updatedBursts = [...currentBursts.slice(-20), burst];
+
+        const updatedActive = {
+          ...active,
+          reaction_counts: {
+            ...active.reaction_counts,
+            [emoji]: ((active.reaction_counts as any)[emoji] || 0) + 1,
+          },
+        };
+
+        set({
+          activeLoudspeaker: updatedActive,
+          loudspeakerReactionBursts: updatedBursts,
+        });
+
+        matchmakingEngine.sendWs({
+          type: 'LOUDSPEAKER_REACT',
+          bookingId: active.id,
+          emoji,
+        });
+
+        if (broadcastChannel) {
+          try {
+            broadcastChannel.postMessage({
+              type: 'LOUDSPEAKER_REACTION_BURST',
+              emoji,
+              bookingId: active.id,
+            });
+          } catch (e) {}
+        }
+
+        broadcastGlobalRealtime('loudspeaker_reaction', {
+          bookingId: active.id,
+          emoji,
+        });
+
+        try {
+          roomManager.sendLoudspeakerEvent('react', { emoji });
+        } catch (e) {}
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase
+              .from('loudspeaker_bookings')
+              .update({ reaction_counts: updatedActive.reaction_counts })
+              .eq('id', active.id)
               .then(() => {}, () => {});
           } catch (e) {}
         }

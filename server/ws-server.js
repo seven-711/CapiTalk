@@ -18,6 +18,48 @@ const roomMembers = new Map();
 // Set of all connected websockets (for online count)
 const allClients = new Set();
 
+// ── Loudspeaker Booking State & Ticker ───────────────────────────────────────
+let loudspeakerBookings = [];
+let activeLoudspeaker = null;
+
+// Loudspeaker Ticker: checks every 2.5s for due broadcasts
+setInterval(() => {
+  const now = Date.now();
+  if (activeLoudspeaker) return; // One live broadcast at a time
+
+  const due = loudspeakerBookings.find(
+    (b) => b.status === 'scheduled' && new Date(b.scheduled_at).getTime() <= now
+  );
+
+  if (due) {
+    due.status = 'live';
+    activeLoudspeaker = due;
+
+    console.log(`[Loudspeaker] 📢 LIVE BROADCAST TRIGGERED: "${due.message}" by @${due.author_alias}`);
+
+    const startMsg = { type: 'LOUDSPEAKER_LIVE_START', booking: due };
+    allClients.forEach((client) => {
+      if (client.readyState === client.OPEN) {
+        send(client, startMsg);
+      }
+    });
+
+    // Schedule end after duration_seconds
+    setTimeout(() => {
+      due.status = 'completed';
+      activeLoudspeaker = null;
+      console.log(`[Loudspeaker] Broadcast completed for: ${due.id}`);
+
+      const endMsg = { type: 'LOUDSPEAKER_LIVE_END', bookingId: due.id };
+      allClients.forEach((client) => {
+        if (client.readyState === client.OPEN) {
+          send(client, endMsg);
+        }
+      });
+    }, (due.duration_seconds || 30) * 1000);
+  }
+}, 2500);
+
 function broadcastOnlineCount() {
   const count = allClients.size;
   const msg = JSON.stringify({ type: 'ONLINE_COUNT', count });
@@ -150,6 +192,22 @@ wss.on('connection', (ws) => {
   broadcastOnlineCount();
   let clientUserId = null;
 
+  // Verify active loudspeaker has not expired
+  if (activeLoudspeaker) {
+    const schedTime = new Date(activeLoudspeaker.scheduled_at).getTime();
+    const durMs = (activeLoudspeaker.duration_seconds || 30) * 1000;
+    if (Date.now() >= schedTime + durMs) {
+      activeLoudspeaker = null;
+    }
+  }
+
+  // Send current loudspeaker state to freshly connected client
+  send(ws, {
+    type: 'LOUDSPEAKER_INIT',
+    bookings: loudspeakerBookings,
+    activeBooking: activeLoudspeaker,
+  });
+
   ws.on('message', (raw) => {
     let msg;
     try {
@@ -206,6 +264,19 @@ wss.on('connection', (ws) => {
         broadcastToRoom(roomId, clientUserId, {
           type: 'CHAT_MESSAGE',
           message,
+        });
+      }
+    }
+
+    else if (type === 'LOUDSPEAKER_EVENT') {
+      const { roomId, action, booking, emoji } = msg;
+      const roomInfo = rooms.get(clientUserId);
+      if (roomInfo && roomInfo.roomId === roomId) {
+        broadcastToRoom(roomId, clientUserId, {
+          type: 'LOUDSPEAKER_EVENT',
+          action,
+          booking,
+          emoji,
         });
       }
     }
@@ -282,6 +353,92 @@ wss.on('connection', (ws) => {
           send(client, { type: 'ANNOUNCEMENT_BROADCAST', announcement });
         }
       });
+    }
+
+    else if (type === 'LOUDSPEAKER_BOOK') {
+      const { booking } = msg;
+      if (booking) {
+        const isInstant = booking.scheduled_at === 'instant' || new Date(booking.scheduled_at).getTime() <= Date.now() + 1000;
+        const scheduledTime = isInstant
+          ? new Date().toISOString()
+          : booking.scheduled_at;
+
+        const newBooking = {
+          ...booking,
+          id: booking.id || 'ls_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          scheduled_at: scheduledTime,
+          status: isInstant && !activeLoudspeaker ? 'live' : 'scheduled',
+          reaction_counts: { fire: 0, heart: 0, clap: 0, horn: 0 },
+          created_at: new Date().toISOString(),
+        };
+
+        loudspeakerBookings.push(newBooking);
+        console.log(`[Loudspeaker] New slot booked by @${newBooking.author_alias} (${newBooking.department}) for ${newBooking.scheduled_at}`);
+
+        // Broadcast updated schedule to all clients
+        allClients.forEach((client) => {
+          if (client.readyState === client.OPEN) {
+            send(client, { type: 'LOUDSPEAKER_BOOKINGS_UPDATED', bookings: loudspeakerBookings });
+          }
+        });
+
+        // If it was instant and no broadcast is currently live, project live immediately!
+        if (newBooking.status === 'live') {
+          activeLoudspeaker = newBooking;
+          console.log(`[Loudspeaker] 📢 INSTANT BROADCAST LIVE: "${newBooking.message}" by @${newBooking.author_alias}`);
+          const startMsg = { type: 'LOUDSPEAKER_LIVE_START', booking: newBooking };
+          allClients.forEach((client) => {
+            if (client.readyState === client.OPEN) {
+              send(client, startMsg);
+            }
+          });
+
+          setTimeout(() => {
+            newBooking.status = 'completed';
+            activeLoudspeaker = null;
+            console.log(`[Loudspeaker] Broadcast completed for: ${newBooking.id}`);
+            const endMsg = { type: 'LOUDSPEAKER_LIVE_END', bookingId: newBooking.id };
+            allClients.forEach((client) => {
+              if (client.readyState === client.OPEN) {
+                send(client, endMsg);
+              }
+            });
+          }, (newBooking.duration_seconds || 30) * 1000);
+        }
+      }
+    }
+
+    else if (type === 'LOUDSPEAKER_CANCEL') {
+      const { bookingId } = msg;
+      const target = loudspeakerBookings.find((b) => b.id === bookingId);
+      if (target) {
+        target.status = 'cancelled';
+        console.log(`[Loudspeaker] Cancelled booking: ${bookingId}`);
+        allClients.forEach((client) => {
+          if (client.readyState === client.OPEN) {
+            send(client, { type: 'LOUDSPEAKER_BOOKINGS_UPDATED', bookings: loudspeakerBookings });
+          }
+        });
+      }
+    }
+
+    else if (type === 'LOUDSPEAKER_REACT') {
+      const { bookingId, emoji } = msg;
+      const target = activeLoudspeaker && activeLoudspeaker.id === bookingId ? activeLoudspeaker : loudspeakerBookings.find((b) => b.id === bookingId);
+      if (target && target.reaction_counts) {
+        target.reaction_counts[emoji] = (target.reaction_counts[emoji] || 0) + 1;
+        // Broadcast burst
+        allClients.forEach((client) => {
+          if (client.readyState === client.OPEN) {
+            send(client, {
+              type: 'LOUDSPEAKER_REACTION_BURST',
+              bookingId,
+              emoji,
+              reactionCounts: target.reaction_counts,
+            });
+          }
+        });
+      }
     }
 
     else if (type === 'GLOBAL_DM_MESSAGE' || (type && type.startsWith('CONNECTION_'))) {

@@ -192,4 +192,27 @@ export interface PendingOutgoingConnection {
   created_at: string;
 }
 
+export interface LoudspeakerBooking {
+  id: string;
+  user_id: string;
+  author_alias: string;
+  department: string;
+  message: string;
+  theme_color?: string; // e.g. '#701a31', '#ffc900', '#ff90e8', '#00e599', '#3b82f6'
+  song_title?: string;
+  song_artist?: string;
+  song_preview_url?: string;
+  scheduled_at: string; // ISO timestamp string or time string
+  slot_label?: string; // e.g. "12:00 PM - 12:15 PM"
+  duration_seconds: number; // default 30
+  status: 'scheduled' | 'live' | 'completed' | 'cancelled';
+  reaction_counts: {
+    fire: number;
+    heart: number;
+    clap: number;
+    horn: number;
+  };
+  created_at: string;
+}
+
 

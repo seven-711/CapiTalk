@@ -48,6 +48,7 @@ import confetti from 'canvas-confetti';
 import FloatingLines from './FloatingLines';
 import { ThemeModal, getThemeConfig } from './ThemeModal';
 import { getAvatarForPseudonym } from '../lib/constants';
+import { LoudspeakerLiveBanner } from './LoudspeakerLiveBanner';
 
 const ADMIN_LINES_GRADIENT = ['#ffc900', '#701a31', '#00f2fe', '#e11d48'];
 
@@ -862,29 +863,8 @@ export const ChatRoom: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Buttons: Dark Mode, Theme Modal, Report, Block, Exit, Next */}
+        {/* Action Buttons: Theme Modal, Report, Block, Exit, Next */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Dark / Light Theme Toggle Button */}
-          <button
-            type="button"
-            onClick={(e) => toggleThemeMode(e)}
-            suppressHydrationWarning
-            style={{
-              backgroundColor: isAdminRoom ? undefined : activeThemeConfig.headerButtonBg,
-              color: isAdminRoom ? undefined : activeThemeConfig.headerButtonText,
-              borderColor: isAdminRoom ? undefined : activeThemeConfig.id === 'yellow' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
-            }}
-            className="p-1.5 sm:p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 flex items-center justify-center shadow-2xs cursor-pointer"
-            title={themeMode === 1 ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            aria-label={themeMode === 1 ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {themeMode === 1 ? (
-              <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffc900] animate-in spin-in-90 duration-300" />
-            ) : (
-              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-in zoom-in-75 duration-300" />
-            )}
-          </button>
-
           {/* Theme Chooser Modal Trigger Button */}
           <button
             type="button"
@@ -983,6 +963,9 @@ export const ChatRoom: React.FC = () => {
         </div>
       </div>
 
+      {/* Campus Loudspeaker Banner (shows Book prompt by default, switches to Live broadcast when on air) */}
+      <LoudspeakerLiveBanner inChatRoomOnly={true} />
+
       {/* Message Feed Area — flex-1 min-h-0 fills remaining space and scrolls internally */}
       <div
         onClick={() => activePickerMsgId && setActivePickerMsgId(null)}
@@ -995,7 +978,7 @@ export const ChatRoom: React.FC = () => {
       >
         <div className="space-y-3 sm:space-y-4">
           {messages.map((msg) => {
-          if (msg.reaction_update || (!msg.message?.trim() && !msg.image_url && !msg.game_data && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
+          if (msg.reaction_update || msg.sender_id === 'system_loudspeaker' || msg.id.startsWith('msg_ls_') || (!msg.message?.trim() && !msg.image_url && !msg.game_data && !msg.id.startsWith('msg_ann_') && msg.sender_id !== 'system')) {
             return null;
           }
 

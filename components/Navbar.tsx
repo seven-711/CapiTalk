@@ -26,6 +26,7 @@ import {
   Music,
   Sun,
   Moon,
+  Megaphone,
 } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { useOnlineCount } from '../lib/hooks/useOnlineCount';
@@ -71,6 +72,9 @@ export const Navbar: React.FC = () => {
     streakCount,
     isStreakTriggeredToday,
     setShowStreakCelebrationModal,
+    showLoudspeakerModal,
+    setShowLoudspeakerModal,
+    activeLoudspeaker,
     themeMode,
     toggleThemeMode,
   } = useChatStore();
@@ -354,6 +358,24 @@ export const Navbar: React.FC = () => {
                 )}
               </button>
 
+              {/* Desktop Loudspeaker / PA Broadcast Button */}
+              <button
+                type="button"
+                onClick={() => setShowLoudspeakerModal(true)}
+                className={`text-[11px] sm:text-xs font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-full transition-all cursor-pointer relative ${
+                  activeLoudspeaker
+                    ? 'bg-[#ffc900] text-black border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] animate-bounce'
+                    : 'bg-white dark:bg-[#18181b] text-black dark:text-white hover:bg-amber-50 dark:hover:bg-amber-950/30 border border-gray-200 dark:border-[#27272a]'
+                }`}
+                title="Campus Loudspeaker (PA Broadcast)"
+              >
+                <Megaphone className={`w-3.5 h-3.5 ${activeLoudspeaker ? 'text-black' : 'text-[#ffc900]'}`} />
+                <span>Loudspeaker</span>
+                {activeLoudspeaker && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
+                )}
+              </button>
+
               {/* Desktop-Only Notification Bell Button */}
               <button
                 type="button"
@@ -534,7 +556,32 @@ export const Navbar: React.FC = () => {
           </div>
         </button>
 
-        {/* 5. Real-Time Notification Bell Icon */}
+        {/* 5. Campus Loudspeaker Button */}
+        <button
+          type="button"
+          onClick={() => setShowLoudspeakerModal(true)}
+          className={`p-2 rounded-full transition-all cursor-pointer active:scale-95 relative ${
+            showLoudspeakerModal
+              ? 'bg-[#ffc900] text-black shadow-xs'
+              : 'text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800'
+          }`}
+          aria-label="Campus Loudspeaker"
+          title="Campus Loudspeaker (PA Broadcast)"
+        >
+          <div className="relative flex items-center justify-center">
+            <Megaphone className={`w-5 h-5 stroke-[2.2] ${activeLoudspeaker ? 'text-[#ffc900] animate-bounce' : ''}`} />
+            {activeLoudspeaker && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
+                  •
+                </span>
+              </span>
+            )}
+          </div>
+        </button>
+
+        {/* 6. Real-Time Notification Bell Icon */}
         <button
           type="button"
           onClick={() => setShowNotifPopover(!showNotifPopover)}
@@ -1031,6 +1078,28 @@ export const Navbar: React.FC = () => {
                     Random Anonymous Chat
                   </span>
                   <span className="text-xs opacity-75 font-semibold">Matchmaking</span>
+                </button>
+
+                {/* Campus Loudspeaker Modal Launcher */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenuDrawer(false);
+                    setShowLoudspeakerModal(true);
+                  }}
+                  className="w-full p-3.5 rounded-2xl border-2 border-black dark:border-white/20 text-left font-black text-sm sm:text-base flex items-center justify-between transition-all shadow-xs cursor-pointer bg-white dark:bg-neutral-800 text-black dark:text-white hover:bg-[#fffae6] dark:hover:bg-amber-950/40"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Megaphone className="w-4 h-4 text-[#ffc900]" />
+                    Campus Loudspeaker
+                  </span>
+                  {activeLoudspeaker ? (
+                    <span className="text-[10px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+                      🔴 Live Now
+                    </span>
+                  ) : (
+                    <span className="text-xs opacity-75 font-semibold">PA Broadcast</span>
+                  )}
                 </button>
 
                 <button

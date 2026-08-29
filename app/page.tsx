@@ -19,6 +19,8 @@ import { MidtermSzn } from '../components/MidtermSzn';
 import { KeptConnectionsPage } from '../components/KeptConnectionsPage';
 import { DedicateSongPage } from '../components/DedicateSongPage';
 import { StreakModal } from '../components/StreakModal';
+import { LoudspeakerModal } from '../components/LoudspeakerModal';
+import { LoudspeakerLiveBanner } from '../components/LoudspeakerLiveBanner';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { getAvatarForPseudonym } from '../lib/constants';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
@@ -694,6 +696,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ── Campus Loudspeaker Live Banner (Outside Chatroom) ───────────────── */}
+      {viewState !== 'chat' && <LoudspeakerLiveBanner />}
 
       {/* ── Active Background Matchmaking Search Floating Bar ──────────────── */}
       {isSearching && viewState !== 'queue' && viewState !== 'chat' && (
@@ -1491,6 +1496,9 @@ export default function Home() {
         onClose={() => setShowStreakCelebrationModal(false)}
         streakCount={streakCount}
       />
+
+      {/* Campus Loudspeaker Booking & Timetable Modal */}
+      <LoudspeakerModal />
     </div>
   );
 }

@@ -94,16 +94,14 @@ class MatchmakingEngine {
         if (this.pingInterval) clearInterval(this.pingInterval);
         this.ws = null;
 
-        if (this.isSearching && this.currentUser) {
-          if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = setTimeout(() => {
-            this.connect(() => {
-              if (this.currentUser && this.isSearching) {
-                this.sendJoin();
-              }
-            });
-          }, 2000);
-        }
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
+          this.connect(() => {
+            if (this.currentUser && this.isSearching) {
+              this.sendJoin();
+            }
+          });
+        }, 2500);
       };
 
       ws.onerror = () => {
@@ -218,6 +216,91 @@ class MatchmakingEngine {
                 localStorage.setItem('capitalk_shared_reports_v5', JSON.stringify(updated));
               }
             }
+          } catch (e) {}
+        }
+        break;
+      }
+
+      case 'LOUDSPEAKER_INIT': {
+        const { bookings, activeBooking } = data;
+        try {
+          const { useChatStore } = require('../store/useChatStore');
+          if (Array.isArray(bookings)) {
+            let validActive = activeBooking || null;
+            if (validActive) {
+              const schedTime = new Date(validActive.scheduled_at).getTime();
+              const durMs = (validActive.duration_seconds || 30) * 1000;
+              if (Date.now() >= schedTime + durMs) {
+                validActive = null;
+              }
+            }
+            useChatStore.setState({
+              loudspeakerBookings: bookings,
+              activeLoudspeaker: validActive,
+            });
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(bookings));
+            }
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'LOUDSPEAKER_BOOKINGS_UPDATED': {
+        const { bookings } = data;
+        try {
+          const { useChatStore } = require('../store/useChatStore');
+          if (Array.isArray(bookings)) {
+            useChatStore.setState({ loudspeakerBookings: bookings });
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('capitalk_shared_loudspeaker_v1', JSON.stringify(bookings));
+            }
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'LOUDSPEAKER_LIVE_START': {
+        const { booking } = data;
+        if (booking) {
+          try {
+            const { useChatStore } = require('../store/useChatStore');
+            const { playLoudspeakerChime } = require('../utils/audioChime');
+            const { roomManager } = require('./roomManager');
+            const store = useChatStore.getState();
+
+            // Play authentic 2-tone school PA bell chime
+            playLoudspeakerChime();
+
+            // Update active loudspeaker in store
+            useChatStore.setState({ activeLoudspeaker: booking });
+          } catch (e) {}
+        }
+        break;
+      }
+
+      case 'LOUDSPEAKER_LIVE_END': {
+        try {
+          const { useChatStore } = require('../store/useChatStore');
+          useChatStore.setState({ activeLoudspeaker: null });
+        } catch (e) {}
+        break;
+      }
+
+      case 'LOUDSPEAKER_REACTION_BURST': {
+        const { emoji } = data;
+        if (emoji) {
+          try {
+            const { useChatStore } = require('../store/useChatStore');
+            const burst = {
+              id: 'burst_' + Math.random().toString(36).substring(2, 9),
+              emoji,
+              timestamp: Date.now(),
+            };
+            const current = useChatStore.getState().loudspeakerReactionBursts || [];
+            useChatStore.setState({
+              loudspeakerReactionBursts: [...current.slice(-20), burst],
+            });
           } catch (e) {}
         }
         break;
@@ -539,6 +622,18 @@ class MatchmakingEngine {
 
   public getWebSocket(): WebSocket | null {
     return this.ws;
+  }
+
+  public sendWs(data: any) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    } else {
+      this.connect(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify(data));
+        }
+      });
+    }
   }
 
   public getWaitingCount(): number {

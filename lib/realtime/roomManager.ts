@@ -104,6 +104,37 @@ class RoomManager {
                 this.gameCallbacks.forEach((cb) => cb(signal.gameData));
               } else if (signal.type === 'FRIEND_ADD') {
                 this.friendAddCallbacks.forEach((cb) => cb(signal.partnerProfile || signal.sender));
+              } else if (signal.type === 'LOUDSPEAKER_EVENT') {
+                try {
+                  const { useChatStore } = require('../store/useChatStore');
+                  const { playLoudspeakerChime } = require('../utils/audioChime');
+                  if (signal.action === 'start' && signal.booking) {
+                    playLoudspeakerChime();
+                    useChatStore.setState({ activeLoudspeaker: signal.booking });
+                  } else if (signal.action === 'end') {
+                    useChatStore.setState({ activeLoudspeaker: null });
+                  } else if (signal.action === 'react' && signal.emoji) {
+                    const burst = {
+                      id: 'burst_' + Math.random().toString(36).substring(2, 9),
+                      emoji: signal.emoji,
+                      timestamp: Date.now(),
+                    };
+                    const store = useChatStore.getState();
+                    const current = store.loudspeakerReactionBursts || [];
+                    const active = store.activeLoudspeaker;
+                    const updatedActive = active ? {
+                      ...active,
+                      reaction_counts: {
+                        ...active.reaction_counts,
+                        [signal.emoji]: ((active.reaction_counts as any)[signal.emoji] || 0) + 1,
+                      },
+                    } : null;
+                    useChatStore.setState({
+                      activeLoudspeaker: updatedActive || active,
+                      loudspeakerReactionBursts: [...current.slice(-20), burst],
+                    });
+                  }
+                } catch (err) {}
               }
             }
           } catch (err) {}
@@ -159,6 +190,40 @@ class RoomManager {
           .on('broadcast', { event: 'friend_add' }, ({ payload }: { payload: { senderId: string; partnerProfile?: any; sender?: any } }) => {
             if (payload && payload.senderId !== user.id) {
               this.friendAddCallbacks.forEach((cb) => cb(payload.partnerProfile || payload.sender));
+            }
+          })
+          .on('broadcast', { event: 'loudspeaker_event' }, ({ payload }: any) => {
+            if (payload && payload.senderId !== user.id) {
+              try {
+                const { useChatStore } = require('../store/useChatStore');
+                const { playLoudspeakerChime } = require('../utils/audioChime');
+                if (payload.action === 'start' && payload.booking) {
+                  playLoudspeakerChime();
+                  useChatStore.setState({ activeLoudspeaker: payload.booking });
+                } else if (payload.action === 'end') {
+                  useChatStore.setState({ activeLoudspeaker: null });
+                } else if (payload.action === 'react' && payload.emoji) {
+                  const burst = {
+                    id: 'burst_' + Math.random().toString(36).substring(2, 9),
+                    emoji: payload.emoji,
+                    timestamp: Date.now(),
+                  };
+                  const store = useChatStore.getState();
+                  const current = store.loudspeakerReactionBursts || [];
+                  const active = store.activeLoudspeaker;
+                  const updatedActive = active ? {
+                    ...active,
+                    reaction_counts: {
+                      ...active.reaction_counts,
+                      [payload.emoji]: ((active.reaction_counts as any)[payload.emoji] || 0) + 1,
+                    },
+                  } : null;
+                  useChatStore.setState({
+                    activeLoudspeaker: updatedActive || active,
+                    loudspeakerReactionBursts: [...current.slice(-20), burst],
+                  });
+                }
+              } catch (e) {}
             }
           })
           .subscribe();
@@ -240,6 +305,39 @@ class RoomManager {
       }
       case 'PARTNER_LEFT': {
         this.skipCallbacks.forEach((cb) => cb(data.reason || 'disconnected'));
+        break;
+      }
+      case 'LOUDSPEAKER_EVENT': {
+        try {
+          const { useChatStore } = require('../store/useChatStore');
+          const { playLoudspeakerChime } = require('../utils/audioChime');
+          if (data.action === 'start' && data.booking) {
+            playLoudspeakerChime();
+            useChatStore.setState({ activeLoudspeaker: data.booking });
+          } else if (data.action === 'end') {
+            useChatStore.setState({ activeLoudspeaker: null });
+          } else if (data.action === 'react' && data.emoji) {
+            const burst = {
+              id: 'burst_' + Math.random().toString(36).substring(2, 9),
+              emoji: data.emoji,
+              timestamp: Date.now(),
+            };
+            const store = useChatStore.getState();
+            const current = store.loudspeakerReactionBursts || [];
+            const active = store.activeLoudspeaker;
+            const updatedActive = active ? {
+              ...active,
+              reaction_counts: {
+                ...active.reaction_counts,
+                [data.emoji]: ((active.reaction_counts as any)[data.emoji] || 0) + 1,
+              },
+            } : null;
+            useChatStore.setState({
+              activeLoudspeaker: updatedActive || active,
+              loudspeakerReactionBursts: [...current.slice(-20), burst],
+            });
+          }
+        } catch (e) {}
         break;
       }
       case 'GLOBAL_DM_MESSAGE':
@@ -385,6 +483,36 @@ class RoomManager {
           type: 'broadcast',
           event: 'friend_add',
           payload: { senderId: this.currentUserId, partnerProfile },
+        });
+      } catch (e) {}
+    }
+  }
+
+  public sendLoudspeakerEvent(action: 'start' | 'end' | 'react', data: any = {}) {
+    const payload = { action, ...data, senderId: this.currentUserId, t: Date.now() };
+
+    // Broadcast 1: LocalStorage signal
+    if (this.currentRoomId && typeof window !== 'undefined') {
+      localStorage.setItem(SIGNAL_STORAGE_PREFIX + this.currentRoomId, JSON.stringify({ type: 'LOUDSPEAKER_EVENT', ...payload }));
+    }
+
+    // Broadcast 2: WebSocket server
+    const ws = this.getSocket();
+    if (ws && ws.readyState === WebSocket.OPEN && this.currentRoomId) {
+      ws.send(JSON.stringify({
+        type: 'LOUDSPEAKER_EVENT',
+        roomId: this.currentRoomId,
+        ...payload,
+      }));
+    }
+
+    // Broadcast 3: In-Room Supabase Realtime Channel
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'loudspeaker_event',
+          payload,
         });
       } catch (e) {}
     }
