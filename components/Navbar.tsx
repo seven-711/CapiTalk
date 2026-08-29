@@ -762,7 +762,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => {
                         markSingleNotificationAsRead(item.id);
                         setShowNotifPopover(false);
-                        if (item.type === 'friend_add' || item.type === 'dm' || item.type === 'friend_remove') {
+                        if (item.type === 'friend_add' || item.type === 'friend_request' || item.type === 'friend_request_pending' || item.type === 'friend_accept' || item.type === 'dm' || item.type === 'friend_remove') {
                           setViewState('kept_connections');
                         } else if (item.post_id?.includes('midterm')) {
                           setViewState('midterm_szn');
@@ -793,7 +793,8 @@ export const Navbar: React.FC = () => {
                             {item.type === 'like' && '💖'}
                             {item.type === 'comment' && '💬'}
                             {item.type === 'friend_add' && '👥'}
-                            {item.type === 'friend_request_pending' && '⏳'}
+                            {(item.type === 'friend_request_pending' || item.type === 'friend_request') && '🤝'}
+                            {item.type === 'friend_accept' && '✨'}
                             {item.type === 'friend_remove' && '💔'}
                             {item.type === 'dm' && '💌'}
                             {item.type === 'admin_remark' && '👑'}
@@ -805,7 +806,8 @@ export const Navbar: React.FC = () => {
                               {item.type === 'like' && `${displayName} reacted`}
                               {item.type === 'comment' && `${displayName} commented`}
                               {item.type === 'friend_add' && `${displayName} added you`}
-                              {item.type === 'friend_request_pending' && `${displayName} sent a friend request`}
+                              {(item.type === 'friend_request_pending' || item.type === 'friend_request') && `${displayName} sent a friend request`}
+                              {item.type === 'friend_accept' && `${displayName} accepted your friend request`}
                               {item.type === 'friend_remove' && `${displayName} unfriended you`}
                               {item.type === 'dm' && `Message from ${displayName}`}
                               {item.type === 'admin_remark' && 'CapiTalk Admin'}
@@ -830,8 +832,8 @@ export const Navbar: React.FC = () => {
                             {item.comment_text || item.admin_remark || item.message_snippet}
                           </p>
 
-                          {/* Pending Friend Request Action (Slot Full: Switch / Decline) */}
-                          {item.type === 'friend_request_pending' && (
+                          {/* Pending Friend Request Action (Switch / Accept / Decline) */}
+                          {(item.type === 'friend_request_pending' || item.type === 'friend_request') && (
                             <div className="pt-2 flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
@@ -855,14 +857,13 @@ export const Navbar: React.FC = () => {
                                   markSingleNotificationAsRead(item.id);
                                   setActionToast({
                                     type: 'info',
-                                    message: `✓ Switched and connected with @${displayName}!`,
+                                    message: `✓ Switched and connected with ${displayName}!`,
                                   });
                                 }}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-[11px] font-black rounded-xl border border-black shadow-2xs transition-all active:scale-95 cursor-pointer"
                                 title="Unfriend current connection and switch to this friend"
                               >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                <span>{keptConnection ? `Switch to @${displayName}` : `Accept @${displayName}`}</span>
+                                <span>{keptConnection ? `Switch to ${displayName}` : `Accept ${displayName}`}</span>
                               </button>
 
                               <button
@@ -884,7 +885,6 @@ export const Navbar: React.FC = () => {
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-[11px] font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 shadow-2xs transition-all active:scale-95 cursor-pointer"
                               >
-                                <X className="w-3.5 h-3.5" />
                                 <span>Decline</span>
                               </button>
                             </div>

@@ -153,7 +153,7 @@ export interface UserFeedback {
 export interface WallNotification {
   id: string;
   post_id: string;
-  type: 'like' | 'comment' | 'admin_remark' | 'friend_add' | 'friend_remove' | 'friend_request_pending' | 'dm';
+  type: 'like' | 'comment' | 'admin_remark' | 'friend_add' | 'friend_remove' | 'friend_request' | 'friend_request_pending' | 'friend_accept' | 'dm';
   actor_alias: string; // e.g. "Someone from Engr." or "👑 CapiTalk Admin"
   actor_username?: string;
   actor_department?: string;

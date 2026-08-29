@@ -341,6 +341,13 @@ class RoomManager {
         break;
       }
       case 'GLOBAL_DM_MESSAGE':
+      case 'FRIEND_REQUEST_INCOMING':
+      case 'FRIEND_REQUEST_ACCEPTED':
+      case 'FRIEND_REQUEST_DECLINED':
+      case 'FRIEND_REQUEST_CANCELLED':
+      case 'USER_PRESENCE_HEARTBEAT':
+      case 'USER_PRESENCE_QUERY':
+      case 'USER_PRESENCE_LEAVE':
       case 'CONNECTION_ADDED_TWO_WAY':
       case 'CONNECTION_REMOVED_TWO_WAY':
       case 'CONNECTION_TARGET_SLOT_FULL':

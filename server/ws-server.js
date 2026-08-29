@@ -441,7 +441,7 @@ wss.on('connection', (ws) => {
       }
     }
 
-    else if (type === 'GLOBAL_DM_MESSAGE' || (type && type.startsWith('CONNECTION_'))) {
+    else if (type === 'GLOBAL_DM_MESSAGE' || (type && type.startsWith('CONNECTION_')) || (type && type.startsWith('FRIEND_')) || (type && type.startsWith('USER_PRESENCE_'))) {
       allClients.forEach((client) => {
         if (client.readyState === client.OPEN) {
           send(client, msg);

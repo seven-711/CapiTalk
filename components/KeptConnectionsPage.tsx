@@ -175,6 +175,10 @@ const SwipeableDmRow: React.FC<SwipeableDmRowProps> = ({
 export const KeptConnectionsPage: React.FC = () => {
   const {
     keptConnection,
+    isKeptPartnerOnline,
+    keptPartnerLastSeen,
+    sendGlobalPresenceHeartbeat,
+    queryPartnerPresence,
     removeKeptConnection,
     setViewState,
     goBack,
@@ -195,6 +199,9 @@ export const KeptConnectionsPage: React.FC = () => {
   const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  const isOnline = isPartnerOnline || isKeptPartnerOnline;
+  const effectiveLastSeen = lastSeenTime || keptPartnerLastSeen;
 
   // Message Reply & Reaction States
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
@@ -432,26 +439,71 @@ export const KeptConnectionsPage: React.FC = () => {
     }
   }, [currentUser]);
 
-  // Load existing message history
+  // Load existing message history (localStorage + Supabase Database)
   useEffect(() => {
     if (!keptConnection) return;
     try {
       const saved = localStorage.getItem(storageKey);
+      let localMsgs: DirectMessage[] = [];
       if (saved) {
         const parsed: DirectMessage[] = JSON.parse(saved);
-        setMessages(
-          parsed.map((m) => ({
-            ...m,
-            isMe: m.senderId === (currentUser?.id || 'me'),
-          }))
-        );
-      } else {
-        setMessages([]);
+        localMsgs = parsed.map((m) => ({
+          ...m,
+          isMe: m.senderId === (currentUser?.id || 'me'),
+        }));
+      }
+      setMessages(localMsgs);
+
+      if (supabase && isSupabaseConfigured) {
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('room_id', 'dm_' + pairKey)
+          .order('created_at', { ascending: true })
+          .limit(100)
+          .then(({ data, error }) => {
+            if (!error && data && data.length > 0) {
+              const dbMsgs: DirectMessage[] = data.map((row: any) => {
+                let parsedMsg: any = {};
+                try {
+                  parsedMsg = typeof row.message === 'string' ? JSON.parse(row.message) : (row.message || {});
+                } catch {
+                  parsedMsg = { text: row.message };
+                }
+                return {
+                  id: row.id,
+                  senderId: row.sender_id,
+                  senderName: row.sender_username || 'Friend',
+                  text: parsedMsg.text || '',
+                  timestamp: parsedMsg.timestamp || new Date(row.created_at).getTime(),
+                  isMe: row.sender_id === currentUser?.id,
+                  read: true,
+                  reply_to: parsedMsg.reply_to,
+                  reactions: parsedMsg.reactions,
+                };
+              });
+
+              setMessages((prev) => {
+                const map = new Map<string, DirectMessage>();
+                prev.forEach((m) => map.set(m.id, m));
+                dbMsgs.forEach((m) => {
+                  if (!map.has(m.id)) {
+                    map.set(m.id, m);
+                  }
+                });
+                const merged = Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
+                try {
+                  localStorage.setItem(storageKey, JSON.stringify(merged));
+                } catch {}
+                return merged;
+              });
+            }
+          });
       }
     } catch {
       setMessages([]);
     }
-  }, [keptConnection, storageKey, currentUser?.id]);
+  }, [keptConnection, storageKey, currentUser?.id, pairKey]);
 
   // Connect Real-Time Subscriptions (Supabase Realtime + Local BroadcastChannel + Storage Event)
   useEffect(() => {
@@ -463,10 +515,13 @@ export const KeptConnectionsPage: React.FC = () => {
     // Send read receipt and presence ping on mount
     sendReadReceipt();
     sendPresencePing();
+    sendGlobalPresenceHeartbeat();
+    queryPartnerPresence();
 
     // Regular heartbeat ping every 5 seconds
     presenceHeartbeatTimerRef.current = setInterval(() => {
       sendPresencePing();
+      sendGlobalPresenceHeartbeat();
     }, 5000);
 
     // 1. BroadcastChannel for instant local cross-tab / multi-window sync
@@ -703,7 +758,6 @@ export const KeptConnectionsPage: React.FC = () => {
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleBeforeUnload();
 
       if (presenceHeartbeatTimerRef.current) clearInterval(presenceHeartbeatTimerRef.current);
       if (lastSignalTimeoutRef.current) clearTimeout(lastSignalTimeoutRef.current);
@@ -824,7 +878,29 @@ export const KeptConnectionsPage: React.FC = () => {
       } catch {}
     }
 
-    // 3. Global notification broadcast so recipient gets notified anywhere in the app
+    // 3. Persist to Supabase Database
+    if (isSupabaseConfigured && supabase) {
+      try {
+        supabase
+          .from('messages')
+          .insert({
+            id: myMessage.id,
+            room_id: 'dm_' + pairKey,
+            sender_id: currentUser.id,
+            sender_username: currentUser.username,
+            message: JSON.stringify({
+              text: myMessage.text,
+              timestamp: myMessage.timestamp,
+              reply_to: myMessage.reply_to,
+              reactions: myMessage.reactions,
+            }),
+            created_at: new Date(myMessage.timestamp).toISOString(),
+          })
+          .then(() => {}, () => {});
+      } catch (e) {}
+    }
+
+    // 4. Global notification broadcast so recipient gets notified anywhere in the app
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         const globalBc = new BroadcastChannel('capitalk_global_realtime');
@@ -853,7 +929,7 @@ export const KeptConnectionsPage: React.FC = () => {
       } catch {}
     }
 
-    // 4. WebSocket real-time broadcast
+    // 5. WebSocket real-time broadcast
     try {
       const ws = (window as any).__capitalk_ws;
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -908,7 +984,7 @@ export const KeptConnectionsPage: React.FC = () => {
                   />
                   <span
                     className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-[#18181b] transition-all ${
-                      isPartnerOnline
+                      isOnline
                         ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
                         : 'bg-zinc-500'
                     }`}
@@ -928,15 +1004,15 @@ export const KeptConnectionsPage: React.FC = () => {
                     <p className="text-[11px] font-bold text-amber-400 truncate leading-tight mt-0.5 animate-pulse">
                       typing...
                     </p>
-                  ) : isPartnerOnline ? (
+                  ) : isOnline ? (
                     <p className="text-[11px] font-bold text-emerald-400 truncate leading-tight mt-0.5">
                       Online
                     </p>
                   ) : (
                     <p className="text-[11px] font-medium text-zinc-400 truncate leading-tight mt-0.5">
-                      {lastSeenTime
+                      {effectiveLastSeen
                         ? (() => {
-                            const diffSec = Math.max(0, Math.floor((Date.now() - lastSeenTime) / 1000));
+                            const diffSec = Math.max(0, Math.floor((Date.now() - effectiveLastSeen) / 1000));
                             if (diffSec < 60) return 'Offline · Active just now';
                             const diffMin = Math.floor(diffSec / 60);
                             if (diffMin < 60) return `Offline · Active ${diffMin}m ago`;
@@ -1329,7 +1405,6 @@ export const KeptConnectionsPage: React.FC = () => {
                           onClick={() => acceptPendingRequest(req.id)}
                           className="flex-1 py-2 px-3 bg-[#00e599] hover:bg-[#00c985] text-black font-black text-xs rounded-xl border border-black shadow-xs transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          <Sparkles className="w-3.5 h-3.5" />
                           <span>{keptConnection ? `Switch to @${req.sender_username}` : `Accept Request`}</span>
                         </button>
 
@@ -1423,7 +1498,7 @@ export const KeptConnectionsPage: React.FC = () => {
                       />
                       <span
                         className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-[#18181b] transition-all ${
-                          isPartnerOnline
+                          isOnline
                             ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
                             : 'bg-zinc-500'
                         }`}

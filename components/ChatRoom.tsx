@@ -211,8 +211,12 @@ export const ChatRoom: React.FC = () => {
     dismissAnnouncement,
     setShowFeedbackModal,
     keptConnection,
+    pendingIncomingRequests,
     pendingOutgoingConnection,
+    sendFriendRequest,
     keepPartner,
+    acceptPendingRequest,
+    declinePendingRequest,
     setViewState,
     themeMode,
     toggleThemeMode,
@@ -1707,7 +1711,31 @@ export const ChatRoom: React.FC = () => {
                 </div>
               </div>
 
-              {keptConnection && keptConnection.user_id === partner.id ? (
+              {pendingIncomingRequests.some((r) => r.sender_id === partner.id) ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = pendingIncomingRequests.find((r) => r.sender_id === partner.id);
+                      if (req) acceptPendingRequest(req.id);
+                    }}
+                    className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border border-black shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Accept</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = pendingIncomingRequests.find((r) => r.sender_id === partner.id);
+                      if (req) declinePendingRequest(req.id);
+                    }}
+                    className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl border border-zinc-700 transition-colors active:scale-95 cursor-pointer"
+                  >
+                    Decline
+                  </button>
+                </div>
+              ) : keptConnection && keptConnection.user_id === partner.id ? (
                 <button
                   type="button"
                   onClick={() => setViewState('kept_connections')}
@@ -1736,7 +1764,7 @@ export const ChatRoom: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const res = keepPartner(partner);
+                    const res = sendFriendRequest(partner);
                     if (!res.success) {
                       setShowSlotFullModal(true);
                     }

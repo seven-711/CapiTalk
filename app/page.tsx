@@ -100,6 +100,8 @@ export default function Home() {
     viewState,
     setViewState,
     initSession,
+    sendGlobalPresenceHeartbeat,
+    queryPartnerPresence,
     isSearching,
     searchingTimeSeconds,
     showQueueTimeoutModal,
@@ -556,6 +558,8 @@ export default function Home() {
 
   React.useEffect(() => {
     initSession();
+    sendGlobalPresenceHeartbeat();
+    queryPartnerPresence();
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('capitalk_theme');
@@ -575,7 +579,7 @@ export default function Home() {
         }
       } catch (e) {}
     }
-  }, [initSession]);
+  }, [initSession, sendGlobalPresenceHeartbeat, queryPartnerPresence]);
 
   // Prevent accidental page reloads while searching or active in a chat
   React.useEffect(() => {

@@ -81,6 +81,9 @@ class MatchmakingEngine {
 
       ws.onopen = () => {
         console.log('[WS] Connected to CapiTalk server');
+        if (typeof window !== 'undefined') {
+          (window as any).__capitalk_ws = ws;
+        }
         if (this.pingInterval) clearInterval(this.pingInterval);
         this.pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -93,6 +96,11 @@ class MatchmakingEngine {
       ws.onclose = () => {
         if (this.pingInterval) clearInterval(this.pingInterval);
         this.ws = null;
+        if (typeof window !== 'undefined') {
+          if ((window as any).__capitalk_ws === ws) {
+            delete (window as any).__capitalk_ws;
+          }
+        }
 
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
@@ -112,6 +120,18 @@ class MatchmakingEngine {
       this.ws = null;
       if (onReady) onReady();
     }
+  }
+
+  public send(data: any): boolean {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
   }
 
   private attachMessageHandler(ws: WebSocket) {
@@ -303,6 +323,51 @@ class MatchmakingEngine {
             });
           } catch (e) {}
         }
+        break;
+      }
+
+      case 'USER_PRESENCE_HEARTBEAT': {
+        const { userId, username, timestamp } = data;
+        try {
+          const { onPartnerPresenceHeartbeat } = require('../store/useChatStore');
+          if (userId || username) onPartnerPresenceHeartbeat(userId, username, timestamp);
+        } catch (e) {}
+        break;
+      }
+
+      case 'USER_PRESENCE_QUERY': {
+        const { targetUserId, targetUsername } = data;
+        try {
+          const { useChatStore } = require('../store/useChatStore');
+          const store = useChatStore.getState();
+          const myUser = store.currentUser;
+          const myIdClean = (myUser?.id || '').trim().toLowerCase();
+          const myNameClean = (myUser?.username || '').trim().toLowerCase().replace(/^@/, '');
+          const targetIdClean = (targetUserId || '').trim().toLowerCase();
+          const targetNameClean = (targetUsername || '').trim().toLowerCase().replace(/^@/, '');
+
+          const isForMe =
+            (targetIdClean && myIdClean && targetIdClean === myIdClean) ||
+            (targetNameClean && myNameClean && targetNameClean === myNameClean) ||
+            (targetIdClean && myNameClean && targetIdClean === myNameClean) ||
+            (targetNameClean && myIdClean && targetNameClean === myIdClean);
+
+          if (isForMe) {
+            store.sendGlobalPresenceHeartbeat();
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'USER_PRESENCE_LEAVE': {
+        const { userId } = data;
+        try {
+          const { useChatStore } = require('../store/useChatStore');
+          const store = useChatStore.getState();
+          if (store.keptConnection?.user_id === userId) {
+            useChatStore.setState({ isKeptPartnerOnline: false, keptPartnerLastSeen: Date.now() });
+          }
+        } catch (e) {}
         break;
       }
 
