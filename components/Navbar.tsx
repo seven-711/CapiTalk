@@ -403,7 +403,7 @@ export const Navbar: React.FC = () => {
               type="button"
               onClick={(e) => toggleThemeMode(e)}
               suppressHydrationWarning
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-black/15 dark:border-white/20 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-[#ffc900] hover:bg-[#fff1f3] dark:hover:bg-neutral-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-90 shrink-0"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full dark:text-[#ffc900] hover:bg-[#fff1f3] dark:hover:bg-neutral-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-90 shrink-0"
               title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
@@ -419,7 +419,6 @@ export const Navbar: React.FC = () => {
                 <div className="flex items-center gap-2 border border-[#d1d5dc] dark:border-[#27272a] bg-white dark:bg-[#18181b] rounded-full px-3 py-1 text-xs font-medium text-black dark:text-white">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   <span className="truncate max-w-[80px]">{activeUser.username}</span>
-                  <span className="text-[#242423] dark:text-neutral-400 opacity-75 hidden xl:inline">({activeUser.department.replace('College of ', '')})</span>
                 </div>
               </div>
             ) : (
