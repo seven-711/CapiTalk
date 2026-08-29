@@ -6,6 +6,7 @@ import { CU_DEPARTMENTS, getAvatarForPseudonym } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomPost } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   Plus,
   Heart,
@@ -864,7 +865,18 @@ export const MusicWall: React.FC = () => {
               }`}
               title={hasLiked ? "Unlike song dedication" : "Like song dedication"}
             >
-              <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${hasLiked ? (isDark ? 'fill-rose-300 text-rose-300' : 'fill-rose-500 text-rose-500') : ''}`} />
+              {hasLiked ? (
+                <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 flex items-center justify-center -my-1 -mx-0.5">
+                  <DotLottieReact
+                    src="/animated-assets/love.lottie"
+                    loop={false}
+                    autoplay={true}
+                    className="w-full h-full object-contain scale-125"
+                  />
+                </div>
+              ) : (
+                <Heart className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              )}
               <span>{post.likes_count || 0}</span>
             </button>
             {(commentsCountMap[post.id] || 0) > 0 && (
@@ -1347,7 +1359,18 @@ export const MusicWall: React.FC = () => {
                           : 'bg-white dark:bg-zinc-800 text-neutral-800 dark:text-zinc-200 hover:bg-neutral-50 dark:hover:bg-zinc-700'
                       }`}
                     >
-                      <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                      {hasLiked ? (
+                        <div className="w-5 h-5 flex items-center justify-center -my-1 -mx-0.5">
+                          <DotLottieReact
+                            src="/animated-assets/love.lottie"
+                            loop={false}
+                            autoplay={true}
+                            className="w-full h-full object-contain scale-125"
+                          />
+                        </div>
+                      ) : (
+                        <Heart className="w-3.5 h-3.5" />
+                      )}
                       <span>{post.likes_count || 0}</span>
                     </button>
 

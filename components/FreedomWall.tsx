@@ -4,6 +4,7 @@ import { CU_DEPARTMENTS, getAvatarForPseudonym } from '../lib/constants';
 import { analyzeContentModeration } from '../lib/utils/profanityFilter';
 import { FreedomComment, FreedomPost, FreedomPollOption } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import {
   getAdminToken,
   verifyAdminSession,
@@ -1459,7 +1460,18 @@ export const FreedomWall: React.FC = () => {
             }`}
             title="Tap to like · Hold to see who liked"
           >
-            <Heart className={`w-4 h-4 ${hasLiked ? (isDark ? 'fill-rose-300 text-rose-300' : 'fill-[#f33e5b] text-[#f33e5b]') : ''}`} />
+            {hasLiked ? (
+              <div className="w-5 h-5 flex items-center justify-center -my-0.5">
+                <DotLottieReact
+                  src="/animated-assets/lovee.lottie"
+                  loop={false}
+                  autoplay={true}
+                  className="w-full h-full object-contain scale-125"
+                />
+              </div>
+            ) : (
+              <Heart className="w-4 h-4" />
+            )}
           </button>
 
           {/* Comment Button */}
