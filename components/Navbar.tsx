@@ -138,6 +138,9 @@ export const Navbar: React.FC = () => {
     const deduped: typeof wallNotifications = [];
 
     for (const notif of wallNotifications) {
+      if (['friend_add', 'friend_remove', 'friend_request', 'friend_request_pending', 'friend_accept', 'dm'].includes(notif.type)) {
+        continue;
+      }
       const actor = (notif.actor_username || notif.actor_alias || '').replace(/^@/, '').trim().toLowerCase();
       const postId = (notif.post_id || '').trim();
       const type = notif.type;
@@ -146,11 +149,6 @@ export const Navbar: React.FC = () => {
       if (type === 'comment') {
         const textSnippet = (notif.comment_text || notif.message_snippet || '').trim().slice(0, 30).toLowerCase();
         sigKey = `comment_${postId}_${actor}_${textSnippet}`;
-      } else if (type === 'friend_add' || type === 'friend_remove') {
-        sigKey = `${type}_${actor}`;
-      } else if (type === 'dm') {
-        const snippet = (notif.message_snippet || '').trim().slice(0, 30).toLowerCase();
-        sigKey = `dm_${actor}_${snippet}`;
       }
 
       const dedupeKey = `${sigKey}_${notif.read ? 'read' : 'unread'}`;
@@ -164,10 +162,9 @@ export const Navbar: React.FC = () => {
   }, [wallNotifications]);
 
   const unreadNotifs = displayNotifications.filter((n) => !n.read);
-  const hasDedicatedFriendCard = displayNotifications.some((n) => n.type === 'friend_add' && !n.read);
-  const unreadCount = unreadNotifs.length + (hasNewConnectionNotif && !hasDedicatedFriendCard ? 1 : 0);
-  const unreadDmCount = displayNotifications.filter((n) => n.type === 'dm' && !n.read).length;
-  const hasUnreadFriendMessage = hasNewConnectionNotif || unreadDmCount > 0;
+  const unreadCount = unreadNotifs.length;
+  const unreadDmCount = 0;
+  const hasUnreadFriendMessage = false;
 
   const formatRelativeTime = (isoString?: string) => {
     if (!isoString) return 'just now';
@@ -313,26 +310,6 @@ export const Navbar: React.FC = () => {
                 {unreadMusicNotesCount > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e02424] text-white flex items-center justify-center border border-white shadow-2xs">
                     {unreadMusicNotesCount > 9 ? '9+' : unreadMusicNotesCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setHasNewConnectionNotif(false);
-                  setViewState('kept_connections');
-                }}
-                className="text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer bg-white dark:bg-[#18181b] text-black dark:text-white hover:bg-[#fff1f3] dark:hover:bg-[#271216] border border-gray-200 dark:border-[#27272a] relative"
-                title="Your Kept Connection & Messages"
-              >
-                <span>Contact</span>
-                {hasUnreadFriendMessage && (
-                  <span className="flex h-2.5 w-2.5 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e02424] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#e02424] text-[7px] text-white font-black items-center justify-center">
-                      !
-                    </span>
                   </span>
                 )}
               </button>
@@ -604,32 +581,7 @@ export const Navbar: React.FC = () => {
           </div>
         </button>
 
-        {/* 5. Messages / Kept Connections Button */}
-        <button
-          type="button"
-          onClick={() => {
-            setShowNotifPopover(false);
-            setHasNewConnectionNotif(false);
-            setViewState('kept_connections');
-          }}
-          className="p-2 rounded-full transition-all cursor-pointer active:scale-95 relative text-[#242423] dark:text-neutral-300 hover:text-[#000000] dark:hover:text-white hover:bg-[#ffffff] dark:hover:bg-neutral-800"
-          aria-label="Kept Connections"
-          title="Kept Contact & Messages"
-        >
-          <div className="relative flex items-center justify-center">
-            <Mail className="w-5 h-5 stroke-[2]" fill="none" />
-            {hasUnreadFriendMessage ? (
-              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e02424] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#e02424] border-1.5 border-white text-[8px] text-white font-black items-center justify-center shadow-xs">
-                  {unreadDmCount > 1 ? (unreadDmCount > 9 ? '9+' : unreadDmCount) : '!'}
-                </span>
-              </span>
-            ) : null}
-          </div>
-        </button>
-
-        {/* 6. Profile / User Account Button */}
+        {/* 5. Profile / User Account Button */}
         <button
           type="button"
           onClick={() => {
@@ -708,43 +660,6 @@ export const Navbar: React.FC = () => {
 
             {/* Notification List */}
             <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2.5 max-h-[60vh] custom-scrollbar">
-              {/* Active Friend Connection Card (only shown if not already present in list) */}
-              {hasNewConnectionNotif && keptConnection && !displayNotifications.some((n) => n.type === 'friend_add' && n.actor_username?.toLowerCase() === keptConnection.username.toLowerCase() && !n.read) && (
-                <div
-                  onClick={() => {
-                    setHasNewConnectionNotif(false);
-                    setShowNotifPopover(false);
-                    setViewState('kept_connections');
-                  }}
-                  className="p-3 bg-[#fff1f3] dark:bg-[#271216] border-2 border-black dark:border-white/20 rounded-2xl cursor-pointer hover:bg-[#ffe3e8] dark:hover:bg-[#34181d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.15)] active:translate-x-[1px] active:translate-y-[1px]"
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="relative shrink-0">
-                      <img
-                        src={keptConnection.avatar_url || getAvatarForPseudonym(keptConnection.username)}
-                        alt={keptConnection.username}
-                        className="w-10 h-10 rounded-full border-2 border-black dark:border-white/20 object-cover bg-amber-50 shrink-0 shadow-xs"
-                      />
-                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#701a31] text-white flex items-center justify-center text-[9px] border border-black dark:border-white/20 shadow-2xs">
-                        ✨
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <p className="text-xs font-black text-black dark:text-white">New Friend Connection</p>
-                        <span className="text-[9px] font-black px-1.5 py-0.2 bg-[#00e599] text-black rounded-full border border-black">
-                          Connected
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-800 dark:text-zinc-200 font-bold mt-0.5">
-                        <span className="text-[#701a31] dark:text-rose-400">@{keptConnection.username}</span> added you as a friend!
-                      </p>
-                      <p className="text-[10px] text-gray-500 dark:text-zinc-400 font-semibold mt-1">Tap to chat in direct messages →</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Wall Notifications */}
               {displayNotifications.length > 0 ? (
                 displayNotifications.map((item) => {
@@ -762,9 +677,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => {
                         markSingleNotificationAsRead(item.id);
                         setShowNotifPopover(false);
-                        if (item.type === 'friend_add' || item.type === 'friend_request' || item.type === 'friend_request_pending' || item.type === 'friend_accept' || item.type === 'dm' || item.type === 'friend_remove') {
-                          setViewState('kept_connections');
-                        } else if (item.post_id?.includes('midterm')) {
+                        if (item.post_id?.includes('midterm')) {
                           setViewState('midterm_szn');
                         } else {
                           setTargetPostId(item.post_id);

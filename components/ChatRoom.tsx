@@ -240,7 +240,6 @@ export const ChatRoom: React.FC = () => {
     return 'maroon';
   });
   const [showThemeModal, setShowThemeModal] = useState(false);
-  const [showSlotFullModal, setShowSlotFullModal] = useState(false);
   const activeThemeConfig = getThemeConfig(chatTheme);
 
   // Alive Status State: 'online' | 'idle' | 'offline'
@@ -1611,7 +1610,7 @@ export const ChatRoom: React.FC = () => {
               }`}>
                 <span>
                   {partnerLeftReason === 'left' || partnerLeftReason === 'exited'
-                    ? 'You left the chat'
+                    ? 'Your partner left the chat'
                     : partnerLeftReason === 'skipped'
                     ? `@${partner?.username || 'Partner'} skipped the chat`
                     : partnerLeftReason === 'inactivity'
@@ -1624,7 +1623,7 @@ export const ChatRoom: React.FC = () => {
               <div className={`text-xs space-y-1.5 pt-1 ${isDarkMode ? 'text-zinc-300' : 'text-[#242423]'}`}>
                 <p className="font-medium">
                   {partnerLeftReason === 'left' || partnerLeftReason === 'exited' ? (
-                    <>You ended the chat.</>
+                    <>Your partner ended the chat.</>
                   ) : partnerLeftReason === 'skipped' ? (
                     <>{partner?.username || 'Partner'} skipped the chat.</>
                   ) : partnerLeftReason === 'inactivity' ? (
@@ -1690,113 +1689,8 @@ export const ChatRoom: React.FC = () => {
             isAdminRoom ? 'bg-slate-950/95 border-slate-800 text-white' : ''
           } ${activePickerMsgId ? 'pointer-events-none' : ''}`}
         >
-          {/* "Worth Keeping? Add them" Full-Width Bottom Banner */}
-          {partner && (
-            <div className={`w-full p-3 sm:p-3.5 rounded-2xl border-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-left flex items-center justify-between gap-3 animate-in zoom-in-95 duration-200 ${
-              isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-gradient-to-r from-[#fff1f3] via-white to-[#fff8e6] border-black text-black'
-            }`}>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <img
-                  src={partner.avatar_url || getAvatarForPseudonym(partner.username)}
-                  alt={partner.username}
-                  className="w-9 h-9 rounded-full border-2 border-black object-cover shrink-0 bg-amber-50"
-                />
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-black truncate">
-                    <span className="text-[#701a31] dark:text-[#ff90e8]">@{partner.username}</span> {pendingIncomingRequests.some((r) => r.sender_id === partner.id) ? 'sent you a friend request!' : 'worth keeping?'}
-                  </p>
-                  {pendingIncomingRequests.some((r) => r.sender_id === partner.id) ? (
-                    !keptConnection ? (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-black border border-emerald-500/30 shrink-0">
-                          <Sparkles className="w-2.5 h-2.5" />
-                          <span>1 Slot Open (0/1)</span>
-                        </span>
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold truncate">
-                          Ready to connect
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold truncate">
-                        Accepting will switch from @{keptConnection.username}
-                      </p>
-                    )
-                  ) : (
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold truncate">
-                      Save to your 1 connection slot
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {pendingIncomingRequests.some((r) => r.sender_id === partner.id) ? (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const req = pendingIncomingRequests.find((r) => r.sender_id === partner.id);
-                      if (req) acceptPendingRequest(req.id);
-                    }}
-                    className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border border-black shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{!keptConnection ? 'Accept (0/1 Open)' : 'Accept & Switch'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const req = pendingIncomingRequests.find((r) => r.sender_id === partner.id);
-                      if (req) declinePendingRequest(req.id);
-                    }}
-                    className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl border border-zinc-700 transition-colors active:scale-95 cursor-pointer"
-                  >
-                    Decline
-                  </button>
-                </div>
-              ) : keptConnection && keptConnection.user_id === partner.id ? (
-                <button
-                  type="button"
-                  onClick={() => setViewState('kept_connections')}
-                  className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border-2 border-black shadow-xs transition-all cursor-pointer shrink-0"
-                >
-                  Message
-                </button>
-              ) : pendingOutgoingConnection && pendingOutgoingConnection.target_user_id === partner.id ? (
-                <button
-                  type="button"
-                  onClick={() => setViewState('kept_connections')}
-                  className="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border-2 border-indigo-700 text-xs font-black rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1"
-                >
-                  <Clock className="w-3.5 h-3.5 animate-spin text-indigo-800" />
-                  <span>Requested (Pending)</span>
-                </button>
-              ) : keptConnection && keptConnection.user_id !== partner.id ? (
-                <button
-                  type="button"
-                  onClick={() => setShowSlotFullModal(true)}
-                  className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-amber-800 text-xs font-black rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1"
-                >
-                  <span>Friend (1/1)</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const res = sendFriendRequest(partner);
-                    if (!res.success) {
-                      setShowSlotFullModal(true);
-                    }
-                  }}
-                  className="px-3.5 py-1.5 bg-[#ffc900] hover:bg-[#ffb700] text-black text-xs font-black rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
-                >
-                  <span>Add friend</span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Bottom Action Controls: Status, Stay Here, Find Next Chat */}
-          <div className="flex items-center justify-between gap-2.5 w-full">
+          {/* Bottom Action Controls: Stay Here, Find Next Chat */}
+          <div className="flex items-center justify-end gap-2.5 w-full">
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <button
                 type="button"
@@ -2123,51 +2017,6 @@ export const ChatRoom: React.FC = () => {
         }}
         isDarkMode={isDarkMode}
       />
-
-      {/* 1:1 Connection Slot Full Alert Modal */}
-      {showSlotFullModal && keptConnection && partner && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setShowSlotFullModal(false)}
-        >
-          <div
-            className="bg-white dark:bg-[#18181b] border-4 border-black rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-150 text-black dark:text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-11 h-11 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border-2 border-black text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto shadow-xs text-xl">
-              🔒
-            </div>
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black">1 Connection Limit Reached</h3>
-              <p className="text-xs text-gray-600 dark:text-zinc-400 leading-relaxed">
-                You already have <span className="font-extrabold text-black dark:text-white">@{keptConnection.username}</span> saved. CapiTalk restricts each account to strictly <span className="font-extrabold text-[#701a31] dark:text-[#ff90e8]">1 mutual connection</span> at a time.
-              </p>
-              <p className="text-[11px] text-gray-500 dark:text-zinc-500">
-                To connect with @{partner.username}, you must first unfriend @{keptConnection.username} in your Chats list.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowSlotFullModal(false)}
-                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-black text-xs rounded-xl border-2 border-black cursor-pointer transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSlotFullModal(false);
-                  setViewState('kept_connections');
-                }}
-                className="flex-1 py-2.5 bg-[#ffc900] hover:bg-[#ffd633] text-black font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer transition-all"
-              >
-                Manage Friends
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

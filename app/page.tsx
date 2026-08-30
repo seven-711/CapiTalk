@@ -464,7 +464,13 @@ export default function Home() {
   };
 
   const isMatchmakingTimedOut = showQueueTimeoutModal || (viewState === 'queue' && !isSearching && searchingTimeSeconds >= 35);
-  const shouldHideNavAndFooter = viewState === 'chat' || viewState === 'kept_connections' || (viewState === 'queue' && isSearching) || isMatchmakingTimedOut || viewState === 'midterm_szn' || transitionPhase !== 'idle';
+  const shouldHideNavAndFooter = viewState === 'chat' || (viewState === 'queue' && isSearching) || isMatchmakingTimedOut || viewState === 'midterm_szn' || transitionPhase !== 'idle';
+
+  React.useEffect(() => {
+    if (viewState === 'kept_connections') {
+      setViewState('landing');
+    }
+  }, [viewState, setViewState]);
 
   const [hasAcceptedToc, setHasAcceptedToc] = React.useState<boolean | null>(null);
 
