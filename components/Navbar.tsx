@@ -834,37 +834,50 @@ export const Navbar: React.FC = () => {
 
                           {/* Pending Friend Request Action (Switch / Accept / Decline) */}
                           {(item.type === 'friend_request_pending' || item.type === 'friend_request') && (
-                            <div className="pt-2 flex flex-wrap items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const targetReq = pendingIncomingRequests.find(
-                                    (r) => r.sender_username?.toLowerCase() === rawUsername.toLowerCase() || r.id === item.post_id
-                                  ) || pendingIncomingRequests[0];
+                            <div className="pt-2 flex flex-col gap-2">
+                              {!keptConnection && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-black border border-emerald-500/30">
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    <span>1 Slot Open (0/1)</span>
+                                  </span>
+                                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-semibold">
+                                    Ready to connect!
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const targetReq = pendingIncomingRequests.find(
+                                      (r) => r.sender_username?.toLowerCase() === rawUsername.toLowerCase() || r.id === item.post_id
+                                    ) || pendingIncomingRequests[0];
 
-                                  if (targetReq) {
-                                    acceptPendingRequest(targetReq.id);
-                                  } else if (item.actor_username) {
-                                    keepPartner({
-                                      id: item.actor_username,
-                                      username: item.actor_username,
-                                      department: (item.actor_department as any) || 'General',
-                                      avatar_url: item.actor_avatar,
-                                      status: 'online',
-                                    }, true);
-                                  }
-                                  markSingleNotificationAsRead(item.id);
-                                  setActionToast({
-                                    type: 'info',
-                                    message: `✓ Switched and connected with ${displayName}!`,
-                                  });
-                                }}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-[11px] font-black rounded-xl border border-black shadow-2xs transition-all active:scale-95 cursor-pointer"
-                                title="Unfriend current connection and switch to this friend"
-                              >
-                                <span>{keptConnection ? `Switch to ${displayName}` : `Accept ${displayName}`}</span>
-                              </button>
+                                    if (targetReq) {
+                                      acceptPendingRequest(targetReq.id);
+                                    } else if (item.actor_username) {
+                                      keepPartner({
+                                        id: item.actor_username,
+                                        username: item.actor_username,
+                                        department: (item.actor_department as any) || 'General',
+                                        avatar_url: item.actor_avatar,
+                                        status: 'online',
+                                      }, true);
+                                    }
+                                    markSingleNotificationAsRead(item.id);
+                                    setActionToast({
+                                      type: 'info',
+                                      message: `✓ Connected with ${displayName}!`,
+                                    });
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-[11px] font-black rounded-xl border border-black shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                  title={keptConnection ? "Unfriend current connection and switch to this friend" : "Accept friend request"}
+                                >
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>{keptConnection ? `Switch to ${displayName}` : `Accept ${displayName} (0/1 Open)`}</span>
+                                </button>
 
                               <button
                                 type="button"
@@ -888,7 +901,8 @@ export const Navbar: React.FC = () => {
                                 <span>Decline</span>
                               </button>
                             </div>
-                          )}
+                          </div>
+                        )}
 
                           {/* Unfriend Back / Find Match Action for friend_remove Notifications */}
                           {item.type === 'friend_remove' && (

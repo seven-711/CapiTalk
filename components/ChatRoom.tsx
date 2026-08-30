@@ -1703,11 +1703,29 @@ export const ChatRoom: React.FC = () => {
                 />
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-black truncate">
-                    <span className="text-[#701a31] dark:text-[#ff90e8]">@{partner.username}</span> worth keeping?
+                    <span className="text-[#701a31] dark:text-[#ff90e8]">@{partner.username}</span> {pendingIncomingRequests.some((r) => r.sender_id === partner.id) ? 'sent you a friend request!' : 'worth keeping?'}
                   </p>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold truncate">
-                    Save to your 1 connection slot
-                  </p>
+                  {pendingIncomingRequests.some((r) => r.sender_id === partner.id) ? (
+                    !keptConnection ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-black border border-emerald-500/30 shrink-0">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>1 Slot Open (0/1)</span>
+                        </span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold truncate">
+                          Ready to connect
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold truncate">
+                        Accepting will switch from @{keptConnection.username}
+                      </p>
+                    )
+                  ) : (
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold truncate">
+                      Save to your 1 connection slot
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1722,7 +1740,7 @@ export const ChatRoom: React.FC = () => {
                     className="px-3 py-1.5 bg-[#00e599] hover:bg-[#00c985] text-black text-xs font-black rounded-xl border border-black shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Accept</span>
+                    <span>{!keptConnection ? 'Accept (0/1 Open)' : 'Accept & Switch'}</span>
                   </button>
                   <button
                     type="button"

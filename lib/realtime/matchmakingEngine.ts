@@ -371,6 +371,65 @@ class MatchmakingEngine {
         break;
       }
 
+      case 'FRIEND_REQUEST_INCOMING':
+      case 'CONNECTION_ADDED_TWO_WAY': {
+        try {
+          const { onFriendRequestIncoming } = require('../store/useChatStore');
+          onFriendRequestIncoming(data.sender, data.targetUserId, data.targetUsername);
+          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+            try { new BroadcastChannel('capitalk_global_realtime').postMessage(data); } catch (e) {}
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'FRIEND_REQUEST_ACCEPTED':
+      case 'CONNECTION_ACCEPTED_TWO_WAY': {
+        try {
+          const { onFriendRequestAccepted } = require('../store/useChatStore');
+          onFriendRequestAccepted(data.sender, data.targetUserId, data.targetUsername);
+          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+            try { new BroadcastChannel('capitalk_global_realtime').postMessage(data); } catch (e) {}
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'FRIEND_REQUEST_DECLINED':
+      case 'CONNECTION_DECLINED_TWO_WAY': {
+        try {
+          const { onFriendRequestDeclined } = require('../store/useChatStore');
+          onFriendRequestDeclined(data.senderUsername, data.targetUserId, data.targetUsername);
+          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+            try { new BroadcastChannel('capitalk_global_realtime').postMessage(data); } catch (e) {}
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'FRIEND_REQUEST_CANCELLED':
+      case 'CONNECTION_CANCELLED_TWO_WAY': {
+        try {
+          const { onFriendRequestCancelled } = require('../store/useChatStore');
+          onFriendRequestCancelled(data.senderId, data.targetUserId);
+          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+            try { new BroadcastChannel('capitalk_global_realtime').postMessage(data); } catch (e) {}
+          }
+        } catch (e) {}
+        break;
+      }
+
+      case 'CONNECTION_REMOVED_TWO_WAY': {
+        try {
+          const { onTwoWayConnectionRemoved } = require('../store/useChatStore');
+          onTwoWayConnectionRemoved(data.senderId, data.targetUserId);
+          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+            try { new BroadcastChannel('capitalk_global_realtime').postMessage(data); } catch (e) {}
+          }
+        } catch (e) {}
+        break;
+      }
+
       case 'PONG':
         break;
 

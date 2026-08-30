@@ -340,20 +340,118 @@ class RoomManager {
         } catch (e) {}
         break;
       }
-      case 'GLOBAL_DM_MESSAGE':
+      case 'GLOBAL_DM_MESSAGE': {
+        try {
+          const { message, recipientId } = data;
+          const { useChatStore } = require('../store/useChatStore');
+          const store = useChatStore.getState();
+          const myUserId = store.currentUser?.id;
+          if (myUserId && (recipientId === myUserId || message?.senderId === myUserId)) {
+            const pairKey = [message.senderId, recipientId].sort().join('__');
+            const { appendDirectMessageLocally } = require('../store/useChatStore');
+            appendDirectMessageLocally(pairKey, message, myUserId);
+          }
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
       case 'FRIEND_REQUEST_INCOMING':
+      case 'CONNECTION_ADDED_TWO_WAY': {
+        try {
+          const { onFriendRequestIncoming } = require('../store/useChatStore');
+          onFriendRequestIncoming(data.sender, data.targetUserId, data.targetUsername);
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
       case 'FRIEND_REQUEST_ACCEPTED':
+      case 'CONNECTION_ACCEPTED_TWO_WAY': {
+        try {
+          const { onFriendRequestAccepted } = require('../store/useChatStore');
+          onFriendRequestAccepted(data.sender, data.targetUserId, data.targetUsername);
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
       case 'FRIEND_REQUEST_DECLINED':
+      case 'CONNECTION_DECLINED_TWO_WAY': {
+        try {
+          const { onFriendRequestDeclined } = require('../store/useChatStore');
+          onFriendRequestDeclined(data.senderUsername, data.targetUserId, data.targetUsername);
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
       case 'FRIEND_REQUEST_CANCELLED':
-      case 'USER_PRESENCE_HEARTBEAT':
+      case 'CONNECTION_CANCELLED_TWO_WAY': {
+        try {
+          const { onFriendRequestCancelled } = require('../store/useChatStore');
+          onFriendRequestCancelled(data.senderId, data.targetUserId);
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
+      case 'CONNECTION_REMOVED_TWO_WAY': {
+        try {
+          const { onTwoWayConnectionRemoved } = require('../store/useChatStore');
+          onTwoWayConnectionRemoved(data.senderId, data.targetUserId);
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
+      case 'USER_PRESENCE_HEARTBEAT': {
+        try {
+          const { onPartnerPresenceHeartbeat } = require('../store/useChatStore');
+          onPartnerPresenceHeartbeat(data.userId, data.username, data.timestamp);
+        } catch (e) {}
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('capitalk_global_realtime');
+            bc.postMessage(data);
+            setTimeout(() => bc.close(), 500);
+          } catch {}
+        }
+        break;
+      }
       case 'USER_PRESENCE_QUERY':
       case 'USER_PRESENCE_LEAVE':
-      case 'CONNECTION_ADDED_TWO_WAY':
-      case 'CONNECTION_REMOVED_TWO_WAY':
-      case 'CONNECTION_TARGET_SLOT_FULL':
-      case 'CONNECTION_ACCEPTED_TWO_WAY':
-      case 'CONNECTION_DECLINED_TWO_WAY':
-      case 'CONNECTION_CANCELLED_TWO_WAY': {
+      case 'CONNECTION_TARGET_SLOT_FULL': {
         if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
           try {
             const bc = new BroadcastChannel('capitalk_global_realtime');

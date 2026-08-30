@@ -96,21 +96,21 @@ export const RegistrationModal: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto py-2 sm:py-6 px-3 sm:px-4 font-sans text-black">
+    <div className="w-full max-w-lg mx-auto py-2 sm:py-6 px-3 sm:px-4 font-sans text-black dark:text-[#f4f4f6] transition-colors duration-200">
       {/* Main Container Card */}
-      <div className="bg-white border-y sm:border border-[#d1d5dc] sm:rounded-2xl p-4 sm:p-6 space-y-5">
+      <div className="bg-white dark:bg-[#18181b] border-y sm:border border-[#d1d5dc] dark:border-zinc-800 sm:rounded-2xl p-4 sm:p-6 space-y-5 shadow-xs dark:shadow-[4px_4px_0px_0px_rgba(0,0,0,0.6)]">
         {/* Header Bar */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => goBack()}
-              className="p-1.5 rounded-full hover:bg-gray-100 text-black transition-colors cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-black dark:text-zinc-200 transition-colors cursor-pointer"
               title="Back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-black">
+            <h1 className="text-base sm:text-lg font-extrabold text-black dark:text-white">
               {currentUser ? 'Edit Profile' : 'Create Profile'}
             </h1>
           </div>
@@ -118,7 +118,7 @@ export const RegistrationModal: React.FC = () => {
 
         {/* Error Alert */}
         {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 animate-in fade-in duration-150">
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 animate-in fade-in duration-150">
             {error}
           </div>
         )}
@@ -127,14 +127,14 @@ export const RegistrationModal: React.FC = () => {
           {/* Avatar Section */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+              <label className="text-xs font-bold text-gray-700 dark:text-zinc-400 uppercase tracking-wide">
                 Avatar
               </label>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleRandomizeAvatar}
-                  className="text-[11px] text-gray-600 hover:text-black font-bold flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white font-bold flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <Shuffle className="w-3 h-3" />
                   <span>Random</span>
@@ -143,15 +143,15 @@ export const RegistrationModal: React.FC = () => {
             </div>
 
             {/* Avatar Preview Row */}
-            <div className="flex items-center gap-3 p-2 bg-[#fbfbfa] rounded-xl border border-[#d1d5dc]">
+            <div className="flex items-center gap-3 p-2 bg-[#fbfbfa] dark:bg-[#121214] rounded-xl border border-[#d1d5dc] dark:border-zinc-800 transition-colors">
               <img
                 src={selectedAvatar}
                 alt="Selected avatar"
-                className="w-12 h-12 rounded-full border border-[#d1d5dc] object-cover bg-amber-50 shrink-0"
+                className="w-12 h-12 rounded-full border border-[#d1d5dc] dark:border-zinc-700 object-cover bg-amber-50 dark:bg-zinc-800 shrink-0"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-extrabold text-black truncate">@{username.trim() || 'username'}</p>
-                <p className="text-[11px] text-gray-500 font-medium truncate">{department.replace('College of ', '')}</p>
+                <p className="text-xs font-extrabold text-black dark:text-white truncate">@{username.trim() || 'username'}</p>
+                <p className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium truncate">{department.replace('College of ', '')}</p>
               </div>
             </div>
 
@@ -164,8 +164,8 @@ export const RegistrationModal: React.FC = () => {
                   onClick={() => setActiveCategory(cat)}
                   className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border whitespace-nowrap cursor-pointer transition-colors ${
                     activeCategory === cat
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-gray-600 border-[#d1d5dc] hover:text-black hover:border-black'
+                      ? 'bg-black text-white border-black dark:bg-[#00e599] dark:text-black dark:border-[#00e599]'
+                      : 'bg-white dark:bg-[#18181b] text-gray-600 dark:text-zinc-400 border-[#d1d5dc] dark:border-zinc-800 hover:text-black dark:hover:text-white hover:border-black dark:hover:border-zinc-600'
                   }`}
                 >
                   {cat}
@@ -174,7 +174,7 @@ export const RegistrationModal: React.FC = () => {
             </div>
 
             {/* Avatar Grid */}
-            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 p-2 bg-[#fbfbfa] rounded-xl border border-[#d1d5dc] max-h-32 overflow-y-auto">
+            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 p-2 bg-[#fbfbfa] dark:bg-[#121214] rounded-xl border border-[#d1d5dc] dark:border-zinc-800 max-h-32 overflow-y-auto">
               {filteredAvatars.map((avatar) => {
                 const isSelected = selectedAvatar === avatar.url;
                 return (
@@ -187,19 +187,19 @@ export const RegistrationModal: React.FC = () => {
                     }}
                     className={`relative aspect-square rounded-lg overflow-hidden transition-all cursor-pointer ${
                       isSelected
-                        ? 'ring-2 ring-black scale-105 shadow-xs'
+                        ? 'ring-2 ring-black dark:ring-[#00e599] scale-105 shadow-xs'
                         : 'opacity-70 hover:opacity-100 hover:scale-102'
                     }`}
                   >
                     <img
                       src={avatar.url}
                       alt={avatar.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover bg-amber-50/50 dark:bg-zinc-800"
                       loading="lazy"
                     />
                     {isSelected && (
-                      <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-black rounded-full flex items-center justify-center">
-                        <CheckCircle2 className="w-2.5 h-2.5 text-[#00e599]" />
+                      <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-black dark:bg-[#00e599] rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-[#00e599] dark:text-black" />
                       </div>
                     )}
                   </button>
@@ -211,11 +211,11 @@ export const RegistrationModal: React.FC = () => {
           {/* Username Field */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+              <label className="text-xs font-bold text-gray-700 dark:text-zinc-400 uppercase tracking-wide">
                 Pseudonym / Username
               </label>
               {usernameStatus && (
-                <span className={`text-[11px] font-bold ${usernameStatus.isAvailable ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <span className={`text-[11px] font-bold ${usernameStatus.isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                   {usernameStatus.isAvailable ? '✓ Available' : `⚠️ ${usernameStatus.message}`}
                 </span>
               )}
@@ -231,22 +231,22 @@ export const RegistrationModal: React.FC = () => {
                 setError(null);
               }}
               placeholder="e.g. BraveTiger or Starlight"
-              className="w-full px-3.5 py-2.5 text-sm bg-white border border-[#d1d5dc] rounded-xl font-medium focus:outline-none focus:border-black transition-colors"
+              className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-[#121214] text-black dark:text-white border border-[#d1d5dc] dark:border-zinc-800 rounded-xl font-medium focus:outline-none focus:border-black dark:focus:border-[#00e599] transition-colors placeholder:text-gray-400 dark:placeholder:text-zinc-600"
             />
           </div>
 
           {/* Department Field */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+            <label className="text-xs font-bold text-gray-700 dark:text-zinc-400 uppercase tracking-wide">
               College Department
             </label>
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value as DepartmentType)}
-              className="w-full px-3.5 py-2.5 text-sm bg-white border border-[#d1d5dc] rounded-xl font-medium focus:outline-none focus:border-black cursor-pointer transition-colors"
+              className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-[#121214] text-black dark:text-white border border-[#d1d5dc] dark:border-zinc-800 rounded-xl font-medium focus:outline-none focus:border-black dark:focus:border-[#00e599] cursor-pointer transition-colors"
             >
               {CU_DEPARTMENTS.map((dept) => (
-                <option key={dept} value={dept}>
+                <option key={dept} value={dept} className="bg-white dark:bg-[#18181b] text-black dark:text-white">
                   {dept}
                 </option>
               ))}
@@ -258,14 +258,14 @@ export const RegistrationModal: React.FC = () => {
             <button
               type="button"
               onClick={() => goBack()}
-              className="w-1/3 py-2.5 text-xs sm:text-sm font-bold text-gray-600 hover:text-black border border-[#d1d5dc] hover:border-black rounded-xl transition-colors cursor-pointer"
+              className="w-1/3 py-2.5 text-xs sm:text-sm font-bold text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white border border-[#d1d5dc] dark:border-zinc-800 hover:border-black dark:hover:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isCheckingUsername || (usernameStatus !== null && !usernameStatus.isAvailable) || !username.trim()}
-              className="flex-1 py-2.5 bg-black hover:bg-zinc-800 disabled:opacity-40 text-white font-extrabold text-xs sm:text-sm rounded-xl transition-all cursor-pointer active:scale-98 shadow-xs"
+              className="flex-1 py-2.5 bg-black hover:bg-zinc-800 dark:bg-[#00e599] dark:hover:bg-[#00c985] text-white dark:text-black disabled:opacity-40 font-extrabold text-xs sm:text-sm rounded-xl transition-all cursor-pointer active:scale-98 shadow-xs"
             >
               {currentUser ? 'Save Changes' : 'Get Started'}
             </button>

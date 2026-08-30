@@ -1334,7 +1334,6 @@ export const KeptConnectionsPage: React.FC = () => {
                     Chats
                   </h1>
                 </div>
-                <p className="text-[11px] text-zinc-400 font-medium">Your 1:1 connection &amp; pending requests</p>
               </div>
             </div>
           </header>
@@ -1382,6 +1381,12 @@ export const KeptConnectionsPage: React.FC = () => {
                               <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30">
                                 {req.sender_department}
                               </span>
+                              {!keptConnection && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/30">
+                                  <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                                  <span>1 Slot Open (0/1)</span>
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
                               {keptConnection ? (
@@ -1390,7 +1395,7 @@ export const KeptConnectionsPage: React.FC = () => {
                                 </>
                               ) : (
                                 <>
-                                  Wants to connect with you. Your 1 friend slot is open!
+                                  Wants to connect with you. Your 1 friend slot is free and ready to accept!
                                 </>
                               )}
                             </p>
@@ -1405,7 +1410,7 @@ export const KeptConnectionsPage: React.FC = () => {
                           onClick={() => acceptPendingRequest(req.id)}
                           className="flex-1 py-2 px-3 bg-[#00e599] hover:bg-[#00c985] text-black font-black text-xs rounded-xl border border-black shadow-xs transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
                         >
-                          <span>{keptConnection ? `Switch to @${req.sender_username}` : `Accept Request`}</span>
+                          <span>{keptConnection ? `Switch to @${req.sender_username}` : `Accept (0/1 Open)`}</span>
                         </button>
 
                         <button
