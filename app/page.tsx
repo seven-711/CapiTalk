@@ -565,7 +565,7 @@ export default function Home() {
         const saved = localStorage.getItem('capitalk_theme');
         const isDark = saved !== null
           ? saved === '1'
-          : (useChatStore.getState().themeMode === 1 || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+          : (useChatStore.getState().themeMode === 1);
         const targetMode = isDark ? 1 : 0;
         if (isDark) {
           document.documentElement.classList.add('dark');

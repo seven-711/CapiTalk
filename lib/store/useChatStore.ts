@@ -792,11 +792,6 @@ export const useChatStore = create<ChatStoreState>()(
                   return mode;
                 }
               }
-              if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-                document.documentElement.setAttribute('data-theme', 'dark');
-                return 1;
-              }
             } catch (e) {}
             document.documentElement.classList.remove('dark');
             document.documentElement.setAttribute('data-theme', 'light');
@@ -1865,11 +1860,7 @@ export const useChatStore = create<ChatStoreState>()(
                 const parsed = JSON.parse(zustandRaw);
                 if (typeof parsed?.state?.themeMode === 'number') {
                   isDark = parsed.state.themeMode === 1;
-                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                  isDark = true;
                 }
-              } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                isDark = true;
               }
             }
             const mode = isDark ? 1 : 0;
