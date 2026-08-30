@@ -189,7 +189,16 @@ export const KeptConnectionsPage: React.FC = () => {
     acceptPendingRequest,
     declinePendingRequest,
     cancelPendingOutgoingConnection,
+    fetchNotificationsFromSupabase,
   } = useChatStore();
+
+  useEffect(() => {
+    fetchNotificationsFromSupabase();
+    const interval = setInterval(() => {
+      fetchNotificationsFromSupabase();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchNotificationsFromSupabase]);
 
   const [activeChatOpen, setActiveChatOpen] = useState(false);
   const [messages, setMessages] = useState<DirectMessage[]>([]);

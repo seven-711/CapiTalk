@@ -20,28 +20,39 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 }
 
 let activeSupabaseAnnChannel: any = null;
+const pendingBroadcastQueue: { event: string; payload: any }[] = [];
 
 export function broadcastGlobalRealtime(event: string, payload: any) {
   if (!supabase || !isSupabaseConfigured) return;
   try {
-    if (activeSupabaseAnnChannel) {
+    if (activeSupabaseAnnChannel && (activeSupabaseAnnChannel.state === 'joined' || activeSupabaseAnnChannel.state === 'joining')) {
       activeSupabaseAnnChannel.send({
         type: 'broadcast',
         event,
         payload,
       });
     } else {
-      const chan = supabase.channel('capitalk_global_announcements_v1');
-      chan.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          activeSupabaseAnnChannel = chan;
-          chan.send({
-            type: 'broadcast',
-            event,
-            payload,
-          });
-        }
-      });
+      pendingBroadcastQueue.push({ event, payload });
+      if (!activeSupabaseAnnChannel) {
+        const chan = supabase.channel('capitalk_global_announcements_v1', {
+          config: { broadcast: { self: true } },
+        });
+        activeSupabaseAnnChannel = chan;
+        chan.subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            while (pendingBroadcastQueue.length > 0) {
+              const item = pendingBroadcastQueue.shift();
+              if (item) {
+                chan.send({
+                  type: 'broadcast',
+                  event: item.event,
+                  payload: item.payload,
+                });
+              }
+            }
+          }
+        });
+      }
     }
   } catch (e) {
     console.warn('[Global Realtime Broadcast Error]', e);
@@ -129,8 +140,16 @@ export const onFriendRequestAccepted = (sender: any, targetUserId?: string, targ
     const targetIdClean = (targetUserId || '').trim().toLowerCase();
     const targetNameClean = (targetUsername || '').trim().toLowerCase().replace(/^@/, '');
 
-    const pendingTargetId = (store.pendingOutgoingConnection?.target_user_id || '').trim().toLowerCase();
-    const pendingTargetName = (store.pendingOutgoingConnection?.target_username || '').trim().toLowerCase().replace(/^@/, '');
+    let pendingObj = store.pendingOutgoingConnection;
+    if (!pendingObj && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('capitalk_pending_outgoing_v1');
+        if (raw) pendingObj = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    const pendingTargetId = (pendingObj?.target_user_id || '').trim().toLowerCase();
+    const pendingTargetName = (pendingObj?.target_username || '').trim().toLowerCase().replace(/^@/, '');
 
     const senderIdClean = (sender.id || '').trim().toLowerCase();
     const senderNameClean = (sender.username || '').trim().toLowerCase().replace(/^@/, '');
@@ -140,18 +159,22 @@ export const onFriendRequestAccepted = (sender: any, targetUserId?: string, targ
       (targetNameClean && myNameClean && targetNameClean === myNameClean) ||
       (targetIdClean && myNameClean && targetIdClean === myNameClean) ||
       (targetNameClean && myIdClean && targetNameClean === myIdClean) ||
-      (pendingTargetId && senderIdClean && pendingTargetId === senderIdClean) ||
+      (pendingTargetId && senderIdClean && (pendingTargetId === senderIdClean || pendingTargetId.includes(senderIdClean) || senderIdClean.includes(pendingTargetId))) ||
       (pendingTargetName && senderNameClean && pendingTargetName === senderNameClean) ||
       (pendingTargetId && senderNameClean && pendingTargetId === senderNameClean) ||
       (pendingTargetName && senderIdClean && pendingTargetName === senderIdClean);
 
     if (isTargetMe) {
+      const resolvedUserId = (sender.id && !sender.id.startsWith('fa_') && !sender.id.startsWith('notif_'))
+        ? sender.id
+        : (pendingTargetId || sender.username || 'user_' + Date.now());
+
       const newConn: KeptConnection = {
         id: 'kc_' + Date.now(),
-        user_id: sender.id,
-        username: sender.username,
-        department: sender.department || 'General',
-        avatar_url: sender.avatar_url,
+        user_id: resolvedUserId,
+        username: sender.username || pendingObj?.target_username || 'Student',
+        department: sender.department || pendingObj?.target_department || 'General',
+        avatar_url: sender.avatar_url || pendingObj?.target_avatar,
         bio: sender.bio,
         added_at: new Date().toISOString(),
         last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -180,7 +203,7 @@ export const onFriendRequestAccepted = (sender: any, targetUserId?: string, targ
       store.addWallNotification({
         post_id: 'accepted_' + Date.now(),
         type: 'friend_accept',
-        actor_alias: `@${sender.username}`,
+        actor_alias: `@${sender.username || 'Student'}`,
         actor_username: sender.username,
         actor_avatar: sender.avatar_url || getAvatarForPseudonym(sender.username),
         actor_department: sender.department || 'General',
@@ -189,7 +212,7 @@ export const onFriendRequestAccepted = (sender: any, targetUserId?: string, targ
 
       store.setActionToast({
         type: 'info',
-        message: `✨ @${sender.username} accepted your friend request!`,
+        message: `✨ @${sender.username || 'Friend'} accepted your friend request!`,
       });
 
       store.sendGlobalPresenceHeartbeat();
@@ -420,6 +443,7 @@ interface ChatStoreState {
   submitFeedback: (input: { category: UserFeedback['category']; rating: number; message: string }) => void;
 
   addWallNotification: (notif: Omit<WallNotification, 'id' | 'created_at' | 'read'>) => void;
+  fetchNotificationsFromSupabase: () => Promise<void>;
   markWallNotificationsAsRead: () => void;
   markSingleNotificationAsRead: (id: string) => void;
   clearWallNotifications: () => void;
@@ -1071,25 +1095,35 @@ export const useChatStore = create<ChatStoreState>()(
 
         if (supabase && isSupabaseConfigured) {
           try {
-            const globalChan = supabase.channel('capitalk_global_announcements_v1');
-            globalChan.send({
-              type: 'broadcast',
-              event: 'friend_request_incoming',
-              payload,
-            });
-
-            supabase.from('notifications').insert({
-              id: 'notif_fr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-              target_user_id: partnerProfile.id,
-              post_id: 'fr_' + Date.now(),
-              type: 'friend_request',
-              actor_alias: `@${currentUser.username}`,
-              actor_username: currentUser.username,
-              actor_department: currentUser.department,
-              actor_avatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
-              message_snippet: `Sent you a friend request.`,
-              read: false,
-            }).then(() => {}, () => {});
+            const notifEntries = [
+              {
+                id: 'notif_fr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                target_user_id: partnerProfile.id,
+                post_id: 'fr_' + Date.now(),
+                type: 'friend_request',
+                actor_alias: `@${currentUser.username}`,
+                actor_username: currentUser.username,
+                actor_department: currentUser.department,
+                actor_avatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
+                message_snippet: `Sent you a friend request.`,
+                read: false,
+              },
+            ];
+            if (partnerProfile.username && partnerProfile.username !== partnerProfile.id) {
+              notifEntries.push({
+                id: 'notif_fru_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                target_user_id: partnerProfile.username,
+                post_id: 'fr_' + Date.now(),
+                type: 'friend_request',
+                actor_alias: `@${currentUser.username}`,
+                actor_username: currentUser.username,
+                actor_department: currentUser.department,
+                actor_avatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
+                message_snippet: `Sent you a friend request.`,
+                read: false,
+              });
+            }
+            supabase.from('notifications').insert(notifEntries).then(() => {}, () => {});
           } catch (e) {}
         }
 
@@ -1229,17 +1263,6 @@ export const useChatStore = create<ChatStoreState>()(
           }
           broadcastGlobalRealtime('connection_removed_two_way', unfriendPayload);
           matchmakingEngine.send(unfriendPayload);
-
-          if (supabase && isSupabaseConfigured) {
-            try {
-              const chan = supabase.channel('capitalk_global_announcements_v1');
-              chan.send({
-                type: 'broadcast',
-                event: 'connection_removed_two_way',
-                payload: unfriendPayload,
-              });
-            } catch (e) {}
-          }
         }
 
         // 2. Set new friend
@@ -1296,25 +1319,35 @@ export const useChatStore = create<ChatStoreState>()(
 
           if (supabase && isSupabaseConfigured) {
             try {
-              const chan = supabase.channel('capitalk_global_announcements_v1');
-              chan.send({
-                type: 'broadcast',
-                event: 'friend_request_accepted',
-                payload: acceptPayload,
-              });
-
-              supabase.from('notifications').insert({
-                id: 'notif_fa_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-                target_user_id: req.sender_id,
-                post_id: 'fa_' + Date.now(),
-                type: 'friend_accept',
-                actor_alias: `@${currentUser.username}`,
-                actor_username: currentUser.username,
-                actor_department: currentUser.department,
-                actor_avatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
-                message_snippet: `Accepted your friend request! You can now send direct messages.`,
-                read: false,
-              }).then(() => {}, () => {});
+              const notifEntries = [
+                {
+                  id: 'notif_fa_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                  target_user_id: req.sender_id,
+                  post_id: 'fa_' + Date.now(),
+                  type: 'friend_accept',
+                  actor_alias: `@${currentUser.username}`,
+                  actor_username: currentUser.username,
+                  actor_department: currentUser.department,
+                  actor_avatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
+                  message_snippet: `Accepted your friend request! You can now send direct messages.`,
+                  read: false,
+                },
+              ];
+              if (req.sender_username && req.sender_username !== req.sender_id) {
+                notifEntries.push({
+                  id: 'notif_fau_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                  target_user_id: req.sender_username,
+                  post_id: 'fa_' + Date.now(),
+                  type: 'friend_accept',
+                  actor_alias: `@${currentUser.username}`,
+                  actor_username: currentUser.username,
+                  actor_department: currentUser.department,
+                  actor_avatar: currentUser.avatar_url || getAvatarForPseudonym(currentUser.username),
+                  message_snippet: `Accepted your friend request! You can now send direct messages.`,
+                  read: false,
+                });
+              }
+              supabase.from('notifications').insert(notifEntries).then(() => {}, () => {});
             } catch (e) {}
           }
           try {
@@ -1363,16 +1396,6 @@ export const useChatStore = create<ChatStoreState>()(
           matchmakingEngine.send(declinePayload);
           matchmakingEngine.send({ ...declinePayload, type: 'CONNECTION_DECLINED_TWO_WAY' });
 
-          if (supabase && isSupabaseConfigured) {
-            try {
-              const chan = supabase.channel('capitalk_global_announcements_v1');
-              chan.send({
-                type: 'broadcast',
-                event: 'friend_request_declined',
-                payload: declinePayload,
-              });
-            } catch (e) {}
-          }
           try {
             const ws = (window as any).__capitalk_ws;
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1412,17 +1435,6 @@ export const useChatStore = create<ChatStoreState>()(
           broadcastGlobalRealtime('connection_cancelled_two_way', cancelPayload);
           matchmakingEngine.send(cancelPayload);
           matchmakingEngine.send({ ...cancelPayload, type: 'FRIEND_REQUEST_CANCELLED' });
-
-          if (supabase && isSupabaseConfigured) {
-            try {
-              const chan = supabase.channel('capitalk_global_announcements_v1');
-              chan.send({
-                type: 'broadcast',
-                event: 'connection_cancelled_two_way',
-                payload: cancelPayload,
-              });
-            } catch (e) {}
-          }
         }
       },
 
@@ -1463,17 +1475,6 @@ export const useChatStore = create<ChatStoreState>()(
           }
           broadcastGlobalRealtime('connection_removed_two_way', removePayload);
           matchmakingEngine.send(removePayload);
-
-          if (supabase && isSupabaseConfigured) {
-            try {
-              const globalChan = supabase.channel('capitalk_global_announcements_v1');
-              globalChan.send({
-                type: 'broadcast',
-                event: 'connection_removed_two_way',
-                payload: removePayload,
-              });
-            } catch (e) {}
-          }
         }
       },
 
@@ -1667,6 +1668,123 @@ export const useChatStore = create<ChatStoreState>()(
         }
 
         set({ wallNotifications: updated });
+      },
+
+      fetchNotificationsFromSupabase: async () => {
+        if (!supabase || !isSupabaseConfigured) return;
+        try {
+          const store = get();
+          const myUser = store.currentUser;
+          const myId = (myUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') : '') || '').trim();
+          const myName = (myUser?.username || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') : '') || '').trim().replace(/^@/, '');
+
+          if (!myId && !myName) return;
+
+          let query = supabase.from('notifications').select('*');
+          if (myId && myName) {
+            query = query.or(`target_user_id.eq.${myId},target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
+          } else if (myId) {
+            query = query.eq('target_user_id', myId);
+          } else if (myName) {
+            query = query.or(`target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
+          }
+
+          const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
+          if (!error && Array.isArray(data)) {
+            const mapped: WallNotification[] = data.map((row) => ({
+              id: row.id,
+              post_id: row.post_id || 'post_db',
+              type: row.type || 'comment',
+              actor_alias: row.actor_alias || (row.actor_username ? `@${row.actor_username}` : '@Student'),
+              actor_username: row.actor_username,
+              actor_avatar: row.actor_avatar,
+              actor_department: row.actor_department,
+              message_snippet: row.message_snippet,
+              comment_text: row.comment_text,
+              admin_remark: row.admin_remark,
+              created_at: row.created_at || new Date().toISOString(),
+              read: row.read ?? false,
+            }));
+
+            // Process unhandled friend requests
+            const friendReqs = data.filter((row) => row.type === 'friend_request');
+            if (friendReqs.length > 0 && !store.keptConnection) {
+              const existingPending = store.pendingIncomingRequests || [];
+              let pendingChanged = false;
+              const newPending = [...existingPending];
+
+              friendReqs.forEach((row) => {
+                const senderUsername = row.actor_username || row.actor_alias?.replace(/^@/, '') || 'Anonymous';
+                const senderId = row.post_id?.replace('fr_', '') || row.id;
+                if (!newPending.some((p) => p.sender_username?.toLowerCase() === senderUsername.toLowerCase() || p.sender_id === senderId)) {
+                  newPending.unshift({
+                    id: row.id,
+                    sender_id: senderId,
+                    sender_username: senderUsername,
+                    sender_department: row.actor_department || 'General',
+                    sender_avatar: row.actor_avatar,
+                    created_at: row.created_at || new Date().toISOString(),
+                  });
+                  pendingChanged = true;
+                }
+              });
+
+              if (pendingChanged) {
+                set({ pendingIncomingRequests: newPending, hasNewConnectionNotif: true });
+                try {
+                  localStorage.setItem('capitalk_pending_incoming_v1', JSON.stringify(newPending));
+                  localStorage.setItem('capitalk_has_new_conn_notif', 'true');
+                } catch (e) {}
+              }
+            }
+
+            // Process friend acceptances (sync kept connection and clear pending outgoing request)
+            const friendAccepts = data.filter((row) => row.type === 'friend_accept');
+            if (friendAccepts.length > 0) {
+              const latestAccept = friendAccepts[0];
+              const partnerUsername = latestAccept.actor_username || latestAccept.actor_alias?.replace(/^@/, '') || 'Anonymous';
+              const rawPartnerId = latestAccept.post_id?.replace(/^fa_/, '').replace(/^accepted_/, '') || latestAccept.id;
+              const pending = store.pendingOutgoingConnection;
+
+              const isMatch = (pending && (
+                (pending.target_user_id && rawPartnerId && pending.target_user_id === rawPartnerId) ||
+                (pending.target_username && partnerUsername && pending.target_username.toLowerCase() === partnerUsername.toLowerCase())
+              )) || !store.keptConnection;
+
+              if (isMatch && (!store.keptConnection || store.keptConnection.username.toLowerCase() === partnerUsername.toLowerCase() || store.pendingOutgoingConnection)) {
+                const newConn: KeptConnection = {
+                  id: 'kc_' + Date.now(),
+                  user_id: rawPartnerId,
+                  username: partnerUsername,
+                  department: latestAccept.actor_department || pending?.target_department || 'General',
+                  avatar_url: latestAccept.actor_avatar || pending?.target_avatar,
+                  added_at: latestAccept.created_at || new Date().toISOString(),
+                  last_chat_date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                };
+
+                set({
+                  keptConnection: newConn,
+                  pendingOutgoingConnection: null,
+                  hasNewConnectionNotif: true,
+                  isKeptPartnerOnline: true,
+                  keptPartnerLastSeen: Date.now(),
+                });
+
+                try {
+                  localStorage.setItem('capitalk_kept_connection_v1', JSON.stringify(newConn));
+                  localStorage.removeItem('capitalk_pending_outgoing_v1');
+                  localStorage.setItem('capitalk_has_new_conn_notif', 'true');
+                } catch (e) {}
+              }
+            }
+
+            const merged = deduplicateNotificationsList([...store.wallNotifications, ...mapped]);
+            set({ wallNotifications: merged });
+            try {
+              localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(merged));
+            } catch (e) {}
+          }
+        } catch (e) {}
       },
 
       markWallNotificationsAsRead: () => {
@@ -2556,6 +2674,66 @@ export const useChatStore = create<ChatStoreState>()(
                       } catch (e) {}
                     }
                   )
+                  .on(
+                    'postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'notifications' },
+                    (payload: any) => {
+                      const newRow = payload?.new;
+                      if (!newRow) return;
+
+                      const store = get();
+                      const myUser = store.currentUser;
+                      const myId = (myUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') : '') || '').trim().toLowerCase();
+                      const myName = (myUser?.username || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') : '') || '').trim().toLowerCase().replace(/^@/, '');
+                      const targetId = (newRow.target_user_id || '').trim().toLowerCase();
+
+                      const isForMe =
+                        (myId && targetId && (targetId === myId || targetId.includes(myId))) ||
+                        (myName && targetId && (targetId === myName || targetId === `@${myName}` || targetId.includes(myName)));
+
+                      if (!isForMe) return;
+
+                      if (newRow.type === 'friend_request') {
+                        const senderProfile: UserProfile = {
+                          id: newRow.post_id?.replace('fr_', '') || newRow.id,
+                          username: newRow.actor_username || newRow.actor_alias?.replace(/^@/, '') || 'Anonymous Student',
+                          department: newRow.actor_department || 'General',
+                          avatar_url: newRow.actor_avatar,
+                          status: 'online',
+                        };
+                        onFriendRequestIncoming(senderProfile, myId, myName);
+                      } else if (newRow.type === 'friend_accept') {
+                        const resolvedSenderId = newRow.post_id?.replace(/^fa_/, '').replace(/^accepted_/, '').replace(/^notif_fa_/, '') || newRow.actor_username || newRow.id;
+                        const senderProfile: UserProfile = {
+                          id: resolvedSenderId,
+                          username: newRow.actor_username || newRow.actor_alias?.replace(/^@/, '') || 'Anonymous Student',
+                          department: newRow.actor_department || 'General',
+                          avatar_url: newRow.actor_avatar,
+                          status: 'online',
+                        };
+                        onFriendRequestAccepted(senderProfile, myId, myName);
+                      } else if (newRow.type === 'friend_remove') {
+                        onTwoWayConnectionRemoved(newRow.post_id?.replace('unfriend_', '') || newRow.id, myId);
+                      }
+
+                      const incomingNotif: WallNotification = {
+                        id: newRow.id,
+                        post_id: newRow.post_id || 'post_' + Date.now(),
+                        type: newRow.type as any,
+                        actor_alias: newRow.actor_alias || `@${newRow.actor_username || 'Student'}`,
+                        actor_username: newRow.actor_username,
+                        actor_avatar: newRow.actor_avatar,
+                        actor_department: newRow.actor_department,
+                        message_snippet: newRow.message_snippet,
+                        comment_text: newRow.comment_text,
+                        admin_remark: newRow.admin_remark,
+                        created_at: newRow.created_at || new Date().toISOString(),
+                        read: false,
+                      };
+
+                      store.addWallNotification(incomingNotif);
+                    }
+                  )
                   .on('broadcast', { event: 'announcement' }, (payload: any) => {
                     const announcement = payload?.payload;
                     if (announcement) {
@@ -3183,6 +3361,9 @@ export const useChatStore = create<ChatStoreState>()(
                     }
                   }, () => {});
 
+                // ── 6. Initial fetch of notifications & pending friend requests ──
+                get().fetchNotificationsFromSupabase();
+
               } catch (e) {}
             } else {
               // No Supabase: fall back to localStorage
@@ -3196,12 +3377,14 @@ export const useChatStore = create<ChatStoreState>()(
               } catch (e) {}
             }
 
-            // ── 6. Lightweight 60-second fallback (catches any missed Realtime events) ─
-            // Fetches only essential columns, capped at 200 rows — ~95% less data than the old poll.
+            // ── 7. Periodic fallback (catches any missed Realtime events & syncs notifications) ─
             if (globalPollInterval) clearInterval(globalPollInterval);
             globalPollInterval = setInterval(() => {
               if (!supabase || !isSupabaseConfigured) return;
               try {
+                // Sync notifications & incoming friend requests every poll cycle
+                get().fetchNotificationsFromSupabase();
+
                 supabase
                   .from('freedom_posts')
                   .select('id,color,status,likes_count,liked_by_users,liked_by_profiles,is_pinned,created_at')
@@ -3232,7 +3415,7 @@ export const useChatStore = create<ChatStoreState>()(
                     });
                   }, () => {});
               } catch (e) {}
-            }, 60000);
+            }, 15000);
           } catch (e) {}
         }
 
