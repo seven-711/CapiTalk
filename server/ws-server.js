@@ -114,6 +114,14 @@ function tryMatchInQueue() {
         continue;
       }
 
+      // Check anti-immediate rematch cooldown (prevents users from instantly matching again after skipping)
+      const aRecentB = Array.isArray(a.recentPartnerIds) && a.recentPartnerIds.includes(b.user.id);
+      const bRecentA = Array.isArray(b.recentPartnerIds) && b.recentPartnerIds.includes(a.user.id);
+      if (aRecentB || bRecentA) {
+        console.log(`[Queue] Cooldown: prevented immediate rematch between ${a.user.username} and ${b.user.username}.`);
+        continue;
+      }
+
       const aMatchesB = filterMatches(a.filter, a.user, b.user);
       const bMatchesA = filterMatches(b.filter, b.user, a.user);
 
@@ -219,7 +227,7 @@ wss.on('connection', (ws) => {
     const { type } = msg;
 
     if (type === 'QUEUE_JOIN') {
-      const { user, filter, blockedUserIds } = msg;
+      const { user, filter, blockedUserIds, recentPartnerIds } = msg;
       clientUserId = user.id;
 
       // Remove any stale presence for this user
@@ -230,9 +238,10 @@ wss.on('connection', (ws) => {
         user,
         filter,
         blockedUserIds: Array.isArray(blockedUserIds) ? blockedUserIds : [],
+        recentPartnerIds: Array.isArray(recentPartnerIds) ? recentPartnerIds : [],
         joinedAt: Date.now(),
       });
-      console.log(`[Queue] ${user.username} (${user.department}) joined | filter: ${filter} | blocked: ${(blockedUserIds || []).length} | queue size: ${queue.size}`);
+      console.log(`[Queue] ${user.username} (${user.department}) joined | filter: ${filter} | recent: ${(recentPartnerIds || []).length} | blocked: ${(blockedUserIds || []).length} | queue size: ${queue.size}`);
 
       send(ws, { type: 'QUEUE_ACK', queueSize: queue.size });
       tryMatchInQueue();

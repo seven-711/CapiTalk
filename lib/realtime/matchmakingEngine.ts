@@ -37,6 +37,7 @@ class MatchmakingEngine {
   private ws: WebSocket | null = null;
   private currentUser: UserProfile | null = null;
   private currentFilter: QueueFilter = 'anyone';
+  private recentPartnerIds: string[] = [];
   private matchCallbacks: Set<MatchFoundCallback> = new Set();
   private reconnectTimer: NodeJS.Timeout | null = null;
   private checkInterval: NodeJS.Timeout | null = null;
@@ -101,22 +102,21 @@ class MatchmakingEngine {
             delete (window as any).__capitalk_ws;
           }
         }
-
-        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        console.log('[WS] Disconnected, scheduling reconnect...');
         this.reconnectTimer = setTimeout(() => {
-          this.connect(() => {
-            if (this.currentUser && this.isSearching) {
-              this.sendJoin();
-            }
-          });
-        }, 2500);
+          if (this.isSearching) {
+            this.connect(() => {
+              if (this.isSearching) this.sendJoin();
+            });
+          }
+        }, 2000);
       };
 
-      ws.onerror = () => {
-        this.ws = null;
+      ws.onerror = (err) => {
+        console.warn('[WS] Error, falling back to Supabase/mesh if needed');
       };
     } catch (e) {
-      console.warn('[WS] Transport unavailable, using Realtime/Fallback mode');
+      console.warn('[WS] Exception connecting', e);
       this.ws = null;
       if (onReady) onReady();
     }
@@ -153,6 +153,7 @@ class MatchmakingEngine {
           type: 'QUEUE_JOIN',
           user: this.currentUser,
           filter: this.currentFilter,
+          recentPartnerIds: this.recentPartnerIds || [],
           blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
         }));
       } catch (e) {
@@ -160,6 +161,7 @@ class MatchmakingEngine {
           type: 'QUEUE_JOIN',
           user: this.currentUser,
           filter: this.currentFilter,
+          recentPartnerIds: this.recentPartnerIds || [],
         }));
       }
     }
@@ -440,7 +442,7 @@ class MatchmakingEngine {
     }
   }
 
-  public joinQueue(user: UserProfile, filter: QueueFilter) {
+  public joinQueue(user: UserProfile, filter: QueueFilter, recentPartnerIds: string[] = []) {
     purgeLegacyAdminKeys();
     const isAdmin = Boolean(
       Boolean(getAdminToken()) ||
@@ -449,18 +451,34 @@ class MatchmakingEngine {
     const sanitizedUser: UserProfile = { ...user, is_admin: isAdmin };
     this.currentUser = sanitizedUser;
     this.currentFilter = filter;
+    this.recentPartnerIds = Array.isArray(recentPartnerIds) ? recentPartnerIds : [];
     this.isSearching = true;
 
-    // 1. If WebSocket is available
+    // 1. If Supabase is configured, register searching state in PostgreSQL public.queue table
+    if (isSupabaseConfigured && supabase) {
+      const dbFilter = ['anyone', 'same', 'different'].includes(filter) ? filter : 'anyone';
+      try {
+        supabase
+          .from('queue')
+          .upsert(
+            {
+              user_id: sanitizedUser.id,
+              filter: dbFilter,
+              searching_since: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' }
+          )
+          .then(() => {}, () => {});
+      } catch (e) {}
+
+      this.initSupabaseQueue(sanitizedUser, filter);
+    }
+
+    // 2. If WebSocket is available
     if (getWsUrl()) {
       this.connect(() => {
         this.sendJoin();
       });
-    }
-
-    // 2. If Supabase is configured, use Supabase Realtime Presence
-    if (isSupabaseConfigured && supabase) {
-      this.initSupabaseQueue(sanitizedUser, filter);
     }
 
     // 3. Fallback: Shared localStorage mesh & local scanner
@@ -504,6 +522,7 @@ class MatchmakingEngine {
               await this.supabaseChannel.track({
                 user,
                 filter,
+                recentPartnerIds: this.recentPartnerIds || [],
                 blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
                 joinedAt: Date.now(),
               });
@@ -511,6 +530,7 @@ class MatchmakingEngine {
               await this.supabaseChannel.track({
                 user,
                 filter,
+                recentPartnerIds: this.recentPartnerIds || [],
                 joinedAt: Date.now(),
               });
             }
@@ -522,16 +542,21 @@ class MatchmakingEngine {
   }
 
   private processSupabasePresence(currentUser: UserProfile, myFilter: QueueFilter, presenceState: Record<string, any[]>) {
-    const candidates: { user: UserProfile; filter: QueueFilter; blockedUserIds?: string[] }[] = [];
+    const candidates: { user: UserProfile; filter: QueueFilter; blockedUserIds?: string[]; recentPartnerIds?: string[] }[] = [];
     Object.values(presenceState).forEach((presences) => {
       presences.forEach((p) => {
         if (p.user && p.user.id !== currentUser.id) {
-          candidates.push({ user: p.user, filter: p.filter, blockedUserIds: p.blockedUserIds });
+          candidates.push({
+            user: p.user,
+            filter: p.filter,
+            blockedUserIds: p.blockedUserIds,
+            recentPartnerIds: p.recentPartnerIds,
+          });
         }
       });
     });
 
-    const partner = candidates.find((c) => this.filterMatches(myFilter, c.filter, currentUser, c.user, c.blockedUserIds));
+    const partner = candidates.find((c) => this.filterMatches(myFilter, c.filter, currentUser, c.user, c.blockedUserIds, c.recentPartnerIds));
     if (partner) {
       const matchPayload: MatchPayload = {
         roomId: 'room_' + Math.random().toString(36).substring(2, 9),
@@ -554,18 +579,27 @@ class MatchmakingEngine {
     partnerFilter: QueueFilter, 
     myUser: UserProfile, 
     partnerUser: UserProfile, 
-    partnerBlockedUserIds?: string[]
+    partnerBlockedUserIds?: string[],
+    partnerRecentPartnerIds?: string[]
   ): boolean {
+    // 1. Anti-Immediate Rematch Cooldown Check (prevents matching the same person immediately after skipping)
+    if (this.recentPartnerIds && Array.isArray(this.recentPartnerIds) && this.recentPartnerIds.includes(partnerUser.id)) {
+      return false;
+    }
+    if (partnerRecentPartnerIds && Array.isArray(partnerRecentPartnerIds) && partnerRecentPartnerIds.includes(myUser.id)) {
+      return false;
+    }
+
     try {
       const { blockedUserIds, bannedUserIds } = require('../store/useChatStore').useChatStore.getState();
       const myBlocked = [...(blockedUserIds || []), ...(bannedUserIds || [])];
 
-      // 1. Did I block them, or are they banned?
+      // 2. Did I block them, or are they banned?
       if (myBlocked.includes(partnerUser.id)) {
         return false;
       }
 
-      // 2. Did they block me?
+      // 3. Did they block me?
       if (partnerBlockedUserIds && Array.isArray(partnerBlockedUserIds) && partnerBlockedUserIds.includes(myUser.id)) {
         return false;
       }
@@ -598,6 +632,7 @@ class MatchmakingEngine {
       filtered.push({
         user,
         filter,
+        recentPartnerIds: this.recentPartnerIds || [],
         blockedUserIds: [...(blockedUserIds || []), ...(bannedUserIds || [])],
         joinedAt: now,
         lastHeartbeat: now,
@@ -629,7 +664,7 @@ class MatchmakingEngine {
       const now = Date.now();
       // Only match against alive entries with heartbeat within last 6 seconds
       const partner = queueItems.find(
-        (q) => q.user.id !== user.id && now - (q.lastHeartbeat || q.joinedAt) < 6000 && this.filterMatches(filter, q.filter, user, q.user, q.blockedUserIds)
+        (q) => q.user.id !== user.id && now - (q.lastHeartbeat || q.joinedAt) < 6000 && this.filterMatches(filter, q.filter, user, q.user, q.blockedUserIds, q.recentPartnerIds)
       );
 
       if (partner) {
@@ -669,6 +704,18 @@ class MatchmakingEngine {
 
     this.removeFromLocalStorage(match.userOne.id);
     this.removeFromLocalStorage(match.userTwo.id);
+
+    // Remove matched users from PostgreSQL public.queue table
+    if (isSupabaseConfigured && supabase) {
+      try {
+        supabase
+          .from('queue')
+          .delete()
+          .in('user_id', [match.userOne.id, match.userTwo.id])
+          .then(() => {}, () => {});
+      } catch (e) {}
+    }
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(STORAGE_MATCH_KEY);
@@ -680,7 +727,7 @@ class MatchmakingEngine {
         this.supabaseChannel.untrack();
         this.supabaseChannel.unsubscribe();
       } catch (e) {}
-        this.supabaseChannel = null;
+      this.supabaseChannel = null;
     }
 
     this.matchCallbacks.forEach((cb) => cb(match));
@@ -720,6 +767,16 @@ class MatchmakingEngine {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 
     this.removeFromLocalStorage(userId);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        supabase
+          .from('queue')
+          .delete()
+          .eq('user_id', userId)
+          .then(() => {}, () => {});
+      } catch (e) {}
+    }
 
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'QUEUE_LEAVE', userId }));

@@ -453,6 +453,8 @@ interface ChatStoreState {
   clearToast: () => void;
   broadcastAnnouncement: (message: string) => void;
   dismissAnnouncement: () => void;
+  recentPartnerIds: string[];
+  addRecentPartner: (partnerId: string) => void;
 
   themeMode: 0 | 1;
   toggleThemeMode: (event?: React.MouseEvent | React.TouchEvent | any) => void;
@@ -760,6 +762,43 @@ export const useChatStore = create<ChatStoreState>()(
         });
 
         return { streakCount: newCount, isNewTrigger: true };
+      },
+
+      recentPartnerIds: typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const raw = localStorage.getItem('capitalk_recent_partners_v1');
+              if (raw) {
+                const list: { partnerId: string; timestamp: number }[] = JSON.parse(raw);
+                const now = Date.now();
+                return list.filter((p) => p && p.partnerId && now - p.timestamp < 180000).map((p) => p.partnerId);
+              }
+            } catch (e) {}
+            return [];
+          })()
+        : [],
+      addRecentPartner: (partnerId: string) => {
+        if (!partnerId || partnerId.startsWith('bot_')) return;
+        const now = Date.now();
+        let existingItems: { partnerId: string; timestamp: number }[] = [];
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('capitalk_recent_partners_v1');
+            if (raw) existingItems = JSON.parse(raw);
+          } catch (e) {}
+        }
+        // Prune entries older than 3 minutes (180,000ms) and avoid duplicate of current partner
+        existingItems = existingItems.filter((p) => p && p.partnerId && p.partnerId !== partnerId && now - p.timestamp < 180000);
+        existingItems.unshift({ partnerId, timestamp: now });
+        // Retain last 5 recent partners
+        existingItems = existingItems.slice(0, 5);
+        const updatedIds = existingItems.map((p) => p.partnerId);
+        set({ recentPartnerIds: updatedIds });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('capitalk_recent_partners_v1', JSON.stringify(existingItems));
+          } catch (e) {}
+        }
       },
 
       themeMode: typeof window !== 'undefined'
@@ -3504,6 +3543,9 @@ export const useChatStore = create<ChatStoreState>()(
               }
               set((state) => {
                 if (state.partnerLeft) return state;
+                const partnerId = match.userOne.id === sanitizedUser.id ? match.userTwo.id : match.userOne.id;
+                get().addRecentPartner(partnerId);
+
                 const isInactive = reason === 'inactivity';
                 const isDisconnected = reason === 'disconnected';
                 const isExited = reason === 'exited';
@@ -3541,13 +3583,58 @@ export const useChatStore = create<ChatStoreState>()(
           );
         });
 
-        matchmakingEngine.joinQueue(currentUser, queueFilter);
+        // Prune expired recent partners (cooldown: 3 minutes)
+        const now = Date.now();
+        let validRecentIds: string[] = [];
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('capitalk_recent_partners_v1');
+            if (raw) {
+              const list: { partnerId: string; timestamp: number }[] = JSON.parse(raw);
+              const valid = list.filter((p) => p && p.partnerId && now - p.timestamp < 180000);
+              validRecentIds = valid.map((p) => p.partnerId);
+              localStorage.setItem('capitalk_recent_partners_v1', JSON.stringify(valid));
+            }
+          } catch (e) {}
+        }
+        set({ recentPartnerIds: validRecentIds });
+
+        // Upsert searching status to PostgreSQL public.queue table
+        if (isSupabaseConfigured && supabase && currentUser) {
+          const dbFilter = ['anyone', 'same', 'different'].includes(queueFilter) ? queueFilter : 'anyone';
+          try {
+            supabase
+              .from('queue')
+              .upsert(
+                {
+                  user_id: currentUser.id,
+                  filter: dbFilter,
+                  searching_since: new Date().toISOString(),
+                },
+                { onConflict: 'user_id' }
+              )
+              .then(() => {}, () => {});
+          } catch (e) {}
+        }
+
+        matchmakingEngine.joinQueue(currentUser, queueFilter, validRecentIds);
       },
 
       cancelSearch: () => {
         const { currentUser } = get();
         if (searchTimer) clearInterval(searchTimer);
-        if (currentUser) matchmakingEngine.leaveQueue(currentUser.id);
+        if (currentUser) {
+          matchmakingEngine.leaveQueue(currentUser.id);
+          if (isSupabaseConfigured && supabase) {
+            try {
+              supabase
+                .from('queue')
+                .delete()
+                .eq('user_id', currentUser.id)
+                .then(() => {}, () => {});
+            } catch (e) {}
+          }
+        }
         set({ isSearching: false, searchingTimeSeconds: 0, viewState: 'queue' });
       },
 
@@ -3760,7 +3847,7 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       nextMatch: () => {
-        const { activeRoom } = get();
+        const { activeRoom, currentUser } = get();
         if (typeof window !== 'undefined') {
           try {
             const audio = new Audio('/audio/skip_sfx.mp3');
@@ -3768,7 +3855,9 @@ export const useChatStore = create<ChatStoreState>()(
             audio.play().catch(() => {});
           } catch (e) {}
         }
-        if (activeRoom) {
+        if (activeRoom && currentUser) {
+          const partnerId = activeRoom.user_one.id === currentUser.id ? activeRoom.user_two.id : activeRoom.user_one.id;
+          get().addRecentPartner(partnerId);
           roomManager.sendSkipSignal('skipped');
           roomManager.leaveRoom();
         }
@@ -3785,11 +3874,24 @@ export const useChatStore = create<ChatStoreState>()(
             audio.play().catch(() => {});
           } catch (e) {}
         }
-        if (activeRoom) {
+        if (activeRoom && currentUser) {
+          const partnerId = activeRoom.user_one.id === currentUser.id ? activeRoom.user_two.id : activeRoom.user_one.id;
+          get().addRecentPartner(partnerId);
           roomManager.sendSkipSignal('exited');
           roomManager.leaveRoom();
         }
-        if (currentUser) matchmakingEngine.leaveQueue(currentUser.id);
+        if (currentUser) {
+          matchmakingEngine.leaveQueue(currentUser.id);
+          if (isSupabaseConfigured && supabase) {
+            try {
+              supabase
+                .from('queue')
+                .delete()
+                .eq('user_id', currentUser.id)
+                .then(() => {}, () => {});
+            } catch (e) {}
+          }
+        }
         set({ activeRoom: null, messages: [], viewState: 'queue', partnerLeft: false, partnerLeftReason: null, bayotCount: 0 });
       },
 
@@ -3798,6 +3900,7 @@ export const useChatStore = create<ChatStoreState>()(
         if (!activeRoom || !currentUser) return;
 
         const partner = activeRoom.user_two.id === currentUser.id ? activeRoom.user_one : activeRoom.user_two;
+        get().addRecentPartner(partner.id);
 
         const newReport: UserReport = {
           id: 'rep_' + Math.random().toString(36).substring(2, 9),

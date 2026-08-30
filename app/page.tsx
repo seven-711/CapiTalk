@@ -581,7 +581,7 @@ export default function Home() {
     }
   }, [initSession, sendGlobalPresenceHeartbeat, queryPartnerPresence]);
 
-  // Prevent accidental page reloads while searching or active in a chat
+  // Prevent accidental page reloads while searching or active in a chat, and clean up queue on tab close
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isSearching || (activeRoom && !partnerLeft)) {
@@ -591,9 +591,18 @@ export default function Home() {
       }
     };
 
+    const handleUnload = () => {
+      const store = useChatStore.getState();
+      if (store.currentUser && store.isSearching) {
+        store.cancelSearch();
+      }
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleUnload);
     };
   }, [isSearching, activeRoom, partnerLeft]);
 
