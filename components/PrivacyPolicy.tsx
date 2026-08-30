@@ -85,25 +85,6 @@ export const PrivacyPolicy: React.FC = () => {
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </button>
-
-          <button
-            type="button"
-            onClick={toggleThemeMode}
-            className="px-3 py-2 flex items-center gap-1.5 rounded-xl border-2 border-black dark:border-zinc-700 shadow-2xs font-black text-xs bg-white dark:bg-[#18181b] text-black dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer active:scale-95"
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDarkMode ? (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                <span>Light Mode</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-3.5 h-3.5 text-indigo-600 fill-indigo-600" />
-                <span>Dark Mode</span>
-              </>
-            )}
-          </button>
         </div>
 
         {/* ── UNIFIED SINGLE CONTAINER ────────────────────────────────────────── */}
