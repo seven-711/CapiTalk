@@ -226,10 +226,6 @@ export const VinylDiskPlayer: React.FC<VinylDiskPlayerProps> = ({
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-400/20 text-amber-300 text-[10px] font-black tracking-tight border border-amber-400/30">
-                <Music className="w-2.5 h-2.5" />
-                <span>Attached Track</span>
-              </span>
               {isPlaying && (
                 <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -311,10 +307,6 @@ export const VinylDiskPlayer: React.FC<VinylDiskPlayerProps> = ({
           {/* Track Info */}
           <div className="flex-1 min-w-0 flex flex-col justify-center text-left">
             <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-2xs border border-amber-400/30">
-                <Music className="w-3 h-3" />
-                <span>Campus Soundtrack</span>
-              </span>
               {isPlaying && (
                 <div className="flex items-end gap-0.5 h-3">
                   <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0ms] h-full" />
