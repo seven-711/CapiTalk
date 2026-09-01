@@ -18,29 +18,114 @@ async function getInnertube(): Promise<Innertube> {
   return ytInitPromise;
 }
 
+function cleanSongTitle(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/\s*\(Official.*?\)/gi, '')
+    .replace(/\s*\[Official.*?\]/gi, '')
+    .replace(/\s*\(Lyric.*?\)/gi, '')
+    .replace(/\s*\[Lyric.*?\]/gi, '')
+    .replace(/\s*\(Audio.*?\)/gi, '')
+    .replace(/\s*\[Audio.*?\]/gi, '')
+    .replace(/\s*\(MV\)/gi, '')
+    .replace(/\s*\[MV\]/gi, '')
+    .replace(/\s*\(Visualizer\)/gi, '')
+    .replace(/\s*\(Visualizer Video\)/gi, '')
+    .replace(/\s*\(Official HD.*?\)/gi, '')
+    .replace(/\s*\(HD\)/gi, '')
+    .replace(/\s*\(4K\)/gi, '')
+    .trim();
+}
+
+function cleanArtistName(str: string): string {
+  if (!str) return '';
+  return str.replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const videoId = searchParams.get('id');
-  const title = searchParams.get('title');
-  const artist = searchParams.get('artist');
-  const query = searchParams.get('q');
+  const rawTitle = searchParams.get('title') || '';
+  const rawArtist = searchParams.get('artist') || '';
+  const rawQuery = searchParams.get('q') || '';
 
-  if (!videoId && !title && !query) {
+  const cleanTitle = cleanSongTitle(rawTitle);
+  const cleanArtist = cleanArtistName(rawArtist);
+  const cleanQuery = cleanSongTitle(rawQuery || `${cleanArtist} ${cleanTitle}`.trim());
+
+  if (!videoId && !cleanTitle && !cleanQuery) {
     return NextResponse.json(
       { error: 'Provide at least "id", "title", or "q" parameter' },
       { status: 400 }
     );
   }
 
+  // ── 1. Fast LRCLIB Primary Fetch ───────────────────────────────────────────
+  try {
+    if (cleanArtist && cleanTitle) {
+      const lrclibDirect = await fetch(
+        `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`,
+        {
+          headers: { 'User-Agent': 'CapiTalk-FreedomWall/1.0 (campus app)' },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (lrclibDirect.ok) {
+        const data = await lrclibDirect.json();
+        const plainText = data.plainLyrics || data.syncedLyrics?.replace(/\[\d+:\d+\.\d+\]\s*/g, '');
+        if (plainText && plainText.trim()) {
+          return NextResponse.json({
+            success: true,
+            title: data.trackName || cleanTitle,
+            artist: data.artistName || cleanArtist,
+            lyrics: plainText.trim(),
+            synced_lyrics: data.syncedLyrics || null,
+            source: 'LRCLIB',
+          });
+        }
+      }
+    }
+
+    // LRCLIB Search fallback with query
+    if (cleanQuery) {
+      const lrclibSearch = await fetch(
+        `https://lrclib.net/api/search?q=${encodeURIComponent(cleanQuery)}`,
+        {
+          headers: { 'User-Agent': 'CapiTalk-FreedomWall/1.0 (campus app)' },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (lrclibSearch.ok) {
+        const searchData = await lrclibSearch.json();
+        if (Array.isArray(searchData) && searchData.length > 0) {
+          const top = searchData[0];
+          const plainText = top.plainLyrics || top.syncedLyrics?.replace(/\[\d+:\d+\.\d+\]\s*/g, '');
+          if (plainText && plainText.trim()) {
+            return NextResponse.json({
+              success: true,
+              title: top.trackName || cleanTitle,
+              artist: top.artistName || cleanArtist,
+              lyrics: plainText.trim(),
+              synced_lyrics: top.syncedLyrics || null,
+              source: 'LRCLIB Search',
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Graceful fallback to YouTube Music
+  }
+
+  // ── 2. YouTube Music Innertube Direct Lyrics Fetch ─────────────────────────
   try {
     const yt = await getInnertube();
     let targetVideoId = videoId;
-    let resolvedTitle = title || '';
-    let resolvedArtist = artist || '';
+    let resolvedTitle = cleanTitle;
+    let resolvedArtist = cleanArtist;
 
-    // 1. If videoId is not given, search YouTube Music to find the song
     if (!targetVideoId) {
-      const searchTerm = query || (artist && title ? `${artist} ${title}` : title || '');
+      const searchTerm = cleanQuery || `${cleanArtist} ${cleanTitle}`.trim();
       try {
         const search = await yt.music.search(searchTerm, { type: 'song' });
         const songs = search.songs?.contents || search.contents?.[0]?.contents || [];
@@ -57,46 +142,56 @@ export async function GET(request: Request) {
       }
     }
 
-    if (!targetVideoId) {
-      return NextResponse.json(
-        { success: false, error: 'Could not find a matching track for lyrics', lyrics: null },
-        { status: 404 }
-      );
-    }
+    if (targetVideoId) {
+      try {
+        const lyricsObj = await yt.music.getLyrics(targetVideoId);
+        const lyricsText = lyricsObj?.description?.text || '';
 
-    // 2. Fetch lyrics using Innertube
-    try {
-      const lyricsObj = await yt.music.getLyrics(targetVideoId);
-      const lyricsText = lyricsObj?.description?.text || '';
-
-      if (lyricsText && lyricsText.trim()) {
-        return NextResponse.json({
-          success: true,
-          videoId: targetVideoId,
-          title: resolvedTitle,
-          artist: resolvedArtist,
-          lyrics: lyricsText.trim(),
-          source: 'YouTube Music',
-        });
+        if (lyricsText && lyricsText.trim()) {
+          return NextResponse.json({
+            success: true,
+            videoId: targetVideoId,
+            title: resolvedTitle || cleanTitle,
+            artist: resolvedArtist || cleanArtist,
+            lyrics: lyricsText.trim(),
+            source: 'YouTube Music',
+          });
+        }
+      } catch (lyricsErr: any) {
+        console.warn('[YouTube Music Direct Lyrics Warning]', lyricsErr?.message || lyricsErr);
       }
-    } catch (lyricsErr: any) {
-      console.warn('[YouTube Music Direct Lyrics Warning]', lyricsErr?.message || lyricsErr);
     }
-
-    // 3. Fallback: Search general YouTube captions/description or secondary lyrics search
-    return NextResponse.json({
-      success: false,
-      videoId: targetVideoId,
-      title: resolvedTitle,
-      artist: resolvedArtist,
-      lyrics: null,
-      message: 'No official lyrics available for this song on YouTube Music.',
-    });
   } catch (error: any) {
-    console.error('[Lyrics Route Error]', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to fetch lyrics' },
-      { status: 500 }
-    );
+    console.warn('[Innertube Lyrics Error]', error);
   }
+
+  // ── 3. Secondary Fallback: lyrics.ovh ──────────────────────────────────────
+  if (cleanArtist && cleanTitle) {
+    try {
+      const ovhRes = await fetch(
+        `https://api.lyrics.ovh/v1/${encodeURIComponent(cleanArtist)}/${encodeURIComponent(cleanTitle)}`,
+        { signal: AbortSignal.timeout(2500) }
+      );
+      if (ovhRes.ok) {
+        const ovhData = await ovhRes.json();
+        if (ovhData.lyrics && ovhData.lyrics.trim()) {
+          return NextResponse.json({
+            success: true,
+            title: cleanTitle,
+            artist: cleanArtist,
+            lyrics: ovhData.lyrics.trim(),
+            source: 'lyrics.ovh',
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  return NextResponse.json({
+    success: false,
+    title: cleanTitle,
+    artist: cleanArtist,
+    lyrics: null,
+    message: 'No official lyrics found for this track.',
+  });
 }

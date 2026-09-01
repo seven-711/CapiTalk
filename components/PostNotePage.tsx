@@ -24,7 +24,13 @@ import {
   Globe,
   Heart,
   MoreHorizontal,
+  Music,
+  Play,
+  Pause,
+  Volume2,
 } from 'lucide-react';
+import { VinylDiskPlayer } from './VinylDiskPlayer';
+import { TRENDING_CAMPUS_TRACKS } from '../lib/musicPresets';
 
 const isColorDark = (hexColor?: string | null): boolean => {
   if (!hexColor) return false;
@@ -194,6 +200,93 @@ export const PostNotePage: React.FC = () => {
   const [gifCategory, setGifCategory] = useState('all');
   const [gifSearchTerm, setGifSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Attached Song State
+  const [attachedSong, setAttachedSong] = useState<any | null>(null);
+  const [showSongModal, setShowSongModal] = useState(false);
+  const [songSearchTerm, setSongSearchTerm] = useState('');
+  const [songSearchResults, setSongSearchResults] = useState<any[]>([]);
+  const [isSearchingSong, setIsSearchingSong] = useState(false);
+  const songSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced Live Song Search
+  useEffect(() => {
+    if (!songSearchTerm.trim()) {
+      setSongSearchResults([]);
+      setIsSearchingSong(false);
+      return;
+    }
+
+    setIsSearchingSong(true);
+    if (songSearchTimeoutRef.current) clearTimeout(songSearchTimeoutRef.current);
+
+    songSearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/music/search?q=${encodeURIComponent(songSearchTerm.trim())}`);
+        const data = await res.json();
+        if (Array.isArray(data.tracks)) {
+          setSongSearchResults(data.tracks);
+        } else if (Array.isArray(data.results?.trackmatches?.track)) {
+          setSongSearchResults(data.results.trackmatches.track);
+        } else {
+          setSongSearchResults([]);
+        }
+      } catch (err) {
+        console.warn('Song search fetch error:', err);
+        setSongSearchResults([]);
+      } finally {
+        setIsSearchingSong(false);
+      }
+    }, 280);
+
+    return () => {
+      if (songSearchTimeoutRef.current) clearTimeout(songSearchTimeoutRef.current);
+    };
+  }, [songSearchTerm]);
+
+  const handleSelectSong = async (track: any) => {
+    let previewUrl = track.preview_url;
+    const trackTitle = track.name || track.title || '';
+    const trackArtist = track.artist || '';
+
+    setAttachedSong({
+      name: trackTitle,
+      title: trackTitle,
+      artist: trackArtist,
+      image_url: track.image_url || track.image?.[1]?.['#text'] || '/avatars/coin-left.jpg',
+      preview_url: previewUrl,
+      url: track.url || track.song_link,
+      song_link: track.song_link || track.url,
+      song_start_time: 0,
+      song_duration: 30,
+    });
+    setShowSongModal(false);
+    setSongSearchTerm('');
+
+    // If previewUrl is not preset, resolve in background
+    if (!previewUrl && trackTitle) {
+      try {
+        const queryTerm = `${trackArtist} ${trackTitle}`.trim();
+        const res = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=song&limit=1`,
+          { signal: AbortSignal.timeout(3500) }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results && data.results.length > 0 && data.results[0].previewUrl) {
+            setAttachedSong((prev: any) => {
+              if (prev && (prev.title === trackTitle || prev.name === trackTitle)) {
+                return { ...prev, preview_url: data.results[0].previewUrl };
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (e) {
+        // Silently catch
+      }
+    }
+  };
 
   const handleAddPollOption = () => {
     if (pollOptions.length < 4) {
@@ -424,6 +517,13 @@ export const PostNotePage: React.FC = () => {
         image_type: attachedMedia?.type,
         poll_question: finalPollQuestion,
         poll_options: pollOptionsList,
+        song_title: attachedSong ? (attachedSong.name || attachedSong.title) : undefined,
+        song_artist: attachedSong?.artist || undefined,
+        song_image_url: attachedSong?.image_url || undefined,
+        song_preview_url: attachedSong?.preview_url || undefined,
+        song_link: attachedSong ? (attachedSong.song_link || attachedSong.url) : undefined,
+        song_start_time: attachedSong?.song_start_time !== undefined ? attachedSong.song_start_time : 0,
+        song_duration: attachedSong?.song_duration !== undefined ? attachedSong.song_duration : 30,
       }, honeypot, deviceId);
 
       if (success) {
@@ -548,6 +648,24 @@ export const PostNotePage: React.FC = () => {
               <span>{message.length}/300</span>
             </div>
           </div>
+
+          {/* Attached Song Vinyl Disk Player */}
+          {attachedSong && (
+            <div className="mb-2.5">
+              <VinylDiskPlayer
+                songTitle={attachedSong.name || attachedSong.title}
+                songArtist={attachedSong.artist}
+                songImageUrl={attachedSong.image_url}
+                songPreviewUrl={attachedSong.preview_url}
+                songLink={attachedSong.song_link || attachedSong.url}
+                songStartTime={attachedSong.song_start_time}
+                songDuration={attachedSong.song_duration || 30}
+                variant="compose"
+                isDark={true}
+                onRemove={() => setAttachedSong(null)}
+              />
+            </div>
+          )}
 
           {/* Attached Media Preview */}
           {attachedMedia && (
@@ -695,6 +813,19 @@ export const PostNotePage: React.FC = () => {
                   title="Attach GIF"
                 >
                   <Film className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSongModal(true)}
+                  className={`p-2 rounded-full transition-all cursor-pointer relative ${
+                    attachedSong
+                      ? 'bg-amber-400 text-black shadow-xs'
+                      : 'hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300 hover:text-black dark:hover:text-white'
+                  }`}
+                  title={attachedSong ? 'Change Attached Song' : 'Attach Song'}
+                >
+                  <Music className="w-4 h-4" />
                 </button>
 
                 <button
@@ -862,6 +993,21 @@ export const PostNotePage: React.FC = () => {
                   )}
                 </div>
 
+                {/* Attached Song Vinyl Disk Preview */}
+                {attachedSong && (
+                  <VinylDiskPlayer
+                    songTitle={attachedSong.name || attachedSong.title}
+                    songArtist={attachedSong.artist}
+                    songImageUrl={attachedSong.image_url}
+                    songPreviewUrl={attachedSong.preview_url}
+                    songLink={attachedSong.song_link || attachedSong.url}
+                    songStartTime={attachedSong.song_start_time}
+                    songDuration={attachedSong.song_duration || 30}
+                    variant="card"
+                    isDark={true}
+                  />
+                )}
+
                 {/* Attached Image / Animated GIF Media */}
                 {attachedMedia && (
                   <div
@@ -975,6 +1121,141 @@ export const PostNotePage: React.FC = () => {
           })()}
         </div>
       </main>
+
+      {/* Song Selection Modal */}
+      {showSongModal && (
+        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-3 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#18181b] border border-[#d1d5dc] dark:border-zinc-800 p-4 rounded-2xl max-w-md w-full text-left shadow-2xl relative max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-zinc-800 shrink-0">
+              <div className="flex items-center gap-1.5 font-bold text-sm text-black dark:text-white">
+                <span>Select Soundtrack</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSongModal(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search Input Bar */}
+            <div className="pt-2 pb-2 shrink-0">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={songSearchTerm}
+                  onChange={(e) => setSongSearchTerm(e.target.value)}
+                  placeholder="Search track title or artist..."
+                  className="w-full pl-8 pr-8 py-2 text-xs border border-[#d1d5dc] dark:border-zinc-700 rounded-xl bg-[#f4f4f0] dark:bg-zinc-800 text-black dark:text-white font-medium focus:outline-none focus:border-black dark:focus:border-white"
+                  autoFocus
+                />
+                {songSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSongSearchTerm('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black dark:hover:text-white p-0.5 rounded-full cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Track Results List */}
+            <div className="flex-1 overflow-y-auto space-y-1.5 min-h-[240px] custom-scrollbar">
+              {isSearchingSong ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400 dark:text-zinc-500">
+                  <p className="text-xs font-medium">Searching...</p>
+                </div>
+              ) : songSearchResults.length > 0 ? (
+                <div className="space-y-1">
+                  {songSearchResults.map((track: any, idx: number) => {
+                    const trackTitle = track.name || track.title;
+                    const trackArtist = track.artist || 'Unknown Artist';
+                    const trackCover = track.image_url || track.image?.[1]?.['#text'] || '/avatars/coin-left.jpg';
+
+                    return (
+                      <div
+                        key={`${track.id || trackTitle}-${idx}`}
+                        onClick={() => handleSelectSong(track)}
+                        className="p-2 rounded-xl hover:bg-[#f4f4f0] dark:hover:bg-zinc-800/80 border border-transparent hover:border-gray-200 dark:hover:border-zinc-700 transition-all flex items-center justify-between gap-2.5 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <img
+                            src={trackCover}
+                            alt={trackTitle}
+                            referrerPolicy="no-referrer"
+                            className="w-10 h-10 rounded-lg object-cover bg-neutral-200 border border-black/10 shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-extrabold text-black dark:text-white truncate">
+                              {trackTitle}
+                            </p>
+                            <p className="text-[11px] font-medium text-gray-500 dark:text-zinc-400 truncate">
+                              {trackArtist}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="px-3 py-1 rounded-lg bg-amber-400 text-black font-black text-[11px] group-hover:scale-105 active:scale-95 transition-all shrink-0 flex items-center gap-1 shadow-2xs">
+                          <Plus className="w-3 h-3" />
+                          <span>Attach</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : songSearchTerm.trim() ? (
+                <div className="py-10 text-center text-xs text-gray-500 dark:text-zinc-400 font-medium">
+                  No songs found for &quot;{songSearchTerm}&quot;
+                </div>
+              ) : (
+                <div className="space-y-3 py-1">
+                  <div className="space-y-1">
+                    {TRENDING_CAMPUS_TRACKS.map((track) => (
+                      <div
+                        key={track.id}
+                        onClick={() => handleSelectSong(track)}
+                        className="p-2 rounded-xl hover:bg-[#f4f4f0] dark:hover:bg-zinc-800/80 border border-transparent hover:border-amber-300/60 dark:hover:border-amber-400/20 transition-all flex items-center justify-between gap-2.5 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <img
+                            src={track.image_url}
+                            alt={track.title}
+                            referrerPolicy="no-referrer"
+                            className="w-10 h-10 rounded-lg object-cover bg-neutral-200 border border-black/10 shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).setAttribute('src', '/avatars/coin-left.jpg');
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-extrabold text-black dark:text-white truncate">
+                              {track.title}
+                            </p>
+                            <p className="text-[11px] font-medium text-gray-500 dark:text-zinc-400 truncate">
+                              {track.artist}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="px-3 py-1 rounded-lg bg-amber-400 text-black font-black text-[11px] group-hover:scale-105 active:scale-95 transition-all shrink-0 flex items-center gap-1 shadow-2xs">
+                          <span>Attach</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* GIFs Modal */}
       {showGifModal && (

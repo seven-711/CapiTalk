@@ -528,19 +528,54 @@ export function getCanonicalNotificationSignature(notif: {
 
 export function deduplicateNotificationsList(notifications: WallNotification[]): WallNotification[] {
   if (!Array.isArray(notifications)) return [];
-  const seenSignatures = new Set<string>();
-  const deduped: WallNotification[] = [];
+  const mapById = new Map<string, WallNotification>();
+  const mapBySig = new Map<string, string>(); // canonical signature -> primary id
 
   for (const notif of notifications) {
+    if (!notif) continue;
     const sig = getCanonicalNotificationSignature(notif);
-    const dedupeKey = `${sig}_${notif.read ? 'read' : 'unread'}`;
-    if (!seenSignatures.has(dedupeKey)) {
-      seenSignatures.add(dedupeKey);
-      deduped.push(notif);
+    const notifId = (notif.id || '').trim();
+
+    // Check if we already have this notification by ID or canonical signature
+    const existingId = (notifId && mapById.has(notifId))
+      ? notifId
+      : (sig && mapBySig.has(sig))
+        ? mapBySig.get(sig)!
+        : null;
+
+    if (existingId && mapById.has(existingId)) {
+      const existing = mapById.get(existingId)!;
+      // Merge: if ANY copy was marked as read, it stays read!
+      const merged: WallNotification = {
+        ...existing,
+        ...notif,
+        id: existing.id || notif.id,
+        read: Boolean(existing.read || notif.read),
+        actor_username: notif.actor_username || existing.actor_username,
+        actor_alias: notif.actor_alias || existing.actor_alias,
+        actor_avatar: notif.actor_avatar || existing.actor_avatar,
+        actor_department: notif.actor_department || existing.actor_department,
+        comment_text: notif.comment_text || existing.comment_text,
+        message_snippet: notif.message_snippet || existing.message_snippet,
+        admin_remark: notif.admin_remark || existing.admin_remark,
+        created_at: existing.created_at && notif.created_at
+          ? (new Date(existing.created_at).getTime() >= new Date(notif.created_at).getTime() ? existing.created_at : notif.created_at)
+          : (existing.created_at || notif.created_at || new Date().toISOString()),
+      };
+      mapById.set(existingId, merged);
+      if (sig) mapBySig.set(sig, existingId);
+    } else {
+      const primaryId = notifId || `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const item: WallNotification = { ...notif, id: primaryId, read: Boolean(notif.read) };
+      mapById.set(primaryId, item);
+      if (sig) mapBySig.set(sig, primaryId);
     }
   }
 
-  return deduped;
+  // Return sorted newest first
+  return Array.from(mapById.values()).sort(
+    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
 }
 
 let searchTimer: NodeJS.Timeout | null = null;
@@ -1689,25 +1724,81 @@ export const useChatStore = create<ChatStoreState>()(
             query = query.or(`target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
           }
 
+          const clearedAtStr = typeof window !== 'undefined' ? localStorage.getItem('capitalk_notifications_cleared_at_v1') : null;
+          const clearedAtMs = clearedAtStr ? new Date(clearedAtStr).getTime() : 0;
+
           const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
           if (!error && Array.isArray(data)) {
-            const mapped: WallNotification[] = data.map((row) => ({
-              id: row.id,
-              post_id: row.post_id || 'post_db',
-              type: row.type || 'comment',
-              actor_alias: row.actor_alias || (row.actor_username ? `@${row.actor_username}` : '@Student'),
-              actor_username: row.actor_username,
-              actor_avatar: row.actor_avatar,
-              actor_department: row.actor_department,
-              message_snippet: row.message_snippet,
-              comment_text: row.comment_text,
-              admin_remark: row.admin_remark,
-              created_at: row.created_at || new Date().toISOString(),
-              read: row.read ?? false,
-            }));
+            // Build map of already-read notifications from local state
+            const currentWall = get().wallNotifications || [];
+            const locallyReadIds = new Set<string>();
+            const locallyReadSigs = new Set<string>();
+
+            for (const n of currentWall) {
+              if (n.read) {
+                if (n.id) locallyReadIds.add(n.id);
+                const sig = getCanonicalNotificationSignature(n);
+                if (sig) locallyReadSigs.add(sig);
+              }
+            }
+
+            const unreadToSyncInDb: string[] = [];
+
+            const filteredData = clearedAtMs > 0
+              ? data.filter((row) => {
+                  const rowTime = new Date(row.created_at || 0).getTime();
+                  // If created before clearedAt and not present in currentWall, ignore it
+                  if (rowTime <= clearedAtMs && !currentWall.some((n) => n.id === row.id)) {
+                    return false;
+                  }
+                  return true;
+                })
+              : data;
+
+            const mapped: WallNotification[] = filteredData.map((row) => {
+              const sig = getCanonicalNotificationSignature({
+                type: row.type || 'comment',
+                post_id: row.post_id,
+                actor_alias: row.actor_alias,
+                actor_username: row.actor_username,
+                comment_text: row.comment_text,
+                message_snippet: row.message_snippet,
+                admin_remark: row.admin_remark,
+              });
+              const isAlreadyReadLocally = locallyReadIds.has(row.id) || (sig && locallyReadSigs.has(sig));
+              const isRead = Boolean(row.read || isAlreadyReadLocally);
+
+              if (isAlreadyReadLocally && !row.read && row.id) {
+                unreadToSyncInDb.push(row.id);
+              }
+
+              return {
+                id: row.id,
+                post_id: row.post_id || 'post_db',
+                type: row.type || 'comment',
+                actor_alias: row.actor_alias || (row.actor_username ? `@${row.actor_username}` : '@Student'),
+                actor_username: row.actor_username,
+                actor_avatar: row.actor_avatar,
+                actor_department: row.actor_department,
+                message_snippet: row.message_snippet,
+                comment_text: row.comment_text,
+                admin_remark: row.admin_remark,
+                created_at: row.created_at || new Date().toISOString(),
+                read: isRead,
+              };
+            });
+
+            // If there were rows in Supabase that the user had marked read locally, sync them to Supabase in the background
+            if (unreadToSyncInDb.length > 0) {
+              supabase
+                .from('notifications')
+                .update({ read: true })
+                .in('id', unreadToSyncInDb)
+                .then(() => {}, () => {});
+            }
 
             // Process unhandled friend requests
-            const friendReqs = data.filter((row) => row.type === 'friend_request');
+            const friendReqs = filteredData.filter((row) => row.type === 'friend_request' && !row.read);
             if (friendReqs.length > 0 && !store.keptConnection) {
               const existingPending = store.pendingIncomingRequests || [];
               let pendingChanged = false;
@@ -1739,7 +1830,7 @@ export const useChatStore = create<ChatStoreState>()(
             }
 
             // Process friend acceptances (sync kept connection and clear pending outgoing request)
-            const friendAccepts = data.filter((row) => row.type === 'friend_accept');
+            const friendAccepts = filteredData.filter((row) => row.type === 'friend_accept');
             if (friendAccepts.length > 0) {
               const latestAccept = friendAccepts[0];
               const partnerUsername = latestAccept.actor_username || latestAccept.actor_alias?.replace(/^@/, '') || 'Anonymous';
@@ -1788,7 +1879,10 @@ export const useChatStore = create<ChatStoreState>()(
       },
 
       markWallNotificationsAsRead: () => {
-        const updated = get().wallNotifications.map((n) => ({ ...n, read: true }));
+        const current = get().wallNotifications || [];
+        const unreadIds = current.filter((n) => !n.read).map((n) => n.id).filter(Boolean);
+        const updated = current.map((n) => ({ ...n, read: true }));
+
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
@@ -1800,10 +1894,37 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
         set({ wallNotifications: updated });
+
+        // Update database rows so subsequent queries don't fetch read=false
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const store = get();
+            const myUser = store.currentUser;
+            const myId = (myUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') : '') || '').trim();
+            const myName = (myUser?.username || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') : '') || '').trim().replace(/^@/, '');
+
+            if (unreadIds.length > 0) {
+              supabase.from('notifications').update({ read: true }).in('id', unreadIds).then(() => {}, () => {});
+            } else if (myId || myName) {
+              let updateQuery = supabase.from('notifications').update({ read: true });
+              if (myId && myName) {
+                updateQuery = updateQuery.or(`target_user_id.eq.${myId},target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
+              } else if (myId) {
+                updateQuery = updateQuery.eq('target_user_id', myId);
+              } else if (myName) {
+                updateQuery = updateQuery.or(`target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
+              }
+              updateQuery.then(() => {}, () => {});
+            }
+          } catch (e) {}
+        }
       },
 
       markSingleNotificationAsRead: (id: string) => {
-        const updated = get().wallNotifications.map((n) => (n.id === id ? { ...n, read: true } : n));
+        if (!id) return;
+        const current = get().wallNotifications || [];
+        const updated = current.map((n) => (n.id === id ? { ...n, read: true } : n));
+
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify(updated));
@@ -1815,12 +1936,24 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
         set({ wallNotifications: updated });
+
+        // Update database row in Supabase
+        if (supabase && isSupabaseConfigured) {
+          try {
+            supabase.from('notifications').update({ read: true }).eq('id', id).then(() => {}, () => {});
+          } catch (e) {}
+        }
       },
 
       clearWallNotifications: () => {
+        const current = get().wallNotifications || [];
+        const ids = current.map((n) => n.id).filter(Boolean);
+        const clearedAt = new Date().toISOString();
+
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('capitalk_wall_notifications_v2', JSON.stringify([]));
+            localStorage.setItem('capitalk_notifications_cleared_at_v1', clearedAt);
           } catch (e) {}
         }
         if (broadcastChannel) {
@@ -1829,6 +1962,29 @@ export const useChatStore = create<ChatStoreState>()(
           } catch (e) {}
         }
         set({ wallNotifications: [] });
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const store = get();
+            const myUser = store.currentUser;
+            const myId = (myUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_id') : '') || '').trim();
+            const myName = (myUser?.username || (typeof window !== 'undefined' ? localStorage.getItem('capitalk_user_pseudonym') : '') || '').trim().replace(/^@/, '');
+
+            if (ids.length > 0) {
+              supabase.from('notifications').delete().in('id', ids).then(() => {}, () => {});
+            } else if (myId || myName) {
+              let deleteQuery = supabase.from('notifications').delete();
+              if (myId && myName) {
+                deleteQuery = deleteQuery.or(`target_user_id.eq.${myId},target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
+              } else if (myId) {
+                deleteQuery = deleteQuery.eq('target_user_id', myId);
+              } else if (myName) {
+                deleteQuery = deleteQuery.or(`target_user_id.eq.${myName},target_user_id.eq.@${myName}`);
+              }
+              deleteQuery.then(() => {}, () => {});
+            }
+          } catch (e) {}
+        }
       },
 
       readFreedomPostIds: typeof window !== 'undefined'
@@ -1855,7 +2011,7 @@ export const useChatStore = create<ChatStoreState>()(
 
       markFreedomPostsAsRead: () => {
         const allApprovedIds = get().freedomPosts
-          .filter((p) => !p.song_title && (p.status === 'approved' || !p.status || p.is_admin))
+          .filter((p) => (!p.dedicated_to || p.message) && (p.status === 'approved' || !p.status || p.is_admin))
           .map((p) => p.id);
         const merged = Array.from(new Set([...(get().readFreedomPostIds || []), ...allApprovedIds]));
         set({ readFreedomPostIds: merged });
@@ -1868,7 +2024,7 @@ export const useChatStore = create<ChatStoreState>()(
 
       markMusicPostsAsRead: () => {
         const allApprovedSongIds = get().freedomPosts
-          .filter((p) => Boolean(p.song_title) && (p.status === 'approved' || !p.status || p.is_admin))
+          .filter((p) => (Boolean(p.dedicated_to) || (Boolean(p.song_title) && !p.message)) && (p.status === 'approved' || !p.status || p.is_admin))
           .map((p) => p.id);
         const merged = Array.from(new Set([...(get().readMusicPostIds || []), ...allApprovedSongIds]));
         set({ readMusicPostIds: merged });
@@ -4604,8 +4760,8 @@ export const useChatStore = create<ChatStoreState>()(
             actionToast: {
               type: 'announcement',
               message: postData.is_admin
-                ? (postData.song_title ? '✨ Admin song dedication published!' : '✨ Admin post published to Freedom Wall!')
-                : (postData.song_title ? '🎵 Song Dedication Submitted! Pending review.' : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.'),
+                ? (postData.dedicated_to ? '✨ Admin song dedication published!' : '✨ Admin post published to Freedom Wall!')
+                : (postData.dedicated_to ? '🎵 Song Dedication Submitted! Pending review.' : '⏳ Note Submitted! Your note is pending admin review and will be visible once approved.'),
             },
           });
           return true;

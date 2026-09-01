@@ -132,6 +132,9 @@ export interface FreedomPost {
   song_image_url?: string;
   song_preview_url?: string;
   song_link?: string;
+  song_start_time?: number;
+  song_duration?: number;
+  song_lyrics?: string;
   dedicated_to?: string;
   poll_question?: string;
   poll_options?: FreedomPollOption[];

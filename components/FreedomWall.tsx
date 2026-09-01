@@ -10,6 +10,7 @@ import {
   verifyAdminSession,
   purgeLegacyAdminKeys,
 } from '../lib/auth/adminAuth';
+import { VinylDiskPlayer } from './VinylDiskPlayer';
 import {
   MessageSquare,
   Plus,
@@ -296,6 +297,96 @@ export const FreedomWall: React.FC = () => {
 
   const [postAsAdmin, setPostAsAdmin] = useState(false);
   const [commentAsAdmin, setCommentAsAdmin] = useState(false);
+
+  // Audio playback state for posts with attached songs
+  const [activePlayingPostId, setActivePlayingPostId] = useState<string | null>(null);
+  const globalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [cachedAudioPreviews, setCachedAudioPreviews] = useState<{ [postId: string]: string }>({});
+
+  const handleTogglePlaySong = async (post: FreedomPost) => {
+    if (!post.song_title) return;
+
+    if (activePlayingPostId === post.id && globalAudioRef.current) {
+      if (!globalAudioRef.current.paused) {
+        globalAudioRef.current.pause();
+        setActivePlayingPostId(null);
+        return;
+      }
+    }
+
+    // Pause existing audio elements
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+    }
+    document.querySelectorAll('audio').forEach((el) => {
+      if (!el.paused) el.pause();
+    });
+
+    let previewUrl = post.song_preview_url || cachedAudioPreviews[post.id];
+
+    if (!previewUrl) {
+      try {
+        const queryTerm = post.song_artist ? `${post.song_artist} ${post.song_title}` : post.song_title;
+        const res = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=song&limit=1`,
+          { signal: AbortSignal.timeout(3500) }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results && data.results.length > 0 && data.results[0].previewUrl) {
+            previewUrl = data.results[0].previewUrl;
+            setCachedAudioPreviews((prev) => ({ ...prev, [post.id]: previewUrl }));
+          }
+        }
+      } catch (err) {
+        console.warn('Preview search failed:', err);
+      }
+    }
+
+    if (!previewUrl) {
+      if (post.song_link) {
+        window.open(post.song_link, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(
+          `https://www.youtube.com/results?search_query=${encodeURIComponent(`${post.song_artist || ''} ${post.song_title}`)}`,
+          '_blank',
+          'noopener,noreferrer'
+        );
+      }
+      return;
+    }
+
+    const audio = new Audio(previewUrl);
+    const startTime = Math.max(0, Number(post.song_start_time) || 0);
+    const targetDuration = Math.max(5, Number(post.song_duration) || 30);
+
+    audio.currentTime = startTime;
+    globalAudioRef.current = audio;
+    setActivePlayingPostId(post.id);
+
+    audio.ontimeupdate = () => {
+      if (audio.duration && !isNaN(audio.duration)) {
+        const endLimit = Math.min(startTime + targetDuration, audio.duration);
+        if (audio.currentTime >= endLimit || audio.currentTime < startTime - 0.5) {
+          audio.currentTime = startTime;
+        }
+      }
+    };
+
+    audio.onended = () => {
+      setActivePlayingPostId((curr) => (curr === post.id ? null : curr));
+    };
+    audio.onerror = () => {
+      setActivePlayingPostId((curr) => (curr === post.id ? null : curr));
+    };
+
+    audio.play().catch((err) => {
+      if (err.name !== 'AbortError') {
+        console.warn('Audio play notice:', err);
+      }
+      setActivePlayingPostId((curr) => (curr === post.id ? null : curr));
+    });
+  };
 
   useEffect(() => {
     if (!isAdminUser) {
@@ -887,19 +978,19 @@ export const FreedomWall: React.FC = () => {
 
   const myPostsCount = React.useMemo(() => {
     return (freedomPosts || []).filter((p) => {
-      if (p.song_title) return false;
+      if (p.dedicated_to && !p.message) return false;
       return checkIsMyPost(p);
     }).length;
   }, [freedomPosts, checkIsMyPost]);
 
   const pendingNotesCount = React.useMemo(() => {
-    return (freedomPosts || []).filter((p) => !p.song_title && p.status === 'pending').length;
+    return (freedomPosts || []).filter((p) => (!p.dedicated_to || p.message) && p.status === 'pending').length;
   }, [freedomPosts]);
 
   const filteredPosts = (freedomPosts || [])
     .filter((post) => {
-      // Filter out song dedications (they belong on the Music Wall)
-      if (post.song_title) return false;
+      // Filter out pure song dedications without regular note message (they belong on the Music Wall)
+      if (post.dedicated_to && !post.message) return false;
 
       const isMyPost = checkIsMyPost(post);
 
@@ -989,7 +1080,7 @@ export const FreedomWall: React.FC = () => {
 
     // 3. Compute which pagination page contains this note
     const allPostsMatchingOrder = (freedomPosts || [])
-      .filter((p) => !p.song_title)
+      .filter((p) => !p.dedicated_to || p.message)
       .sort((a, b) => {
         const aPinned = isPinnedActive(a);
         const bPinned = isPinnedActive(b);
@@ -1063,7 +1154,14 @@ export const FreedomWall: React.FC = () => {
         key={post.id}
         id={`post-${post.id}`}
         style={{ backgroundColor: cardBgColor }}
+        onClick={() => {
+          if (post.song_title) {
+            handleTogglePlaySong(post);
+          }
+        }}
         className={`sm:rounded-xl shadow-xs border-y sm:border overflow-visible relative transition-all duration-200 ${
+          post.song_title ? 'cursor-pointer' : ''
+        } ${
           isDark
             ? 'border-white/10 dark:border-[#27272a] text-white shadow-md'
             : 'border-[#e4e6eb] text-[#050505]'
@@ -1276,27 +1374,21 @@ export const FreedomWall: React.FC = () => {
           {post.message}
         </div>
 
-        {/* Dedicated Song Embed if present */}
+        {/* Dedicated / Attached Song Disk Player */}
         {post.song_title && (
-          <div className={`mx-3.5 sm:mx-4 mb-3 p-2.5 rounded-xl flex items-center gap-2.5 border ${
-            isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-[#f0f2f5] border-[#e4e6eb] text-[#050505]'
-          }`}>
-            {post.song_image_url && (
-              <img
-                src={post.song_image_url}
-                alt="Song Cover"
-                className="w-9 h-9 rounded-lg object-cover border border-[#e4e6eb]"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className={`text-[12.5px] font-bold truncate ${isDark ? 'text-white' : 'text-[#050505]'}`}>
-                {post.song_title}
-              </p>
-              <p className={`text-[11px] truncate ${isDark ? 'text-white/80' : 'text-[#65676b]'}`}>
-                {post.song_artist || 'Unknown Artist'}
-              </p>
-            </div>
-          </div>
+          <VinylDiskPlayer
+            songTitle={post.song_title}
+            songArtist={post.song_artist}
+            songImageUrl={post.song_image_url}
+            songPreviewUrl={post.song_preview_url || cachedAudioPreviews[post.id]}
+            songLink={post.song_link}
+            songStartTime={post.song_start_time}
+            songDuration={post.song_duration || 30}
+            isDark={true}
+            variant="card"
+            isPlayingProp={activePlayingPostId === post.id}
+            onTogglePlay={() => handleTogglePlaySong(post)}
+          />
         )}
 
         {/* Attached Image / Animated GIF Media */}
@@ -1897,6 +1989,25 @@ export const FreedomWall: React.FC = () => {
                           alt="Attached media"
                           className="w-full h-auto max-h-44 object-contain cursor-pointer"
                           onClick={() => setZoomedImage(selectedPostForComments?.image_url || null)}
+                        />
+                      </div>
+                    )}
+
+                    {/* Attached Song Vinyl Disk Player inside Comments Detail Modal */}
+                    {selectedPostForComments.song_title && (
+                      <div className="mt-2">
+                        <VinylDiskPlayer
+                          songTitle={selectedPostForComments.song_title}
+                          songArtist={selectedPostForComments.song_artist}
+                          songImageUrl={selectedPostForComments.song_image_url}
+                          songPreviewUrl={selectedPostForComments.song_preview_url || cachedAudioPreviews[selectedPostForComments.id]}
+                          songLink={selectedPostForComments.song_link}
+                          songStartTime={selectedPostForComments.song_start_time}
+                          songDuration={selectedPostForComments.song_duration || 30}
+                          isDark={true}
+                          variant="modal"
+                          isPlayingProp={activePlayingPostId === selectedPostForComments.id}
+                          onTogglePlay={() => handleTogglePlaySong(selectedPostForComments)}
                         />
                       </div>
                     )}

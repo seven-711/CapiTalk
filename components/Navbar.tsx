@@ -94,13 +94,13 @@ export const Navbar: React.FC = () => {
   // Calculate unread approved notes & songs based on read IDs (consistent with notifications)
   const approvedNotes = React.useMemo(() => {
     return (freedomPosts || []).filter(
-      (p) => !p.song_title && (p.status === 'approved' || !p.status || p.is_admin)
+      (p) => (!p.dedicated_to || p.message) && (p.status === 'approved' || !p.status || p.is_admin)
     );
   }, [freedomPosts]);
 
   const approvedSongs = React.useMemo(() => {
     return (freedomPosts || []).filter(
-      (p) => Boolean(p.song_title) && (p.status === 'approved' || !p.status || p.is_admin)
+      (p) => (Boolean(p.dedicated_to) || (Boolean(p.song_title) && !p.message)) && (p.status === 'approved' || !p.status || p.is_admin)
     );
   }, [freedomPosts]);
 
@@ -151,9 +151,10 @@ export const Navbar: React.FC = () => {
         sigKey = `comment_${postId}_${actor}_${textSnippet}`;
       }
 
-      const dedupeKey = `${sigKey}_${notif.read ? 'read' : 'unread'}`;
-      if (!seenSignatures.has(dedupeKey)) {
+      const dedupeKey = notif.id ? `id_${notif.id}` : sigKey;
+      if (!seenSignatures.has(dedupeKey) && !seenSignatures.has(sigKey)) {
         seenSignatures.add(dedupeKey);
+        seenSignatures.add(sigKey);
         deduped.push(notif);
       }
     }
@@ -631,7 +632,7 @@ export const Navbar: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-gray-500 dark:text-neutral-400 font-semibold">Campus wall reactions &amp; friend updates</p>
+                  <p className="text-[10px] text-gray-500 dark:text-neutral-400 font-semibold">Campus wall reactions.</p>
                 </div>
               </div>
 
@@ -863,7 +864,7 @@ export const Navbar: React.FC = () => {
                   </div>
                   <p className="text-xs font-black text-black dark:text-white">No notifications yet</p>
                   <p className="text-[11px] text-gray-500 dark:text-zinc-400 max-w-xs font-medium">
-                    When someone reacts to your confession on the Freedom Wall or adds you as a friend, updates will show up here in real time!
+                    When someone reacts to your confession on the Freedom Wall, updates will show up here in real time!
                   </p>
                 </div>
               ) : null}
