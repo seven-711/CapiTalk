@@ -75,8 +75,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Message cannot exceed 300 characters.' }, { status: 400 });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xkmytopgtrizoxyphnmk.supabase.co';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_vbexy_paqhng1G_GbH7TEg_0OWWLV2-';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://emfixxhpptxjstlcievy.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_aV_Ww6MQD0ISNwgs_2KbHg_mGvYKy2o';
 
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ success: false, error: 'Supabase configuration error.' }, { status: 500 });

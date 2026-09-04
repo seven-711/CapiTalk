@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xkmytopgtrizoxyphnmk.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_vbexy_paqhng1G_GbH7TEg_0OWWLV2-';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://emfixxhpptxjstlcievy.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_aV_Ww6MQD0ISNwgs_2KbHg_mGvYKy2o';
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },

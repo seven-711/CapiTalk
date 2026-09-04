@@ -21,8 +21,8 @@ export async function POST(req: Request) {
     const ext = file.name.split('.').pop() || 'webp';
     const fileName = `posts/note_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xkmytopgtrizoxyphnmk.supabase.co';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_vbexy_paqhng1G_GbH7TEg_0OWWLV2-';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://emfixxhpptxjstlcievy.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_aV_Ww6MQD0ISNwgs_2KbHg_mGvYKy2o';
 
     if (supabaseUrl && supabaseKey) {
       try {
